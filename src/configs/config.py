@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field
 
 
 class Config(BaseModel):
-    save_dir: str = Field(..., description="保存目录")
-    model_location: str = Field(..., description="模型位置")
+    save_dir: str = Field(default="./save", description="保存目录")
+    model_location: str = Field(default="./model", description="模型位置")
     default_model: str = Field(
         default="dashscope/qwen3.5-plus-2026-02-15", description="默认模型"
     )

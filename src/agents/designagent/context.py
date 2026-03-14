@@ -4,7 +4,12 @@ from src.agents.common.base_context import BaseContext
 
 
 @dataclass
-class DeepAgentContext(BaseContext):
+class DesignAgentContext(BaseContext):
+    """控制
+
+    Args:
+        BaseContext (_type_): _description_
+    """
 
     system_prompt: str = field(default="你是一个深度研究智能体")
     sub_model: str = field(default="dashscope/qwen3.5-plus")

@@ -16,6 +16,7 @@ class BaseModelProvider(BaseModel):
 
 
 DEFAULT_BASE_MODEL_PROVIER: dict[str, BaseModelProvider] = {
+    # 阿里
     "dashscope": BaseModelProvider(
         name="dashscope",
         api_key="DASHSCOPE_API_KEY",
@@ -28,6 +29,7 @@ DEFAULT_BASE_MODEL_PROVIER: dict[str, BaseModelProvider] = {
             "qwen3.5-122b-a10b",
         ],
     ),
+    # openai
     "openai": BaseModelProvider(
         name="openai",
         api_key="OPENAI_API_KEY",
@@ -35,6 +37,7 @@ DEFAULT_BASE_MODEL_PROVIER: dict[str, BaseModelProvider] = {
         base_url="https://api.openai.com/v1",
         model_list=["gpt-4o", "gpt-4o-mini"],
     ),
+    # 谷歌
     "gemini": BaseModelProvider(
         name="gemini",
         api_key="GEMINI_API_KEY",

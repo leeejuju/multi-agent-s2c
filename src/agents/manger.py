@@ -1,16 +1,23 @@
+import inspect
+import importlib
 from pathlib import Path
-from src.agents import BaseAgent
+from src.agents.common import BaseAgent
 
 
-class AgentManger:
+class AgentManager:
 
     def __init__(self):
-        self._setup()
         self._instances = {}
+        self._setup_agent()
 
     def _setup_agent(self):
-        exclusive_file = [""]
         agent_dir = Path(__file__).parent
+        for path in agent_dir.iterdir():
+            if path.is_dir() and path.name not in ("common", "__pycache__"):
+                agent_module = importlib.import_module(f"src.agents.{path.name}")
+                for name, obj in inspect.getmembers(agent_module):
+                    if inspect.isclass(obj) and issubclass(obj, BaseAgent):
+                        self._instances[name] = obj()
 
     def get_agent(self, agent_id: str) -> BaseAgent:
         """get agent instance by id
@@ -25,5 +32,13 @@ class AgentManger:
             return self._instances[agent_id]
 
 
-if __name__ == "__main__":
-    print(Path(__file__).parent)
+# if __name__ == "__main__":
+#     instances = {}
+#     agent_dir = Path(__file__).parent
+#     for path in agent_dir.iterdir():
+#         if path.is_dir() and path.name not in ("common", "__pycache__"):
+#             agent_module = importlib.import_module(f"src.agents.{path.name}")
+#             for name, obj in inspect.getmembers(agent_module):
+#                 if inspect.isclass(obj) and issubclass(obj, BaseAgent):
+#                     instances[name] = obj()
+# print(instances)

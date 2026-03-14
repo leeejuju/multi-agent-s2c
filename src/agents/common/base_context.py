@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from dataclasses import dataclass, field
-from configs.config import config as sys_config
+from src.configs import config as sys_config
 
 
 @dataclass
