@@ -1,0 +1,7 @@
+[project]
+name = "multi-agent-s2c"
+version = "0.1.0"
+description = "多智能体剧本创作"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []

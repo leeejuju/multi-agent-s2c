@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* 1. Global CSS Variables */
+:root {
+  --app-bg: #f4f7fb;
+  --panel-bg: rgba(255, 255, 255, 0.95);
+  --border-color: #d7dee8;
+}
+
+/* 2. Base Styles (HTML Element Resets/Defaults) */
+@layer base {
+  body {
+    @apply antialiased text-slate-900 bg-[var(--app-bg)];
+    font-family: "Inter", sans-serif;
+    /* Custom font feature settings for better typography if using Inter */
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Make sure headings are always bold and tight by default */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+/* 3. Reusable Components */
+@layer components {
+
+  /* Common glass panel effect used across the app (Sidebar, Chat, Island) */
+  .glass-panel {
+    @apply bg-white/95 backdrop-blur-xl border border-[var(--border-color)];
+    box-shadow: 0 16px 48px rgba(20, 38, 66, 0.08);
+  }
+
+  /* Standard rounded corners for main floating elements */
+  .rounded-panel {
+    @apply rounded-[28px];
+  }
+
+  /* Flex center utility component */
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+}

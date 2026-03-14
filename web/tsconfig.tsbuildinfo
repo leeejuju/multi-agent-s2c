@@ -1,0 +1,1 @@
+{"root":["./src/env.d.ts","./src/main.ts","./src/api/agent.ts","./src/api/index.ts","./src/app.vue","./src/components/agentcomponent.vue","./src/components/dynamicisland.vue","./src/components/gridcanvas.vue","./src/components/messageinputarea.vue","./src/components/sidebarcomponent.vue","./vite.config.ts"],"version":"5.9.3"}
