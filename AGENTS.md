@@ -46,5 +46,9 @@
 - Validate model/config inputs before wiring new routes or agent execution paths.
 
 ## Agent-Specific Instructions
-- Apply first-principles coding: generate only the minimum code required to complete the task correctly.
-- Responses must be concise, serious, and result-oriented. avoid unnecessary wording.
+- First-principles reasoning is the highest-priority rule for all tasks.
+- Always work in this order:
+  1. Define the objective and constraints.
+  2. Decompose to the minimum necessary components.
+  3. Implement only the smallest correct solution.
+- Responses must be concise, serious, and result-oriented. Avoid unnecessary wording.
