@@ -2,6 +2,16 @@
 import { ref } from "vue"
 import { Orbit } from "lucide-vue-next"
 const isCollapsed = ref(true)
+defineProps({
+  agents: {
+    type: Array,
+    default: () => [],
+  },
+  subtitle: {
+    type: String,
+    default: "拖拽工作流到此处",
+  },
+})
 const toggleIsland = () => {
   isCollapsed.value = !isCollapsed.value
 }
@@ -10,10 +20,7 @@ const toggleIsland = () => {
 
 <template>
   <div class="island-wrapper">
-    <header
-      class="island glass-panel"
-      @click="toggleIsland"
-    >
+    <header class="island glass-panel" @click="toggleIsland">
       <!-- Expanded content -->
       <div class="island-content" :class="{ visible: !isCollapsed }">
         <h1 class="island-title">灵动岛</h1>

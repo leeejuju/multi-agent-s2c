@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="attachment-part">
     <div class="attachment-list">
       <div class="attachment-item" v-for="(name, index) in files" :key="index">
@@ -11,13 +11,12 @@
     </div>
 
     <label class="attachment-upload">
-      <input type="file" multiple :accept="acceptTypes" />
+      <input type="file" multiple :accept="acceptTypes" style="display: none;" />
       <Paperclip :size="14" />
     </label>
   </div>
 </template>
 <script setup lang="ts">
-import type { PropType } from "vue"
 import { Paperclip, X } from "lucide-vue-next"
 
 const acceptTypes =

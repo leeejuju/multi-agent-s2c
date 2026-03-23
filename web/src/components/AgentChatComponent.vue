@@ -1,348 +1,182 @@
 <template>
-  <AgentMessageInputArea>
-    <template #top>
-      <ImagePreviewPart>
+  <aside class="chat-panel">
+    <div class="chat-shell">
+      <header class="chat-header">
+        <h1 class="chat-title">对话面板</h1>
+      </header>
 
-      </ImagePreviewPart>
-    </template>
+      <section class="chat-body">
+        <div v-if="messages.length === 0" class="empty-state">
+        </div>
 
-    <template #attachmentOption>
-      <AttachmentPart>
+        <div v-else class="message-list">
+          <div v-for="(message, index) in messages" :key="`${message.role}-${index}`" class="message-item"
+            :class="message.role === 'user' ? 'is-user' : 'is-assistant'">
+            {{ message.content }}
+          </div>
+        </div>
+      </section>
 
-      </AttachmentPart>
-    </template>
+      <footer class="chat-footer">
+        <AgentMessageInputArea v-model="userInput" @send="handleSend">
+          <template #attachmentOption>
+            <AttachmentPart />
+          </template>
 
-
-  </AgentMessageInputArea>
-
+          <template #imagePreview>
+            <div v-if="previewImage" class="preview-wrapper">
+              <ImagePreviewPart :ImageData="previewImage" @remove-image="previewImage = null" />
+            </div>
+          </template>
+        </AgentMessageInputArea>
+      </footer>
+    </div>
+  </aside>
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
-import {
-  ArrowUp,
-  Check,
-  Paperclip,
-  SlidersHorizontal,
-} from "lucide-vue-next";
-import { agentApi } from "@/api/agent";
-import AgentMessageInputArea from "./AgentMessageInputArea.vue";
-import ImagePreviewPart from "./ImagePreviewPart.vue";
-import AttachmentPart from "./AttachmentPart.vue";
+import { ref } from "vue"
+import AgentMessageInputArea from "./AgentMessageInputArea.vue"
+import ImagePreviewPart from "./ImagePreviewPart.vue"
+import AttachmentPart from "./AttachmentPart.vue"
 
 type ChatMessage = {
-  content: string;
-};
-
-const agentId = "default";
-const modelOptions = ["Gemini", "GPT-4o", "Claude 3.7"];
-
-const messages = ref<ChatMessage[]>([]);
-const inputText = ref("");
-const sending = ref(false);
-const selectedModel = ref(modelOptions[0]);
-const modelMenuOpen = ref(false);
-
-const messageListRef = ref<HTMLElement | null>(null);
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
-const fileInputRef = ref<HTMLInputElement | null>(null);
-
-const files = ref<File[]>([]);
-
-const fileKey = (file: File, index: number) =>
-  `${file.name}-${file.size}-${file.lastModified}-${index}`;
-
-const autoResize = () => {
-  const el = textareaRef.value;
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
-};
-
-const scrollToBottom = async () => {
-  await nextTick();
-  const el = messageListRef.value;
-  if (!el) return;
-  el.scrollTop = el.scrollHeight;
-};
-
-const pickFiles = () => {
-  fileInputRef.value?.click();
-};
-
-const onFileChange = (event: Event) => {
-  console.log("文件变动");
-
-  const input = event.target as HTMLInputElement;
-  if (!input.files) return;
-  files.value.push(...Array.from(input.files));
-  input.value = "";
-};
-
-const removeFile = (index: number) => {
-  files.value.splice(index, 1);
-};
-
-const sendMessage = async () => {
-  messages.value.push({ content: inputText.value });
-  inputText.value = "";
-  await nextTick();
-  autoResize();
-  const response = await agentApi.send2Agent(agentId, "http://localhost:6547/api/chat/agent/default/run", { messages: messages.value })
-  console.log(response.content);
-
-  if (response.content) {
-    messages.value.push({ content: response.content });
-  }
-
+  role: "user" | "assistant"
+  content: string
 }
 
+const userInput = ref("")
+const previewImage = ref<{ slot: string } | null>(null)
+const messages = ref<ChatMessage[]>([])
 
-// const onInputKeydown = (event: KeyboardEvent) => {
-//   if (event.key === "Enter" && !event.shiftKey) {
-//     event.preventDefault();
-//     void sendMessage();
-//   }
-// };
+const handleSend = (text: string) => {
+  messages.value.push({
+    role: "user",
+    content: text,
+  })
+}
 </script>
-<style scoped>
-@reference "tailwindcss";
 
+<style scoped>
 .chat-panel {
-  @apply pointer-events-auto my-4 mr-4 ml-0 flex h-[calc(100%-2rem)] w-[340px] flex-col overflow-hidden;
+  position: relative;
+  display: flex;
+  height: 100%;
+  width: min(360px, calc(100vw - 2rem));
+  justify-content: flex-end;
+  padding: 16px 16px 16px 0;
+  pointer-events: none;
 }
 
-@media (min-width: 1280px) {
-  .chat-panel {
-    width: 400px;
-  }
+.chat-shell {
+  pointer-events: auto;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(215, 222, 232, 0.9);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.14);
 }
 
 .chat-header {
-  @apply px-5 py-4;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid rgba(215, 222, 232, 0.9);
+}
+
+.chat-eyebrow {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
 }
 
 .chat-title {
-  font-size: 16px;
-  line-height: 20px;
+  margin: 0;
+  font-size: 20px;
   font-weight: 600;
   color: #0f172a;
 }
 
 .chat-body {
-  @apply flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4;
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .empty-state {
-  @apply flex h-full flex-1 flex-col items-center justify-center text-center;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #64748b;
 }
 
-.sparkle-icon-container {
-  @apply mb-5 flex h-14 w-14 items-center justify-center rounded-full;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(251, 146, 60, 0.1));
-}
-
-.sparkle-icon {
-  color: #334155;
-}
-
-.welcome-title {
-  @apply mb-1;
+.empty-title {
+  margin: 0 0 8px;
   font-size: 16px;
-  line-height: 20px;
   font-weight: 600;
   color: #0f172a;
 }
 
-.welcome-desc {
-  @apply mb-6;
-  font-size: 13px;
-  line-height: 18px;
-  color: #888888;
-}
-
-.suggestion-list {
-  @apply flex w-full max-w-[300px] flex-col gap-3;
-}
-
-.suggestion-item {
-  @apply flex w-full cursor-pointer items-center gap-3 rounded-[16px] border border-[#d7dee8] bg-[#f4f7fb] px-4 py-3 text-left text-slate-600 transition-all duration-200 hover:bg-white;
+.empty-text {
+  margin: 0;
+  max-width: 220px;
   font-size: 14px;
-  line-height: 18px;
+  line-height: 1.6;
 }
 
-.suggestion-blue:hover {
-  @apply border-blue-500 text-blue-600;
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.suggestion-orange:hover {
-  @apply border-orange-500 text-orange-600;
-}
-
-.suggestion-icon {
-  @apply flex h-7 w-7 items-center justify-center rounded-lg;
-}
-
-.suggestion-icon.bg-blue {
-  @apply bg-blue-500/10 text-blue-500;
-}
-
-.suggestion-icon.bg-orange {
-  @apply bg-orange-500/10 text-orange-500;
-}
-
-.message-row {
-  @apply flex gap-3;
-}
-
-.message-row-user {
-  @apply flex-row-reverse;
-}
-
-.avatar-container {
-  @apply mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-[#d7dee8] bg-white text-slate-600;
-}
-
-.message-bubble-wrapper {
-  @apply max-w-[78%];
-}
-
-.message-bubble {
-  @apply rounded-[16px] px-3.5 py-2.5;
+.message-item {
+  max-width: 85%;
+  border-radius: 18px;
+  padding: 12px 14px;
   font-size: 14px;
-  line-height: 19px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
-.assistant-bubble {
-  @apply rounded-tl-[4px] border border-[#d7dee8] bg-white text-slate-900;
+.is-user {
+  align-self: flex-end;
+  background: #0f172a;
+  color: #fff;
 }
 
-.user-bubble {
-  @apply rounded-tr-[4px] bg-slate-800 text-white;
+.is-assistant {
+  align-self: flex-start;
+  border: 1px solid #d7dee8;
+  background: #fff;
+  color: #0f172a;
 }
 
 .chat-footer {
-  @apply px-1.5 pb-1.5;
+  border-top: 1px solid rgba(215, 222, 232, 0.9);
+  padding: 16px;
 }
 
-.input-container {
-  @apply flex flex-col overflow-hidden rounded-[24px] border border-[#d7dee8] bg-[#f4f7fb];
+.preview-wrapper {
+  position: relative;
+  height: 96px;
+  width: 96px;
+  overflow: hidden;
+  border-radius: 16px;
 }
 
-.attachment-strip {
-  @apply mt-2 flex max-h-[62px] min-h-[48px] gap-2 overflow-x-auto px-2;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.attachment-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.attachment-item {
-  @apply relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl border border-[#d7dee8] bg-white;
-}
-
-.attachment-thumb {
-  @apply h-full w-full object-cover;
-}
-
-.attachment-file-fallback {
-  @apply flex h-full w-full items-center justify-center text-slate-500;
-}
-
-.attachment-remove-btn {
-  @apply absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black text-[10px] text-white;
-}
-
-
-.chat-textarea {
-  @apply m-1 mb-1 mx-0 resize-none border-0 bg-transparent px-3 pt-3 text-slate-900 outline-none;
-  min-height: 44px;
-  max-height: 180px;
-  overflow-y: hidden;
-  font-size: 15px;
-  line-height: 20px;
-  font-weight: 400;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.chat-textarea::-webkit-scrollbar {
-  display: none;
-}
-
-.input-actions-bar {
-  @apply flex items-center justify-between px-3 pb-3 pt-2;
-}
-
-.left-actions {
-  @apply flex items-center gap-2;
-}
-
-.right-actions {
-  @apply relative flex items-center gap-2;
-}
-
-.hidden-file-input {
-  display: none;
-}
-
-.action-btn {
-  @apply flex h-8 w-8 items-center justify-center rounded-full border border-[#b9c6d6] text-slate-500 transition-colors duration-200 hover:bg-[#eef2f8] hover:text-slate-900;
-}
-
-.send-btn {
-  @apply flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2f8] text-slate-400 transition-all duration-200;
-}
-
-.send-btn-active {
-  @apply bg-zinc-900 text-white hover:bg-black;
-}
-
-.model-picker {
-  @apply relative;
-}
-
-.model-popover {
-  @apply absolute bottom-10 right-0 z-20 flex min-w-[220px] flex-col gap-2 rounded-2xl border border-[#d7dee8] bg-white p-2;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
-}
-
-.model-pill {
-  @apply flex w-full items-center gap-2 rounded-full border border-[#d5deea] bg-[#f4f7fb] px-2.5 py-1.5 text-slate-600 transition-all duration-200 hover:border-slate-500 hover:bg-white;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.model-pill-active {
-  @apply border-slate-900 bg-slate-900 text-white;
-}
-
-.model-pill-icon {
-  @apply flex h-4 w-4 items-center justify-center rounded-full bg-white/85 text-[10px] font-semibold text-slate-700;
-}
-
-.model-pill-name {
-  @apply flex-1;
-}
-
-.model-pill-check {
-  @apply flex h-4 w-4 items-center justify-center rounded-full border border-[#cfd8e3] text-transparent;
-}
-
-.model-pill-check.is-checked {
-  @apply border-white/70 bg-white/20 text-white;
-}
-
-.model-pop-enter-active,
-.model-pop-leave-active {
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.model-pop-enter-from,
-.model-pop-leave-to {
-  opacity: 0;
-  transform: translateY(8px) scale(0.96);
+@media (max-width: 1024px) {
+  .chat-panel {
+    width: min(340px, calc(100vw - 1rem));
+    padding: 12px 12px 12px 0;
+  }
 }
 </style>
