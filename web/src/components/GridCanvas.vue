@@ -10,12 +10,9 @@ type GridNode = {
   height: number
 }
 
-const WORLD_WIDTH = 2400
-const WORLD_HEIGHT = 1400
-const WORLD_PADDING = 20
 const GRID_SIZE = 24
-const MIN_SCALE = 0.8
-const MAX_SCALE = 1.2
+const MIN_SCALE = 0.1
+const MAX_SCALE = 3.0
 const ZOOM_STEP = 0.08
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -54,6 +51,11 @@ const workspaceStyle = computed(() => ({
   transform: `translate(${panX.value}px, ${panY.value}px) scale(${scale.value})`,
 }))
 
+const gridBackgroundStyle = computed(() => ({
+  backgroundPosition: `${panX.value}px ${panY.value}px`,
+  backgroundSize: `${GRID_SIZE * scale.value}px ${GRID_SIZE * scale.value}px`,
+}))
+
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
 const snapToGrid = (value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE
@@ -67,20 +69,6 @@ const refreshViewport = () => {
   }
   viewportWidth.value = rect.width
   viewportHeight.value = rect.height
-  clampPanToBounds()
-}
-
-const clampPanToBounds = () => {
-  const scaledWorldWidth = WORLD_WIDTH * scale.value
-  const scaledWorldHeight = WORLD_HEIGHT * scale.value
-
-  const minPanX = viewportWidth.value - scaledWorldWidth - WORLD_PADDING
-  const maxPanX = WORLD_PADDING
-  const minPanY = viewportHeight.value - scaledWorldHeight - WORLD_PADDING
-  const maxPanY = WORLD_PADDING
-
-  panX.value = clamp(panX.value, Math.min(minPanX, maxPanX), Math.max(minPanX, maxPanX))
-  panY.value = clamp(panY.value, Math.min(minPanY, maxPanY), Math.max(minPanY, maxPanY))
 }
 
 const stopPan = (pointerId: number) => {
@@ -151,11 +139,9 @@ const onViewportPointerMove = (event: PointerEvent) => {
 
     const rawX = dragState.value.originNodeX + deltaWorldX
     const rawY = dragState.value.originNodeY + deltaWorldY
-    const maxX = WORLD_WIDTH - node.width
-    const maxY = WORLD_HEIGHT - node.height
 
-    node.x = clamp(snapToGrid(rawX), 0, maxX)
-    node.y = clamp(snapToGrid(rawY), 0, maxY)
+    node.x = snapToGrid(rawX)
+    node.y = snapToGrid(rawY)
     return
   }
 
@@ -164,7 +150,6 @@ const onViewportPointerMove = (event: PointerEvent) => {
     const deltaY = event.clientY - panState.value.startClientY
     panX.value = panState.value.originPanX + deltaX
     panY.value = panState.value.originPanY + deltaY
-    clampPanToBounds()
   }
 }
 
@@ -187,7 +172,6 @@ const onViewportWheel = (event: WheelEvent) => {
   if (!event.ctrlKey && !event.metaKey) {
     panX.value -= event.deltaX
     panY.value -= event.deltaY
-    clampPanToBounds()
     return
   }
 
@@ -208,7 +192,6 @@ const onViewportWheel = (event: WheelEvent) => {
   scale.value = nextScale
   panX.value = cursorX - worldX * nextScale
   panY.value = cursorY - worldY * nextScale
-  clampPanToBounds()
 }
 
 onMounted(() => {
@@ -226,13 +209,13 @@ onBeforeUnmount(() => {
     :class="{ 'cursor-grabbing': panState.active }" @pointerdown="onViewportPointerDown"
     @pointermove="onViewportPointerMove" @pointerup="onViewportPointerUp" @pointercancel="onViewportPointerUp"
     @wheel="onViewportWheel">
+    <!-- Separate background layer that always fills the viewport -->
     <div
-      class="absolute left-0 top-0 h-[1400px] w-[2400px] origin-top-left bg-[radial-gradient(circle,rgba(160,150,140,0.25)_1.5px,transparent_1.5px)] bg-[length:24px_24px]"
-      :style="workspaceStyle">
-      <div
-        class="pointer-events-none absolute inset-0 rounded-[14px] border-2 border-dashed border-[rgba(160,150,140,0.2)]"
-        aria-hidden="true" />
+      class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle,rgba(160,150,140,0.25)_1.5px,transparent_1.5px)]"
+      :style="gridBackgroundStyle"></div>
 
+    <!-- Transform layer for nodes -->
+    <div class="absolute inset-0 origin-top-left" :style="workspaceStyle">
       <article v-for="node in nodes" :key="node.id"
         class="grid-node absolute flex select-none flex-col justify-center gap-[0.4rem] rounded-[16px] border border-black/5 bg-white/95 p-[1rem_1.2rem] backdrop-blur-xl shadow-[0_4px_12px_-2px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03),inset_0_1px_0_rgba(255,255,255,1),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-[box-shadow,transform] duration-200 before:absolute before:inset-y-0 before:left-0 before:w-[6px] before:rounded-l-[16px] before:bg-gradient-to-b before:from-[#4facfe] before:to-[#00f2fe] before:content-[''] hover:-translate-y-0.5 hover:shadow-[0_12px_20px_-4px_rgba(0,0,0,0.08),0_4px_8px_-2px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,1),inset_0_0_0_1px_rgba(255,255,255,0.5)] active:translate-y-0 active:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] cursor-grab active:cursor-grabbing"
         :style="{
