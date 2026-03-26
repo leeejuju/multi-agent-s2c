@@ -10,22 +10,12 @@
 
     <textarea
       ref="inputRef"
-      v-model="proxyModelValue"
+      :value="inputValue"
       class="message-textarea"
       :placeholder="placeholder"
+      @input="handleInput"
       @keydown="handleKeydown"
     />
-
-    <div class="input-footer">
-      <button
-        type="button"
-        class="send-button"
-        :disabled="!canSend"
-        @click="emitSend"
-      >
-        发送
-      </button>
-    </div>
   </div>
 </template>
 
@@ -34,10 +24,10 @@ import { computed, ref, type PropType } from "vue"
 
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 
-const emit = defineEmits(["update:modelValue", "send"])
+const emit = defineEmits(["update:inputValue", "send"])
 
 const props = defineProps({
-  modelValue: {
+  inputValue: {
     type: String,
     default: "",
   },
@@ -51,22 +41,22 @@ const props = defineProps({
   },
 })
 
-const proxyModelValue = computed({
-  get: () => props.modelValue,
-  set: (val: string) => emit("update:modelValue", val),
-})
+const canSend = computed(() => props.inputValue.trim().length > 0)
 
-const canSend = computed(() => proxyModelValue.value.trim().length > 0)
+const handleInput = (event: Event) => {
+  const target = event.target as HTMLTextAreaElement
+  emit("update:inputValue", target.value)
+}
 
 const emitSend = () => {
-  const text = proxyModelValue.value.trim()
+  const text = props.inputValue.trim()
 
   if (!text) {
     return
   }
 
   emit("send", text)
-  emit("update:modelValue", "")
+  emit("update:inputValue", "")
   inputRef.value?.focus()
 }
 
