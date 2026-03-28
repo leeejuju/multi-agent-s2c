@@ -4,6 +4,7 @@
 !.env.template
 
 .claude/settings.local.json
+node_modules
 
 # Python
 .venv/
@@ -29,4 +30,5 @@ web/tsconfig.tsbuildinfo
 .DS_Store
 Thumbs.db
 
-
+# claude directories
+.claude/skills/*
