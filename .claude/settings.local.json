@@ -9,7 +9,14 @@
       "WebSearch",
       "Bash(npm run:*)",
       "Bash(git rm:*)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(python:*)"
     ]
+  },
+  "hooks": {
+    "pre-commit": "python .claude/hooks/check-commit-related.ts"
   }
 }
