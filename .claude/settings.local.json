@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(xargs ls:*)",
+      "Bash(cat .claude/agents/*)",
+      "WebSearch",
+      "Bash(npm run:*)",
+      "Bash(git rm:*)",
+      "Bash(git rebase:*)"
+    ]
+  }
+}

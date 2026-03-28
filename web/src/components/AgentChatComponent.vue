@@ -6,27 +6,34 @@
       </header>
 
       <section class="chat-body">
-        <div v-if="messages.length === 0" class="empty-state">
-        </div>
+        <div v-if="messages.length === 0" class="empty-state"></div>
 
         <div v-else class="message-list">
           <div v-for="(message, index) in messages" :key="`${message.role}-${index}`" class="message-item"
             :class="message.role === 'user' ? 'is-user' : 'is-assistant'">
-            {{ message.content }}
+            <div class="message-content">
+              <span v-if="message.images && message.images.length" class="message-meta">[图片] </span>
+              <span v-if="message.attachments && message.attachments.length" class="message-meta">[附件] </span>
+              {{ message.content }}
+            </div>
           </div>
         </div>
       </section>
 
       <footer class="chat-footer">
-        <AgentMessageInputArea v-model="userInput" @send="handleSend">
-          <template #attachmentOption>
-            <AttachmentPart />
+        <AgentMessageInputArea :text="draftText" :images="draftImages" :attachments="draftAttachments"
+          @update:text="draftText = $event" @update:images="draftImages = $event"
+          @update:attachments="draftAttachments = $event" @send="handleSend">
+          <template #attachment>
+            <AttachmentCapsules v-if="draftImages.length > 0 || draftAttachments.length > 0" :images="draftImages"
+              :attachments="draftAttachments" @removeImage="handleRemoveImage"
+              @removeAttachment="handleRemoveAttachment" />
           </template>
-
-          <template #imagePreview>
-            <div v-if="previewImage" class="preview-wrapper">
-              <ImagePreviewPart :ImageData="previewImage" @remove-image="previewImage = null" />
-            </div>
+          <template #action>
+            <label class="attachment-upload">
+              <input type="file" multiple :accept="acceptTypes" style="display: none;" @change="handleFileChange" />
+              <Paperclip :size="16" />
+            </label>
           </template>
         </AgentMessageInputArea>
       </footer>
@@ -36,24 +43,82 @@
 
 <script setup lang="ts">
 import { ref } from "vue"
+import { Paperclip } from "lucide-vue-next"
 import AgentMessageInputArea from "./AgentMessageInputArea.vue"
-import ImagePreviewPart from "./ImagePreviewPart.vue"
-import AttachmentPart from "./AttachmentPart.vue"
+import AttachmentCapsules from "./AttachmentCapsules.vue"
+
+const acceptTypes =
+  import.meta.env.VITE_FILE_ACCEPT ||
+  ".txt,.md,.pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.ico,.tif,.tiff,.heic,.heif"
+
+type DraftImage = {
+  src: string
+  file?: File
+}
 
 type ChatMessage = {
   role: "user" | "assistant"
   content: string
+  images?: DraftImage[]
+  attachments?: File[]
 }
 
-const userInput = ref("")
-const previewImage = ref<{ slot: string } | null>(null)
+const draftText = ref("")
+const draftImages = ref<DraftImage[]>([])
+const draftAttachments = ref<File[]>([])
 const messages = ref<ChatMessage[]>([])
 
-const handleSend = (text: string) => {
+const handleFileChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (target.files && target.files.length > 0) {
+    const selectedFiles = Array.from(target.files)
+    handleUploadFiles(selectedFiles)
+    target.value = ""
+  }
+}
+
+const handleUploadFiles = (newFiles: File[]) => {
+
+  const imageFiles = newFiles.filter(file => file.type.startsWith("image/"))
+  const otherFiles = newFiles.filter(file => !file.type.startsWith("image/"))
+
+  if (imageFiles.length > 0) {
+    const newImages = imageFiles.map(file => ({
+      src: URL.createObjectURL(file),
+      file,
+    }))
+    draftImages.value = [...draftImages.value, ...newImages]
+  }
+
+  if (otherFiles.length > 0) {
+    draftAttachments.value = [...draftAttachments.value, ...otherFiles]
+  }
+}
+
+const handleRemoveImage = (index: number) => {
+
+  draftImages.value = draftImages.value.filter((_, imageIndex) => imageIndex !== index)
+}
+
+const handleRemoveAttachment = (index: number) => {
+  draftAttachments.value = draftAttachments.value.filter((_, attachmentIndex) => attachmentIndex !== index)
+}
+
+const handleSend = () => {
+  if (!draftText.value.trim() && draftImages.value.length === 0 && draftAttachments.value.length === 0) {
+    return
+  }
+
   messages.value.push({
     role: "user",
-    content: text,
+    content: draftText.value.trim(),
+    images: [...draftImages.value],
+    attachments: [...draftAttachments.value],
   })
+
+  draftText.value = ""
+  draftImages.value = []
+  draftAttachments.value = []
 }
 </script>
 
@@ -87,14 +152,6 @@ const handleSend = (text: string) => {
   border-bottom: 1px solid rgba(215, 222, 232, 0.9);
 }
 
-.chat-eyebrow {
-  margin: 0 0 6px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #64748b;
-}
-
 .chat-title {
   margin: 0;
   font-size: 20px;
@@ -118,20 +175,6 @@ const handleSend = (text: string) => {
   color: #64748b;
 }
 
-.empty-title {
-  margin: 0 0 8px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.empty-text {
-  margin: 0;
-  max-width: 220px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 .message-list {
   display: flex;
   flex-direction: column;
@@ -145,6 +188,12 @@ const handleSend = (text: string) => {
   font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+.message-meta {
+  font-size: 12px;
+  color: #0ea5e9;
+  font-weight: 600;
 }
 
 .is-user {
@@ -161,16 +210,24 @@ const handleSend = (text: string) => {
 }
 
 .chat-footer {
-  border-top: 1px solid rgba(215, 222, 232, 0.9);
-  padding: 16px;
+  padding: 8px;
 }
 
-.preview-wrapper {
-  position: relative;
-  height: 96px;
-  width: 96px;
-  overflow: hidden;
-  border-radius: 16px;
+.attachment-upload {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #64748b;
+  transition: background-color 0.2s;
+}
+
+.attachment-upload:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
 }
 
 @media (max-width: 1024px) {
