@@ -43,11 +43,11 @@
             <Sparkles :size="18" />
           </button>
           
-          <ModelSelector 
+          <!-- <ModelSelector 
             :show="showModelSelector" 
             :current-model-id="selectedModelId"
             @select="handleModelSelect"
-          />
+          /> -->
         </div>
 
         <slot name="actions-right">
@@ -69,7 +69,7 @@
 import { computed, ref, onMounted, onUnmounted } from "vue"
 import { Paperclip, ArrowUp, Sparkles } from "lucide-vue-next"
 import AttachmentCapsules from "./AttachmentCapsules.vue"
-import ModelSelector from "./ModelSelector.vue"
+// import ModelSelector from "./ModelSelector.vue"
 
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const showModelSelector = ref(false)
