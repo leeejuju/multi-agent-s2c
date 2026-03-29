@@ -24,6 +24,8 @@ import AgentChatComponent from "@/components/AgentChatComponent.vue"
           <AgentChatComponent />
         </div>
       </div>
+
+ 
     </div>
   </div>
 </template>

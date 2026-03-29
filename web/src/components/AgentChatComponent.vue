@@ -6,14 +6,16 @@
       </header>
 
       <section class="chat-body">
-        <div v-if="messages.length === 0" class="empty-state"></div>
+        <div v-if="messages.length === 0" class="empty-state">
+          <!-- 这里可以加一些欢迎语或占位图 -->
+        </div>
 
         <div v-else class="message-list">
           <div v-for="(message, index) in messages" :key="`${message.role}-${index}`" class="message-item"
             :class="message.role === 'user' ? 'is-user' : 'is-assistant'">
             <div class="message-content">
-              <span v-if="message.images && message.images.length" class="message-meta">[图片] </span>
-              <span v-if="message.attachments && message.attachments.length" class="message-meta">[附件] </span>
+              <span v-if="message.images?.length" class="message-meta">[图片] </span>
+              <span v-if="message.attachments?.length" class="message-meta">[附件] </span>
               {{ message.content }}
             </div>
           </div>
@@ -21,18 +23,32 @@
       </section>
 
       <footer class="chat-footer">
-        <AgentMessageInputArea :text="draftText" :images="draftImages" :attachments="draftAttachments"
-          @update:text="draftText = $event" @update:images="draftImages = $event"
-          @update:attachments="draftAttachments = $event" @send="handleSend">
-          <template #attachment>
-            <AttachmentCapsules v-if="draftImages.length > 0 || draftAttachments.length > 0" :images="draftImages"
-              :attachments="draftAttachments" @removeImage="handleRemoveImage"
-              @removeAttachment="handleRemoveAttachment" />
-          </template>
-          <template #action>
-            <label class="attachment-upload">
-              <input type="file" multiple :accept="acceptTypes" style="display: none;" @change="handleFileChange" />
-              <Paperclip :size="16" />
+        <AgentMessageInputArea 
+          :text="draftText" 
+          :images="draftImages" 
+          :attachments="draftAttachments"
+          :selected-model-id="selectedModelId"
+          @update:text="handleUpdateText" 
+          @update:selected-model-id="handleUpdateModelId"
+          @send="handleSend"
+          @click-attachment="triggerFileInput"
+          @remove-image="handleRemoveImage"
+          @remove-attachment="handleRemoveAttachment"
+        >
+          <!-- 隐藏的文件输入框 -->
+          <template #actions-left>
+            <label class="attachment-upload-trigger">
+              <input 
+                ref="fileInputRef"
+                type="file" 
+                multiple 
+                :accept="acceptTypes" 
+                style="display: none;" 
+                @change="handleFileChange" 
+              />
+              <button type="button" class="action-icon-btn" @click="triggerFileInput">
+                <Paperclip :size="20" />
+              </button>
             </label>
           </template>
         </AgentMessageInputArea>
@@ -45,7 +61,8 @@
 import { ref } from "vue"
 import { Paperclip } from "lucide-vue-next"
 import AgentMessageInputArea from "./AgentMessageInputArea.vue"
-import AttachmentCapsules from "./AttachmentCapsules.vue"
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const acceptTypes =
   import.meta.env.VITE_FILE_ACCEPT ||
@@ -67,6 +84,20 @@ const draftText = ref("")
 const draftImages = ref<DraftImage[]>([])
 const draftAttachments = ref<File[]>([])
 const messages = ref<ChatMessage[]>([])
+const selectedModelId = ref("gpt-4o")
+
+
+const handleUpdateText = (val: string) => {
+  draftText.value = val
+}
+
+const handleUpdateModelId = (id: string) => {
+  selectedModelId.value = id
+}
+
+const triggerFileInput = () => {
+  fileInputRef.value?.click()
+}
 
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -78,7 +109,6 @@ const handleFileChange = (event: Event) => {
 }
 
 const handleUploadFiles = (newFiles: File[]) => {
-
   const imageFiles = newFiles.filter(file => file.type.startsWith("image/"))
   const otherFiles = newFiles.filter(file => !file.type.startsWith("image/"))
 
@@ -96,7 +126,9 @@ const handleUploadFiles = (newFiles: File[]) => {
 }
 
 const handleRemoveImage = (index: number) => {
-
+  if (draftImages.value[index]?.src) {
+    URL.revokeObjectURL(draftImages.value[index].src)
+  }
   draftImages.value = draftImages.value.filter((_, imageIndex) => imageIndex !== index)
 }
 
@@ -105,13 +137,14 @@ const handleRemoveAttachment = (index: number) => {
 }
 
 const handleSend = () => {
-  if (!draftText.value.trim() && draftImages.value.length === 0 && draftAttachments.value.length === 0) {
+  const trimmedText = draftText.value.trim()
+  if (!trimmedText && draftImages.value.length === 0 && draftAttachments.value.length === 0) {
     return
   }
 
   messages.value.push({
     role: "user",
-    content: draftText.value.trim(),
+    content: trimmedText,
     images: [...draftImages.value],
     attachments: [...draftAttachments.value],
   })
@@ -127,8 +160,11 @@ const handleSend = () => {
   position: relative;
   display: flex;
   height: 100%;
-  width: min(360px, calc(100vw - 2rem));
+  /* 增加宽度 */
+  width: min(440px, calc(100vw - 2rem));
   justify-content: flex-end;
+  /* 垂直居中 */
+  align-items: center;
   padding: 16px 16px 16px 0;
   pointer-events: none;
 }
@@ -136,7 +172,8 @@ const handleSend = () => {
 .chat-shell {
   pointer-events: auto;
   display: flex;
-  height: 100%;
+  /* 减小高度，上下留白 */
+  height: calc(100% - 32px);
   width: 100%;
   flex-direction: column;
   overflow: hidden;
@@ -192,7 +229,7 @@ const handleSend = () => {
 
 .message-meta {
   font-size: 12px;
-  color: #0ea5e9;
+  color: #3b82f6;
   font-weight: 600;
 }
 
@@ -210,24 +247,26 @@ const handleSend = () => {
 }
 
 .chat-footer {
-  padding: 8px;
+  padding: 12px;
 }
 
-.attachment-upload {
-  cursor: pointer;
+.action-icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border: none;
+  background: transparent;
   color: #64748b;
-  transition: background-color 0.2s;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.attachment-upload:hover {
-  background-color: #f1f5f9;
-  color: #0f172a;
+.action-icon-btn:hover {
+  background: #f1f5f9;
+  color: #3b82f6;
 }
 
 @media (max-width: 1024px) {

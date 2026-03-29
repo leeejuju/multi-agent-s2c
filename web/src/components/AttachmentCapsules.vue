@@ -4,7 +4,7 @@
     <div class="capsule image-capsule" v-for="(img, idx) in images" :key="'img-' + idx">
       <img :src="img.src" alt="image" class="capsule-img" />
       <span class="capsule-name">{{ img.file?.name || '图片' }}</span>
-      <button type="button" class="capsule-remove" @click="$emit('removeImage', idx)" title="移除">
+      <button type="button" class="capsule-remove" @click="emit('removeImage', idx)" title="移除">
         <X :size="14" />
       </button>
     </div>
@@ -15,7 +15,7 @@
         <FileText :size="14" />
       </div>
       <span class="capsule-name">{{ file.name }}</span>
-      <button type="button" class="capsule-remove" @click="$emit('removeAttachment', idx)" title="移除">
+      <button type="button" class="capsule-remove" @click="emit('removeAttachment', idx)" title="移除">
         <X :size="14" />
       </button>
     </div>
@@ -36,31 +36,31 @@ defineProps({
   }
 })
 
-defineEmits(['removeImage', 'removeAttachment'])
+const emit = defineEmits(['removeImage', 'removeAttachment'])
 </script>
 
 <style scoped>
 .attachment-capsules {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 8px;
+  gap: 6px;
+  padding-bottom: 4px;
 }
 
 .capsule {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   background: #f1f5f9;
   border-radius: 9999px;
-  padding: 4px 10px 4px 4px;
-  max-width: 200px;
+  padding: 2px 8px 2px 2px;
+  max-width: 160px;
   border: 1px solid #e2e8f0;
 }
 
 .capsule-img {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -69,16 +69,16 @@ defineEmits(['removeImage', 'removeAttachment'])
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   background: #ffffff;
   border-radius: 50%;
   color: #64748b;
-  margin-left: 2px;
+  margin-left: 1px;
 }
 
 .capsule-name {
-  font-size: 13px;
+  font-size: 11px;
   color: #334155;
   white-space: nowrap;
   overflow: hidden;
@@ -90,7 +90,7 @@ defineEmits(['removeImage', 'removeAttachment'])
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px;
+  padding: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
