@@ -1,4 +1,4 @@
-<template>
+<!-- <template>
   <Transition name="slide-up">
     <div v-if="isOpen" class="model-popover">
       <div class="popover-inner">
@@ -158,4 +158,4 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateY(5px) scale(0.95);
 }
-</style>
+</style> -->
