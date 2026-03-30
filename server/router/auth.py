@@ -1,15 +1,19 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.utils.auth import create_access_token, hash_password, verify_password
+from server.utils.auth import (
+    AuthenticatedUser,
+    create_access_token,
+    hash_password,
+    verify_password,
+)
 from src.database import User, get_db
 
-public_router = APIRouter(prefix="/auth", tags=["auth"])
-protected_router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class RegisterRequest(BaseModel):
@@ -48,7 +52,7 @@ async def _get_user_by_id(session: AsyncSession, user_id: str) -> User:
     return user
 
 
-@public_router.post(
+@router.post(
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
@@ -76,7 +80,7 @@ async def register(payload: RegisterRequest, session: AsyncSession = Depends(get
     return UserResponse.model_validate(user)
 
 
-@public_router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
     user = await session.scalar(select(User).where(User.email == payload.email))
     if user is None or not verify_password(payload.password, user.password_hash):
@@ -98,7 +102,7 @@ async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
     )
 
 
-@protected_router.get("/me", response_model=UserResponse)
-async def me(request: Request, session: AsyncSession = Depends(get_db)):
-    user = await _get_user_by_id(session, str(request.user.user_id))
+@router.get("/me", response_model=UserResponse)
+async def me(current_user: AuthenticatedUser, session: AsyncSession = Depends(get_db)):
+    user = await _get_user_by_id(session, current_user.user_id)
     return UserResponse.model_validate(user)

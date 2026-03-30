@@ -1,14 +1,25 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Annotated, Any
 
 import jwt
-from fastapi import HTTPException, status
-from fastapi_auth_middleware import FastAPIUser
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
+from pydantic import BaseModel
 
 from src.configs.config import config
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+_bearer_scheme = HTTPBearer()
+
+
+class CurrentUser(BaseModel):
+    """Authenticated user extracted from a valid JWT."""
+
+    user_id: str
+    email: str
+    username: str
 
 
 def verify_required_auth_settings() -> None:
@@ -58,18 +69,18 @@ def decode_access_token(token: str) -> dict[str, Any]:
     return payload
 
 
-def verify_authorization_header(auth_header: str) -> tuple[list[str], FastAPIUser]:
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header must use Bearer token.",
-        )
-
-    token = auth_header.removeprefix("Bearer ").strip()
-    payload = decode_access_token(token)
-    user = FastAPIUser(
-        first_name=payload.get("username", ""),
-        last_name="",
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> CurrentUser:
+    """FastAPI dependency that validates the Bearer token and returns the
+    authenticated user.  Use via ``Depends(get_current_user)``."""
+    payload = decode_access_token(credentials.credentials)
+    return CurrentUser(
         user_id=str(payload["sub"]),
+        email=payload["email"],
+        username=payload.get("username", ""),
     )
-    return [], user
+
+
+# Convenience type alias for route signatures.
+AuthenticatedUser = Annotated[CurrentUser, Depends(get_current_user)]
