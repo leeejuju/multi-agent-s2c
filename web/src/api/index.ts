@@ -34,10 +34,23 @@ export async function request<T = any>(
   const fullUrl = `${BASE_URL}${url}${queryString ? `?${queryString}` : ""}`;
 
   // 2. Default headers
-  const headers = new Headers({
-    "Content-Type": "application/json",
-    ...customHeaders,
-  });
+  const headers = new Headers(customHeaders);
+  const isFormData =
+    typeof FormData !== "undefined" && rest.body instanceof FormData;
+
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    !headers.has("Authorization")
+  ) {
+    const accessToken = window.localStorage.getItem("access_token");
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+    }
+  }
 
   // 3. Timeout control
   const controller = new AbortController();
@@ -92,6 +105,17 @@ export const post = <T>(url: string, data?: any, config?: RequestConfig) =>
     ...config,
     method: "POST",
     body: data ? JSON.stringify(data) : undefined,
+  });
+
+export const postForm = <T>(
+  url: string,
+  data: FormData,
+  config?: RequestConfig,
+) =>
+  request<T>(url, {
+    ...config,
+    method: "POST",
+    body: data,
   });
 
 export const put = <T>(url: string, data?: any, config?: RequestConfig) =>
