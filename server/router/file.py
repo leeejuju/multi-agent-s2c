@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.utils import logger
 from server.utils.auth import AuthenticatedUser
 from src.database import Attachment, Conversation, get_db
 from src.storage import (
@@ -97,6 +98,9 @@ async def _get_owned_conversation(
         )
     )
     if conversation is None:
+        logger.warning(
+            f"Conversation lookup failed: conversation_id={conversation_id}, user_id={user_id}."
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation was not found.",
@@ -116,6 +120,9 @@ async def _get_owned_attachment(
         )
     )
     if attachment is None:
+        logger.warning(
+            f"Attachment lookup failed: attachment_id={attachment_id}, user_id={user_id}."
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Attachment was not found.",
@@ -133,6 +140,9 @@ async def _upload_attachments(
     max_file_size: int,
     category: str,
 ) -> list[AttachmentResponse]:
+    logger.info(
+        f"Upload request received: user_id={current_user.user_id}, conversation_id={conversation_id}, files={len(files)}, category={category}."
+    )
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -152,6 +162,9 @@ async def _upload_attachments(
         for upload in files:
             content_type = (upload.content_type or "").lower()
             if content_type not in allowed_types:
+                logger.warning(
+                    f"Upload rejected for unsupported content type: user_id={current_user.user_id}, file_name={upload.filename}, content_type={upload.content_type}."
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Unsupported content type: {upload.content_type or 'unknown'}.",
@@ -159,11 +172,17 @@ async def _upload_attachments(
 
             content = await upload.read()
             if not content:
+                logger.warning(
+                    f"Upload rejected for empty file: user_id={current_user.user_id}, file_name={upload.filename}."
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"File '{upload.filename or 'unknown'}' is empty.",
                 )
             if len(content) > max_file_size:
+                logger.warning(
+                    f"Upload rejected for oversized file: user_id={current_user.user_id}, file_name={upload.filename}, size={len(content)}."
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"File '{upload.filename or 'unknown'}' exceeds the size limit.",
@@ -189,6 +208,9 @@ async def _upload_attachments(
             attachments.append(attachment)
 
         await session.commit()
+        logger.info(
+            f"Upload completed: user_id={current_user.user_id}, conversation_id={conversation_id}, uploaded={len(attachments)}, category={category}."
+        )
     except Exception:
         await session.rollback()
         for object_key in uploaded_keys:
@@ -196,6 +218,9 @@ async def _upload_attachments(
                 await delete_object(object_key)
             except HTTPException:
                 pass
+        logger.exception(
+            f"Upload failed and rolled back: user_id={current_user.user_id}, conversation_id={conversation_id}, category={category}."
+        )
         raise
 
     responses: list[AttachmentResponse] = []
@@ -251,6 +276,9 @@ async def list_conversation_attachments(
     current_user: AuthenticatedUser,
     session: AsyncSession = Depends(get_db),
 ):
+    logger.info(
+        f"Listing attachments for conversation_id={conversation_id}, user_id={current_user.user_id}."
+    )
     await _get_owned_conversation(session, conversation_id, current_user.user_id)
     attachments = list(
         await session.scalars(
@@ -278,6 +306,9 @@ async def get_attachment_access_url(
     current_user: AuthenticatedUser,
     session: AsyncSession = Depends(get_db),
 ):
+    logger.info(
+        f"Generating attachment access url for attachment_id={attachment_id}, user_id={current_user.user_id}."
+    )
     attachment = await _get_owned_attachment(
         session, attachment_id, current_user.user_id
     )
@@ -294,10 +325,16 @@ async def delete_attachment(
     current_user: AuthenticatedUser,
     session: AsyncSession = Depends(get_db),
 ):
+    logger.info(
+        f"Deleting attachment attachment_id={attachment_id}, user_id={current_user.user_id}."
+    )
     attachment = await _get_owned_attachment(
         session, attachment_id, current_user.user_id
     )
     await delete_object(attachment.file_path)
     await session.delete(attachment)
     await session.commit()
+    logger.info(
+        f"Attachment deleted attachment_id={attachment_id}, user_id={current_user.user_id}."
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
