@@ -16,6 +16,7 @@
       :value="text" 
       class="message-textarea" 
       :placeholder="placeholder" 
+      :disabled="disabled"
       @input="handleInput"
       @keydown="handleKeydown" 
     />
@@ -85,13 +86,23 @@ const emit = defineEmits<{
 
 const props = defineProps({
   text: { type: String, default: "" },
-  images: { type: Array as () => Array<{ src: string; file?: File }>, default: () => [] },
-  attachments: { type: Array as () => File[], default: () => [] },
+  images: {
+    type: Array as () => Array<{ src: string; file?: File; fileName?: string }>,
+    default: () => [],
+  },
+  attachments: {
+    type: Array as () => Array<{ name?: string; file_name?: string }>,
+    default: () => [],
+  },
   placeholder: { type: String, default: "输入问题..." },
-  selectedModelId: { type: String, default: "gpt-4o" }
+  selectedModelId: { type: String, default: "gpt-4o" },
+  disabled: { type: Boolean, default: false }
 })
 
 const canSend = computed(() => {
+  if (props.disabled) {
+    return false
+  }
   return props.text.trim().length > 0 || props.images.length > 0 || props.attachments.length > 0
 })
 
@@ -186,6 +197,11 @@ defineExpose({
   line-height: 1.6;
   color: #1e293b;
   padding: 4px 0;
+}
+
+.message-textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .input-toolbar {
