@@ -17,6 +17,16 @@
     ]
   },
   "hooks": {
-    "pre-commit": "python .claude/hooks/check-commit-related.ts"
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/check-commit-related.py"
+          }
+        ]
+      }
+    ]
   }
 }
