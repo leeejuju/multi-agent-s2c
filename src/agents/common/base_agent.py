@@ -18,16 +18,27 @@ class BaseAgent:
         return f"{self.module_name}_{self.name}"
 
     @abstractmethod
-    async def get_agent(self) -> CompiledStateGraph:
+    def get_agent(self) -> CompiledStateGraph:
         """
         获取agent, 需子类重写
         """
         pass
 
-    async def stream(self, messages, context=None, **kwargs):
+    async def stream_messages(
+        self,
+        messages,
+        config=None,
+        input_context=None,
+        **kwargs,
+    ):
         """
         流式输出后处理
         """
-        agent = self.get_agent()
-        response = await agent.ainvoke(messages, context)
+        agent: CompiledStateGraph = self.get_agent()
+        response = await agent.ainvoke(
+            messages,
+            config=config,
+            context=input_context,
+            **kwargs,
+        )
         return response
