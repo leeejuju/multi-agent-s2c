@@ -1,20 +1,18 @@
 <template>
   <div class="attachment-capsules">
-    <!-- 图片部分 -->
-    <div class="capsule image-capsule" v-for="(img, idx) in images" :key="'img-' + idx">
+    <div v-for="(img, idx) in images" :key="'img-' + idx" class="capsule image-capsule">
       <img :src="img.src" alt="image" class="capsule-img" />
-      <span class="capsule-name">{{ img.file?.name || '图片' }}</span>
+      <span class="capsule-name">{{ img.file?.name || img.fileName || "图片" }}</span>
       <button type="button" class="capsule-remove" @click="emit('removeImage', idx)" title="移除">
         <X :size="14" />
       </button>
     </div>
 
-    <!-- 文件部分 -->
-    <div class="capsule file-capsule" v-for="(file, idx) in attachments" :key="'file-' + idx">
+    <div v-for="(file, idx) in attachments" :key="'file-' + idx" class="capsule file-capsule">
       <div class="capsule-icon">
         <FileText :size="14" />
       </div>
-      <span class="capsule-name">{{ file.name }}</span>
+      <span class="capsule-name">{{ file.name || file.file_name || "附件" }}</span>
       <button type="button" class="capsule-remove" @click="emit('removeAttachment', idx)" title="移除">
         <X :size="14" />
       </button>
@@ -23,20 +21,20 @@
 </template>
 
 <script setup lang="ts">
-import { X, FileText } from "lucide-vue-next"
+import { FileText, X } from "lucide-vue-next"
 
 defineProps({
   images: {
-    type: Array as () => Array<{ src: string; file?: File }>,
-    default: () => []
+    type: Array as () => Array<{ src: string; file?: File; fileName?: string }>,
+    default: () => [],
   },
   attachments: {
-    type: Array as () => File[],
-    default: () => []
-  }
+    type: Array as () => Array<{ name?: string; file_name?: string }>,
+    default: () => [],
+  },
 })
 
-const emit = defineEmits(['removeImage', 'removeAttachment'])
+const emit = defineEmits(["removeImage", "removeAttachment"])
 </script>
 
 <style scoped>

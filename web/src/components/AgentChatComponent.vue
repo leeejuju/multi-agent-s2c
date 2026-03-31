@@ -2,51 +2,67 @@
   <aside class="chat-panel">
     <div class="chat-shell">
       <header class="chat-header">
-        <h1 class="chat-title">对话面板</h1>
+        <h1 class="chat-title">智能体对话</h1>
       </header>
 
       <section class="chat-body">
+        <div
+          v-if="statusText"
+          class="status-banner"
+          :class="{ 'is-error': statusType === 'error' }"
+        >
+          {{ statusText }}
+        </div>
+
         <div v-if="messages.length === 0" class="empty-state">
-          <!-- 这里可以加一些欢迎语或占位图 -->
+          发送文本或上传图片后发起一次对话。
         </div>
 
         <div v-else class="message-list">
-          <div v-for="(message, index) in messages" :key="`${message.role}-${index}`" class="message-item"
-            :class="message.role === 'user' ? 'is-user' : 'is-assistant'">
+          <div
+            v-for="(message, index) in messages"
+            :key="`${message.role}-${index}`"
+            class="message-item"
+            :class="message.role === 'user' ? 'is-user' : 'is-assistant'"
+          >
             <div class="message-content">
-              <span v-if="message.images?.length" class="message-meta">[图片] </span>
-              <span v-if="message.attachments?.length" class="message-meta">[附件] </span>
-              {{ message.content }}
+              <span v-if="message.images?.length" class="message-meta">[图片]</span>
+              <span v-if="message.attachments?.length" class="message-meta">[附件]</span>
+              {{ message.content || " " }}
             </div>
           </div>
         </div>
       </section>
 
       <footer class="chat-footer">
-        <AgentMessageInputArea 
-          :text="draftText" 
-          :images="draftImages" 
+        <AgentMessageInputArea
+          :text="draftText"
+          :images="draftImages"
           :attachments="draftAttachments"
           :selected-model-id="selectedModelId"
-          @update:text="handleUpdateText" 
-          @update:selected-model-id="handleUpdateModelId"
+          :disabled="isUploading || isSending"
+          @update:text="handleUpdateText"
           @send="handleSend"
           @click-attachment="triggerFileInput"
           @remove-image="handleRemoveImage"
           @remove-attachment="handleRemoveAttachment"
         >
-          <!-- 隐藏的文件输入框 -->
           <template #actions-left>
             <label class="attachment-upload-trigger">
-              <input 
+              <input
                 ref="fileInputRef"
-                type="file" 
-                multiple 
-                :accept="acceptTypes" 
-                style="display: none;" 
-                @change="handleFileChange" 
+                type="file"
+                multiple
+                :accept="acceptTypes"
+                style="display: none"
+                @change="handleFileChange"
               />
-              <button type="button" class="action-icon-btn" @click="triggerFileInput">
+              <button
+                type="button"
+                class="action-icon-btn"
+                :disabled="isUploading || isSending"
+                @click="triggerFileInput"
+              >
                 <Paperclip :size="20" />
               </button>
             </label>
@@ -61,31 +77,37 @@
 import { ref } from "vue"
 import { Paperclip } from "lucide-vue-next"
 import AgentMessageInputArea from "./AgentMessageInputArea.vue"
+import { agentApi } from "@/api/agent"
+import { conversationApi } from "@/api/conversation"
+import { fileApi, type AttachmentItem } from "@/api/file"
 
+const DEFAULT_AGENT_ID = "DesignAgent"
+const acceptTypes = "image/*"
 const fileInputRef = ref<HTMLInputElement | null>(null)
-
-const acceptTypes =
-  import.meta.env.VITE_FILE_ACCEPT ||
-  ".txt,.md,.pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.ico,.tif,.tiff,.heic,.heif"
 
 type DraftImage = {
   src: string
-  file?: File
+  fileName: string
+  attachment: AttachmentItem
 }
 
 type ChatMessage = {
   role: "user" | "assistant"
   content: string
   images?: DraftImage[]
-  attachments?: File[]
+  attachments?: AttachmentItem[]
 }
 
 const draftText = ref("")
 const draftImages = ref<DraftImage[]>([])
-const draftAttachments = ref<File[]>([])
+const draftAttachments = ref<AttachmentItem[]>([])
 const messages = ref<ChatMessage[]>([])
 const selectedModelId = ref("gpt-4o")
-
+const conversationId = ref<string | null>(null)
+const isUploading = ref(false)
+const isSending = ref(false)
+const statusText = ref("")
+const statusType = ref<"info" | "error">("info")
 
 const handleUpdateText = (val: string) => {
   draftText.value = val
@@ -95,63 +117,143 @@ const handleUpdateModelId = (id: string) => {
   selectedModelId.value = id
 }
 
+const setStatus = (text = "", type: "info" | "error" = "info") => {
+  statusText.value = text
+  statusType.value = type
+}
+
+const ensureConversationId = async () => {
+  if (conversationId.value) {
+    return conversationId.value
+  }
+
+  const conversation = await conversationApi.createConversation()
+  conversationId.value = conversation.id
+  return conversation.id
+}
+
 const triggerFileInput = () => {
+  if (isUploading.value || isSending.value) {
+    return
+  }
   fileInputRef.value?.click()
 }
 
-const handleFileChange = (event: Event) => {
+const handleFileChange = async (event: Event) => {
   const target = event.target as HTMLInputElement
-  if (target.files && target.files.length > 0) {
-    const selectedFiles = Array.from(target.files)
-    handleUploadFiles(selectedFiles)
-    target.value = ""
+  if (!target.files || target.files.length === 0) {
+    return
   }
+
+  const selectedFiles = Array.from(target.files)
+  target.value = ""
+  await handleUploadFiles(selectedFiles)
 }
 
-const handleUploadFiles = (newFiles: File[]) => {
-  const imageFiles = newFiles.filter(file => file.type.startsWith("image/"))
-  const otherFiles = newFiles.filter(file => !file.type.startsWith("image/"))
-
-  if (imageFiles.length > 0) {
-    const newImages = imageFiles.map(file => ({
-      src: URL.createObjectURL(file),
-      file,
-    }))
-    draftImages.value = [...draftImages.value, ...newImages]
+const handleUploadFiles = async (files: File[]) => {
+  const imageFiles = files.filter((file) => file.type.startsWith("image/"))
+  if (imageFiles.length === 0) {
+    setStatus("暂时只支持上传图片。", "error")
+    return
   }
 
-  if (otherFiles.length > 0) {
-    draftAttachments.value = [...draftAttachments.value, ...otherFiles]
+  isUploading.value = true
+  setStatus("图片上传中，请等待上传完成后再发送。")
+
+  try {
+    const currentConversationId = await ensureConversationId()
+    const uploadedImages = await fileApi.uploadImages(
+      currentConversationId,
+      imageFiles,
+    )
+
+    draftImages.value = [
+      ...draftImages.value,
+      ...uploadedImages.map((image) => ({
+        src: image.access_url,
+        fileName: image.file_name,
+        attachment: image,
+      })),
+    ]
+    draftAttachments.value = [...draftAttachments.value, ...uploadedImages]
+    setStatus("图片上传完成，可以发送。")
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "图片上传失败。"
+    setStatus(message, "error")
+  } finally {
+    isUploading.value = false
   }
 }
 
 const handleRemoveImage = (index: number) => {
-  if (draftImages.value[index]?.src) {
-    URL.revokeObjectURL(draftImages.value[index].src)
-  }
-  draftImages.value = draftImages.value.filter((_, imageIndex) => imageIndex !== index)
+  draftImages.value = draftImages.value.filter((_, currentIndex) => currentIndex !== index)
+  draftAttachments.value = draftAttachments.value.filter(
+    (_, currentIndex) => currentIndex !== index,
+  )
 }
 
 const handleRemoveAttachment = (index: number) => {
-  draftAttachments.value = draftAttachments.value.filter((_, attachmentIndex) => attachmentIndex !== index)
+  draftAttachments.value = draftAttachments.value.filter(
+    (_, currentIndex) => currentIndex !== index,
+  )
+  draftImages.value = draftImages.value.filter((_, currentIndex) => currentIndex !== index)
 }
 
-const handleSend = () => {
+const resetDraft = () => {
+  draftText.value = ""
+  draftImages.value = []
+  draftAttachments.value = []
+}
+
+const handleSend = async () => {
   const trimmedText = draftText.value.trim()
-  if (!trimmedText && draftImages.value.length === 0 && draftAttachments.value.length === 0) {
+  if (isUploading.value || isSending.value) {
     return
   }
 
-  messages.value.push({
+  if (!trimmedText && draftImages.value.length === 0) {
+    return
+  }
+
+  const userMessage: ChatMessage = {
     role: "user",
     content: trimmedText,
     images: [...draftImages.value],
     attachments: [...draftAttachments.value],
-  })
+  }
+  messages.value.push(userMessage)
 
-  draftText.value = ""
-  draftImages.value = []
-  draftAttachments.value = []
+  isSending.value = true
+  setStatus("消息发送中...")
+
+  try {
+    const currentConversationId = await ensureConversationId()
+    const response = await agentApi.send2Agent(
+      DEFAULT_AGENT_ID,
+      {
+        input: trimmedText,
+        conversation_id: currentConversationId,
+        attachments: draftAttachments.value,
+      },
+      {
+        model: selectedModelId.value,
+        stream: false,
+      },
+    )
+
+    messages.value.push({
+      role: "assistant",
+      content: response.content || "已收到请求，但暂未返回内容。",
+    })
+    resetDraft()
+    setStatus("")
+  } catch (error) {
+    messages.value.pop()
+    const message = error instanceof Error ? error.message : "消息发送失败。"
+    setStatus(message, "error")
+  } finally {
+    isSending.value = false
+  }
 }
 </script>
 
@@ -160,10 +262,8 @@ const handleSend = () => {
   position: relative;
   display: flex;
   height: 100%;
-  /* 增加宽度 */
   width: min(440px, calc(100vw - 2rem));
   justify-content: flex-end;
-  /* 垂直居中 */
   align-items: center;
   padding: 16px 16px 16px 0;
   pointer-events: none;
@@ -172,7 +272,6 @@ const handleSend = () => {
 .chat-shell {
   pointer-events: auto;
   display: flex;
-  /* 减小高度，上下留白 */
   height: calc(100% - 32px);
   width: 100%;
   flex-direction: column;
@@ -202,6 +301,20 @@ const handleSend = () => {
   padding: 20px;
 }
 
+.status-banner {
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.status-banner.is-error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .empty-state {
   display: flex;
   height: 100%;
@@ -228,6 +341,7 @@ const handleSend = () => {
 }
 
 .message-meta {
+  margin-right: 6px;
   font-size: 12px;
   color: #3b82f6;
   font-weight: 600;
@@ -264,7 +378,12 @@ const handleSend = () => {
   transition: all 0.2s;
 }
 
-.action-icon-btn:hover {
+.action-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.action-icon-btn:not(:disabled):hover {
   background: #f1f5f9;
   color: #3b82f6;
 }
