@@ -1,4 +1,5 @@
 import { post } from "./index";
+import type { AttachmentItem } from "./file";
 
 /**
  * Domain model definitions for Agent interaction
@@ -11,12 +12,13 @@ export interface AgentConfig {
 
 export interface Send2AgentPayload {
   input: string;
-  session_id?: string;
-  [key: string]: any; // Allow for extensibility
+  conversation_id?: string;
+  attachments?: AttachmentItem[];
 }
 
 export interface AgentResponse {
   content: string;
+  conversation_id?: string;
   usage?: {
     total_tokens: number;
   };
@@ -39,15 +41,13 @@ export const agentApi = {
     config: AgentConfig = {},
     options: RequestInit = {},
   ): Promise<AgentResponse> {
-    // Encapsulate endpoint path logic
-    const endpoint = `/agents/${agentId}/chat`;
-
-    // Explicitly merge payload and config to avoid accidental property overwriting
-    const body = {
-      ...config,
-      ...payload,
-    };
-
-    return post<AgentResponse>(endpoint, body, options);
+    return post<AgentResponse>(
+      `/chat/agent/${agentId}/run`,
+      {
+        ...payload,
+        config,
+      },
+      options,
+    );
   },
 };
