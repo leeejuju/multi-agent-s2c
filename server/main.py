@@ -1,6 +1,6 @@
-# import sys
+import sys
 from contextlib import asynccontextmanager
-# from pathlib import Path
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -8,11 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure the project root (parent of `server/`) is on sys.path so that
 # `src.*` packages are importable regardless of the working directory.
-# sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from server.router import api_router
 from server.utils.auth import verify_required_auth_settings
-from src.database import Base, get_engine
+from src.database import get_engine, initialize_database
 from src.storage import ensure_storage_ready, verify_required_storage_settings
 
 
@@ -21,8 +21,7 @@ async def lifespan(app: FastAPI):
     verify_required_auth_settings()
     verify_required_storage_settings()
     engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await initialize_database(engine)
     await ensure_storage_ready()
     print("FastAPI service started.")
     yield
@@ -53,4 +52,4 @@ app.include_router(api_router, prefix="/api")
 
 
 if __name__ == "__main__":
-    uvicorn.run("server.main:app", host="localhost", port=8000, reload=True)
+    uvicorn.run("server.main:app", host="localhost", port=5050, reload=True)

@@ -2,11 +2,13 @@ from fastapi import APIRouter
 
 from .auth import router as auth_router
 from .chat import router as chat_router
+from .conversation import router as conversation_router
 from .file import router as file_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(chat_router)
+api_router.include_router(conversation_router)
 api_router.include_router(file_router)
 
 __all__ = ["api_router"]
