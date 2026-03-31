@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.utils import logger
 from server.utils.auth import AuthenticatedUser
 from src.database import Conversation, get_db
 
@@ -29,6 +30,7 @@ async def create_conversation(
     current_user: AuthenticatedUser,
     session: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"Creating conversation for user_id={current_user.user_id}.")
     conversation = Conversation(
         user_id=UUID(current_user.user_id),
         title=payload.title.strip() or "New Conversation",
@@ -36,4 +38,7 @@ async def create_conversation(
     session.add(conversation)
     await session.commit()
     await session.refresh(conversation)
+    logger.info(
+        f"Conversation created conversation_id={conversation.id}, user_id={current_user.user_id}."
+    )
     return conversation

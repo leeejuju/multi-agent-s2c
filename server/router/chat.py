@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 
+from server.utils import logger
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 
@@ -76,8 +77,12 @@ async def chat(
     current_user: AuthenticatedUser,
 ):
     """Chat endpoint for authenticated users."""
+    logger.info(
+        f"Chat request received: user_id={current_user.user_id}, agent_id={agent_id}, conversation_id={payload.conversation_id}."
+    )
     agent = agent_manager.get_agent(agent_id)
     if agent is None:
+        logger.warning(f"Chat request failed: agent not found agent_id={agent_id}.")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Agent '{agent_id}' was not found.",
@@ -86,6 +91,9 @@ async def chat(
     response = await agent.stream_messages(
         {"messages": [_build_human_message(payload)]},
         config=payload.config,
+    )
+    logger.info(
+        f"Chat request completed: user_id={current_user.user_id}, agent_id={agent_id}, conversation_id={payload.conversation_id}."
     )
     return ChatResponse(
         content=_extract_response_content(response),
