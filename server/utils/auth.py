@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
+from server.utils.logger import logger
 from src.configs.config import config
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -24,7 +25,8 @@ class CurrentUser(BaseModel):
 
 def verify_required_auth_settings() -> None:
     if not config.jwt_secret:
-        raise RuntimeError("JWT_SECRET is required for authentication.")
+        logger.error("缺少JWT_SECRET")
+        raise RuntimeError("缺少JWT_SECRET")
 
 
 def hash_password(password: str) -> str:
@@ -37,6 +39,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_access_token(user_id: str, email: str, username: str) -> str:
     verify_required_auth_settings()
+    logger.info(f"Creating access token for user_id={user_id}.")
     expire_at = datetime.now(UTC) + timedelta(minutes=config.jwt_expire_minutes)
     payload = {
         "sub": user_id,
@@ -56,12 +59,14 @@ def decode_access_token(token: str) -> dict[str, Any]:
             algorithms=[config.jwt_algorithm],
         )
     except jwt.InvalidTokenError as exc:
+        logger.warning("Access token decoding failed: token is invalid or expired.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token.",
         ) from exc
 
     if "sub" not in payload or "email" not in payload:
+        logger.warning("Access token payload validation failed: missing required claims.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token payload is invalid.",
@@ -75,6 +80,7 @@ async def get_current_user(
     """FastAPI dependency that validates the Bearer token and returns the
     authenticated user.  Use via ``Depends(get_current_user)``."""
     payload = decode_access_token(credentials.credentials)
+    logger.info(f"Authenticated current user user_id={payload['sub']}.")
     return CurrentUser(
         user_id=str(payload["sub"]),
         email=payload["email"],

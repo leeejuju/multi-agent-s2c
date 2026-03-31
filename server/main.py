@@ -1,5 +1,4 @@
 import sys
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -10,23 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # `src.*` packages are importable regardless of the working directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from server.lifespan import lifespan
 from server.router import api_router
-from server.utils.auth import verify_required_auth_settings
-from src.database import get_engine, initialize_database
-from src.storage import ensure_storage_ready, verify_required_storage_settings
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    verify_required_auth_settings()
-    verify_required_storage_settings()
-    engine = get_engine()
-    await initialize_database(engine)
-    await ensure_storage_ready()
-    print("FastAPI service started.")
-    yield
-    await engine.dispose()
-    print("FastAPI service stopped.")
 
 
 app = FastAPI(
