@@ -1,99 +1,71 @@
-import os
-import tomllib
+from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
-def _get_bool_env(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+# 项目根目录: config.py -> configs/ -> src/ -> 项目根
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-class Config(BaseModel):
-    save_dir: str = Field(default="./save", description="Directory for generated outputs")
-    model_location: str = Field(default="./model", description="Local model directory")
+class Config(BaseSettings):
+    """配置管理: 环境变量 > .env > 代码默认值"""
+
+    model_config = SettingsConfigDict(
+        env_file=str(_PROJECT_ROOT / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # ---------- 存储 ----------
+    save_dir: str = Field(default="./save", description="生成产物的存储目录")
+    model_location: str = Field(default="./model", description="本地模型存放目录")
+
+    # ---------- 模型 ----------
     default_model: str = Field(
-        default="dashscope/qwen3.5-plus-2026-02-15",
-        description="Default model name",
+        default="dashscope/qwen3.5-plus-2026-02-15", description="默认使用的模型名称"
     )
     fallback_model: str = Field(
-        default="dashscope/qwen3.5-122b-a10b3",
-        description="Fallback model name",
+        default="dashscope/qwen3.5-122b-a10b3", description="备用模型名称"
     )
     flash_model: str = Field(
-        default="dashscope/qwen3.5-flash-2026-02-23",
-        description="Fast model name",
+        default="dashscope/qwen3.5-flash-2026-02-23", description="快速推断模型名称"
     )
-    embed_model: str = Field(default="xxxxx", description="Embedding model name")
-    rerank_model: str = Field(default="xxxxx", description="Rerank model name")
-    database_url: str = Field(default="", description="PostgreSQL DSN")
-    jwt_secret: str = Field(default="", description="JWT secret key")
-    jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
-    jwt_expire_minutes: int = Field(default=60, description="Access token lifetime")
-    minio_endpoint: str = Field(default="", description="MinIO endpoint")
-    minio_access_key: str = Field(default="", description="MinIO access key")
-    minio_secret_key: str = Field(default="", description="MinIO secret key")
-    minio_bucket: str = Field(default="", description="MinIO bucket name")
-    minio_secure: bool = Field(default=False, description="Use HTTPS for MinIO")
-    minio_region: str = Field(default="", description="MinIO region")
+    embed_model: str = Field(default="", description="向量生成模型名称")
+    rerank_model: str = Field(default="", description="重排序模型名称")
+
+    # ---------- 数据库 ----------
+    database_url: str = Field(default="", description="PostgreSQL 数据库连接地址")
+
+    # ---------- JWT ----------
+    jwt_secret: str = Field(default="", description="JWT 签名密钥")
+    jwt_algorithm: str = Field(default="HS256", description="JWT 加密算法")
+    jwt_expire_minutes: int = Field(default=60, description="Token 有效期（分钟）")
+
+    # ---------- MinIO ----------
+    minio_endpoint: str = Field(default="", description="MinIO 服务地址")
+    minio_access_key: str = Field(default="", description="MinIO Access Key")
+    minio_secret_key: str = Field(default="", description="MinIO Secret Key")
+    minio_bucket: str = Field(default="", description="MinIO 桶名称")
+    minio_secure: bool = Field(default=False, description="是否使用 HTTPS 访问 MinIO")
+    minio_region: str = Field(default="", description="MinIO 所在的区域")
     minio_presign_expire_seconds: int = Field(
-        default=600, description="Presigned URL expiration time"
+        default=600, description="MinIO 预签名 URL 有效期（秒）"
     )
+
+    # ---------- 知识库 ----------
     graph_knowledge_provider: str = Field(
-        default="lightrag", description="Graph knowledge provider"
+        default="lightrag", description="图知识库提供商"
     )
     vector_knowledge_provider: str = Field(
-        default="milvus", description="Vector knowledge provider"
+        default="milvus", description="向量知识库提供商"
     )
     lightrag_working_dir: str = Field(
-        default="./save/lightrag", description="LightRAG working directory"
+        default="./save/lightrag", description="LightRAG 工作目录"
     )
-    lightrag_workspace: str = Field(
-        default="default", description="LightRAG workspace name"
-    )
-    milvus_uri: str = Field(default="", description="Milvus connection URI")
-    milvus_token: str = Field(default="", description="Milvus access token")
-    milvus_db_name: str = Field(default="", description="Milvus database name")
-
-    def __init__(self, **kwargs):
-        env_values = {
-            "database_url": os.getenv("DATABASE_URL", ""),
-            "jwt_secret": os.getenv("JWT_SECRET", ""),
-            "jwt_algorithm": os.getenv("JWT_ALGORITHM", "HS256"),
-            "jwt_expire_minutes": int(os.getenv("JWT_EXPIRE_MINUTES", "60")),
-            "minio_endpoint": os.getenv("MINIO_ENDPOINT", ""),
-            "minio_access_key": os.getenv("MINIO_ACCESS_KEY", ""),
-            "minio_secret_key": os.getenv("MINIO_SECRET_KEY", ""),
-            "minio_bucket": os.getenv("MINIO_BUCKET", ""),
-            "minio_secure": _get_bool_env("MINIO_SECURE", False),
-            "minio_region": os.getenv("MINIO_REGION", ""),
-            "minio_presign_expire_seconds": int(
-                os.getenv("MINIO_PRESIGN_EXPIRE_SECONDS", "600")
-            ),
-            "graph_knowledge_provider": os.getenv(
-                "GRAPH_KNOWLEDGE_PROVIDER", "lightrag"
-            ),
-            "vector_knowledge_provider": os.getenv(
-                "VECTOR_KNOWLEDGE_PROVIDER", "milvus"
-            ),
-            "lightrag_working_dir": os.getenv(
-                "LIGHTRAG_WORKING_DIR", "./save/lightrag"
-            ),
-            "lightrag_workspace": os.getenv("LIGHTRAG_WORKSPACE", "default"),
-            "milvus_uri": os.getenv("MILVUS_URI", ""),
-            "milvus_token": os.getenv("MILVUS_TOKEN", ""),
-            "milvus_db_name": os.getenv("MILVUS_DB_NAME", ""),
-        }
-        env_values.update(kwargs)
-        super().__init__(**env_values)
-
-    @classmethod
-    def load_from_toml(cls, file_path: str) -> "Config":
-        with open(file_path, "rb") as f:
-            data = tomllib.load(f)
-        return cls(**data)
+    lightrag_workspace: str = Field(default="default", description="LightRAG 空间名称")
+    milvus_uri: str = Field(default="", description="Milvus 连接地址")
+    milvus_token: str = Field(default="", description="Milvus 访问令牌")
+    milvus_db_name: str = Field(default="", description="Milvus 数据库名称")
 
 
 config = Config()

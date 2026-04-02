@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from server.utils.logger import logger
-from src.configs.config import config
+from src.configs import config
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -66,7 +66,9 @@ def decode_access_token(token: str) -> dict[str, Any]:
         ) from exc
 
     if "sub" not in payload or "email" not in payload:
-        logger.warning("Access token payload validation failed: missing required claims.")
+        logger.warning(
+            "Access token payload validation failed: missing required claims."
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token payload is invalid.",
