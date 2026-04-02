@@ -2,24 +2,13 @@
   <div class="message-input-container">
     <!-- 1. 附件预览区 -->
     <div v-if="images.length > 0 || attachments.length > 0" class="preview-section">
-      <AttachmentCapsules 
-        :images="images" 
-        :attachments="attachments"
-        @remove-image="handleRemoveImage"
-        @remove-attachment="handleRemoveAttachment"
-      />
+      <AttachmentCapsules :images="images" :attachments="attachments" @remove-image="handleRemoveImage"
+        @remove-attachment="handleRemoveAttachment" />
     </div>
 
     <!-- 2. 文本输入区 -->
-    <textarea 
-      ref="inputRef" 
-      :value="text" 
-      class="message-textarea" 
-      :placeholder="placeholder" 
-      :disabled="disabled"
-      @input="handleInput"
-      @keydown="handleKeydown" 
-    />
+    <textarea ref="inputRef" :value="text" class="message-textarea" :placeholder="placeholder" :disabled="disabled"
+      @input="handleInput" @keydown="handleKeydown" />
 
     <!-- 3. 底部工具栏 -->
     <div class="input-toolbar">
@@ -32,18 +21,12 @@
       </div>
 
       <div class="toolbar-right">
-        <!-- 模型选择按钮 & 弹出面板 -->
         <div class="model-selector-wrapper">
-          <button 
-            type="button" 
-            class="icon-btn model-btn" 
-            :class="{ active: showModelSelector }"
-            @click="toggleModelSelector" 
-            title="选择模型"
-          >
+          <button type="button" class="icon-btn model-btn" :class="{ active: showModelSelector }"
+            @click="toggleModelSelector" title="选择模型">
             <Sparkles :size="18" />
           </button>
-          
+
           <!-- <ModelSelector 
             :show="showModelSelector" 
             :current-model-id="selectedModelId"
@@ -52,12 +35,7 @@
         </div>
 
         <slot name="actions-right">
-          <button 
-            type="button" 
-            class="send-btn" 
-            :disabled="!canSend" 
-            @click="emitSend"
-          >
+          <button type="button" class="send-btn" :disabled="!canSend" @click="emit('send')">
             <ArrowUp :size="18" />
           </button>
         </slot>
@@ -135,15 +113,12 @@ const handleClickAttachment = () => {
   emit('clickAttachment')
 }
 
-const emitSend = () => {
-  if (!canSend.value) return
-  emit("send")
-}
-
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault()
-    emitSend()
+    if (canSend.value) {
+      emit("send")
+    }
   }
 }
 
@@ -212,7 +187,8 @@ defineExpose({
   margin-top: 4px;
 }
 
-.toolbar-left, .toolbar-right {
+.toolbar-left,
+.toolbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -231,15 +207,16 @@ defineExpose({
   width: 32px;
   height: 32px;
   border: none;
-  background: transparent;
+  background: #f1f5f9; /* 淡灰色 */
   color: #64748b;
-  border-radius: 8px;
+  border-radius: 50%; /* 圆形 */
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.icon-btn:hover, .model-btn.active {
-  background: #f1f5f9;
+.icon-btn:hover,
+.model-btn.active {
+  background: #e2e8f0; /* hover稍微深一点的灰色 */
   color: #3b82f6;
 }
 
@@ -252,7 +229,7 @@ defineExpose({
   border: none;
   background: #3b82f6;
   color: #ffffff;
-  border-radius: 8px;
+  border-radius: 50%; /* 圆形 */
   cursor: pointer;
   transition: all 0.2s;
 }

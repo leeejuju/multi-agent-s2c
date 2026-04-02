@@ -17,28 +17,33 @@ export interface AttachmentAccessUrlResponse {
   access_url: string;
 }
 
-function buildUploadFormData(conversationId: string, files: File[]): FormData {
+function buildUploadFormData(files: File[], conversationId?: string): FormData {
   const formData = new FormData();
-  formData.append("conversation_id", conversationId);
+  if (conversationId) {
+    formData.append("conversation_id", conversationId);
+  }
   files.forEach((file) => formData.append("files", file));
   return formData;
 }
 
 export const fileApi = {
-  uploadImages(conversationId: string, files: File[]) {
+  uploadImages(files: File[], conversationId?: string) {
     return postForm<AttachmentItem[]>(
       "/files/images",
-      buildUploadFormData(conversationId, files),
+      buildUploadFormData(files, conversationId),
     );
   },
 
-  uploadDocuments(conversationId: string, files: File[]) {
+  uploadDocuments(files: File[], conversationId?: string) {
     return postForm<AttachmentItem[]>(
       "/files/documents",
-      buildUploadFormData(conversationId, files),
+      buildUploadFormData(files, conversationId),
     );
   },
 
+  /**
+   * @deprecated 建议改用消息 ID 或附件 ID 列表查询
+   */
   listConversationAttachments(conversationId: string) {
     return get<AttachmentItem[]>(`/files/conversations/${conversationId}`);
   },
