@@ -78,7 +78,6 @@ import { ref } from "vue"
 import { Paperclip } from "lucide-vue-next"
 import AgentMessageInputArea from "./AgentMessageInputArea.vue"
 import { agentApi } from "@/api/agent"
-import { conversationApi } from "@/api/conversation"
 import { fileApi, type AttachmentItem } from "@/api/file"
 
 const DEFAULT_AGENT_ID = "DesignAgent"
@@ -122,16 +121,6 @@ const setStatus = (text = "", type: "info" | "error" = "info") => {
   statusType.value = type
 }
 
-const ensureConversationId = async () => {
-  if (conversationId.value) {
-    return conversationId.value
-  }
-
-  const conversation = await conversationApi.createConversation()
-  conversationId.value = conversation.id
-  return conversation.id
-}
-
 const triggerFileInput = () => {
   if (isUploading.value || isSending.value) {
     return
@@ -161,10 +150,9 @@ const handleUploadFiles = async (files: File[]) => {
   setStatus("图片上传中，请等待上传完成后再发送。")
 
   try {
-    const currentConversationId = await ensureConversationId()
     const uploadedImages = await fileApi.uploadImages(
-      currentConversationId,
       imageFiles,
+      conversationId.value || undefined,
     )
 
     draftImages.value = [
@@ -227,12 +215,11 @@ const handleSend = async () => {
   setStatus("消息发送中...")
 
   try {
-    const currentConversationId = await ensureConversationId()
     const response = await agentApi.send2Agent(
       DEFAULT_AGENT_ID,
       {
         input: trimmedText,
-        conversation_id: currentConversationId,
+        conversation_id: conversationId.value || undefined,
         attachments: draftAttachments.value,
       },
       {
@@ -240,6 +227,10 @@ const handleSend = async () => {
         stream: false,
       },
     )
+
+    if (response.conversation_id) {
+      conversationId.value = response.conversation_id
+    }
 
     messages.value.push({
       role: "assistant",
@@ -371,9 +362,9 @@ const handleSend = async () => {
   width: 32px;
   height: 32px;
   border: none;
-  background: transparent;
+  background: #f1f5f9; /* 淡灰色 */
   color: #64748b;
-  border-radius: 8px;
+  border-radius: 50%; /* 圆形 */
   cursor: pointer;
   transition: all 0.2s;
 }
