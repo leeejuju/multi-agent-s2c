@@ -5,8 +5,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Ensure the project root (parent of `server/`) is on sys.path so that
-# `src.*` packages are importable regardless of the working directory.
+# 确保项目根目录（server/ 的父目录）在 sys.path 中
+# 这样无论当前工作目录在哪里，都能正确导入 src.* 包。
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from server.lifespan import lifespan

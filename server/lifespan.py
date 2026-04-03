@@ -15,9 +15,9 @@ async def lifespan(app: FastAPI):
     engine = get_engine()
     await PostgreSQLInitializer(engine=engine).initialize()
     await ensure_storage_ready()
-    logger.info("FastAPI service started.")
+    logger.info("FastAPI 服务已启动。")
 
     yield
 
     await engine.dispose()
-    logger.info("FastAPI service stopped.")
+    logger.info("FastAPI 服务已关闭。")
