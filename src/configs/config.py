@@ -67,5 +67,10 @@ class Config(BaseSettings):
     milvus_token: str = Field(default="", description="Milvus 访问令牌")
     milvus_db_name: str = Field(default="", description="Milvus 数据库名称")
 
+    # ---------- API Keys ----------
+    dashscope_api_key: str = Field(default="", description="阿里 DashScope API Key")
+    openai_api_key: str = Field(default="", description="OpenAI API Key")
+    gemini_api_key: str = Field(default="", description="Gemini API Key")
+
 
 config = Config()
