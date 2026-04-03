@@ -20,13 +20,13 @@ class AgentManager:
                         self._instances[name] = obj()
 
     def get_agent(self, agent_id: str) -> BaseAgent:
-        """get agent instance by id
-
-        Args:
-            agent_id (str): agent's name
-
-        Returns:
-            _type_: agent instance
+        """通过 ID 获取智能体实例。
+        
+        参数:
+            agent_id (str): 智能体名称
+            
+        返回:
+            BaseAgent: 智能体实例
         """
         if agent_id in self._instances:
             return self._instances[agent_id]

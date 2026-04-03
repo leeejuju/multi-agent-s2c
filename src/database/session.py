@@ -12,7 +12,7 @@ def get_engine():
     global _engine
     if _engine is None:
         if not config.database_url:
-            raise RuntimeError("DATABASE_URL is required to initialize the database.")
+            raise RuntimeError("必须配置 DATABASE_URL 才能初始化数据库。")
         _engine = create_async_engine(config.database_url, echo=False)
     return _engine
 
