@@ -1,5 +1,5 @@
 /**
- * Base configuration and type definitions
+ * 基础配置与类型定义
  */
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -15,7 +15,7 @@ export type RequestConfig = RequestInit & {
 };
 
 /**
- * Core request function with enhanced fetch capabilities
+ * 带有增强 Fetch 功能的核心请求函数
  */
 export async function request<T = any>(
   url: string,
@@ -23,7 +23,7 @@ export async function request<T = any>(
 ): Promise<T> {
   const { params, timeout = 10000, headers: customHeaders, ...rest } = config;
 
-  // 1. Build URL with query parameters
+  // 1. 构建带有查询参数的 URL
   const searchParams = new URLSearchParams();
   if (params) {
     Object.entries(params).forEach(([key, val]) =>
@@ -33,7 +33,7 @@ export async function request<T = any>(
   const queryString = searchParams.toString();
   const fullUrl = `${BASE_URL}${url}${queryString ? `?${queryString}` : ""}`;
 
-  // 2. Default headers
+  // 2. 默认请求头设置
   const headers = new Headers(customHeaders);
   const isFormData =
     typeof FormData !== "undefined" && rest.body instanceof FormData;
@@ -52,7 +52,7 @@ export async function request<T = any>(
     }
   }
 
-  // 3. Timeout control
+  // 3. 超时控制
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -65,23 +65,23 @@ export async function request<T = any>(
 
     clearTimeout(timeoutId);
 
-    // 4. Handle 204 No Content
+    // 4. 处理 204 No Content 场景
     if (response.status === 204) {
       return {} as T;
     }
 
-    // 5. Unified error handling
+    // 5. 统一错误处理
     if (!response.ok) {
       let errorDetail;
       try {
         errorDetail = await response.json();
       } catch {
-        errorDetail = { message: `HTTP Error ${response.status}` };
+        errorDetail = { message: `HTTP 错误 ${response.status}` };
       }
-      throw new Error(errorDetail.message || "Network Error");
+      throw new Error(errorDetail.message || "网络请求错误");
     }
 
-    // 6. Parse response based on Content-Type
+    // 6. 根据 Content-Type 解析响应内容
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       return (await response.json()) as T;
@@ -90,7 +90,7 @@ export async function request<T = any>(
     return (await response.text()) as unknown as T;
   } catch (error: any) {
     if (error.name === "AbortError") {
-      throw new Error("Request Timeout");
+      throw new Error("请求超时");
     }
     throw error;
   }

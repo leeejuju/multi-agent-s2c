@@ -35,8 +35,8 @@
         </div>
 
         <slot name="actions-right">
-          <button type="button" class="send-btn" :disabled="!canSend" @click="emit('send')">
-            <ArrowUp :size="18" />
+          <button type="button" class="send-btn" :disabled="!canSend" @click.stop="triggerSend">
+            <ArrowUp :size="16" />
           </button>
         </slot>
       </div>
@@ -65,11 +65,11 @@ const emit = defineEmits<{
 const props = defineProps({
   text: { type: String, default: "" },
   images: {
-    type: Array as () => Array<{ src: string; file?: File; fileName?: string }>,
+    type: Array as () => Array<{ id?: string; src: string; file?: File; fileName?: string; uploading?: boolean }>,
     default: () => [],
   },
   attachments: {
-    type: Array as () => Array<{ name?: string; file_name?: string }>,
+    type: Array as () => Array<{ id?: string; name?: string; file_name?: string; uploading?: boolean }>,
     default: () => [],
   },
   placeholder: { type: String, default: "输入问题..." },
@@ -113,12 +113,17 @@ const handleClickAttachment = () => {
   emit('clickAttachment')
 }
 
+const triggerSend = () => {
+  if (!canSend.value) {
+    return
+  }
+  emit("send")
+}
+
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault()
-    if (canSend.value) {
-      emit("send")
-    }
+    triggerSend()
   }
 }
 
@@ -207,16 +212,19 @@ defineExpose({
   width: 32px;
   height: 32px;
   border: none;
-  background: #f1f5f9; /* 淡灰色 */
+  background: #f1f5f9;
+  /* 淡灰色 */
   color: #64748b;
-  border-radius: 50%; /* 圆形 */
+  border-radius: 50%;
+  /* 圆形 */
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .icon-btn:hover,
 .model-btn.active {
-  background: #e2e8f0; /* hover稍微深一点的灰色 */
+  background: #e2e8f0;
+  /* hover稍微深一点的灰色 */
   color: #3b82f6;
 }
 
@@ -229,7 +237,8 @@ defineExpose({
   border: none;
   background: #3b82f6;
   color: #ffffff;
-  border-radius: 50%; /* 圆形 */
+  border-radius: 50%;
+  /* 圆形 */
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -242,6 +251,125 @@ defineExpose({
 
 .send-btn:not(:disabled):hover {
   background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.message-input-container {
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 24px;
+  padding: 10px 12px 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 10px 30px rgba(15, 23, 42, 0.06);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.message-input-container:focus-within {
+  border-color: rgba(15, 23, 42, 0.16);
+  box-shadow:
+    0 0 0 4px rgba(15, 23, 42, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.preview-section {
+  padding-bottom: 8px;
+}
+
+.message-textarea {
+  min-height: 56px;
+  max-height: 220px;
+  padding: 2px 2px 0;
+  font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.72;
+}
+
+.message-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.input-toolbar {
+  padding-top: 8px;
+  margin-top: 2px;
+}
+
+.toolbar-left,
+.toolbar-right {
+  gap: 10px;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: rgba(248, 250, 252, 0.96);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.icon-btn:hover,
+.model-btn.active {
+  border-color: rgba(148, 163, 184, 0.52);
+  background: #ffffff;
+  color: #0f172a;
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 10px 20px rgba(148, 163, 184, 0.18);
+}
+
+.send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(15, 23, 42, 0.96);
+  background: linear-gradient(180deg, #111827, #0f172a);
+  color: #ffffff;
+  border-radius: 14px;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.16);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.send-btn:disabled {
+  border-color: rgba(226, 232, 240, 0.96);
+  background: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.send-btn :deep(svg) {
+  transition: transform 0.2s ease;
+}
+
+.send-btn:not(:disabled):hover {
+  background: linear-gradient(180deg, #0f172a, #020617);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.2);
+}
+
+.send-btn:not(:disabled):hover :deep(svg) {
   transform: translateY(-1px);
 }
 </style>
