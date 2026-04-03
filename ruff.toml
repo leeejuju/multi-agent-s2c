@@ -1,0 +1,13 @@
+line-length = 240
+target-version = "py313"
+
+[lint]
+select = ["E", "F", "I", "UP"]
+ignore = []
+
+[lint.isort]
+known-first-party = ["src", "server"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
