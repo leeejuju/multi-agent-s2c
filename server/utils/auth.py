@@ -7,8 +7,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-from server.utils.logger import logger
 from src.configs import config
+from src.utils import logger
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

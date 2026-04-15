@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 class Logger:
-    """Project-wide logger wrapper."""
+    """日志工具类."""
 
     def __init__(
         self,
