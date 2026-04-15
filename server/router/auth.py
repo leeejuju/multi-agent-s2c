@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.utils import logger
 from server.utils.auth import (
     AuthenticatedUser,
     create_access_token,
@@ -13,18 +12,18 @@ from server.utils.auth import (
     verify_password,
 )
 from src.database import User, get_db
+from src.utils import logger
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
-    email: EmailStr
     password: str = Field(min_length=8, max_length=128)
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=8, max_length=128)
 
 
@@ -33,7 +32,7 @@ class UserResponse(BaseModel):
 
     id: UUID
     username: str
-    email: EmailStr
+    email: EmailStr | None = None
     is_active: bool
 
 
@@ -49,7 +48,7 @@ async def _get_user_by_id(session: AsyncSession, user_id: str) -> User:
         logger.warning(f"用户查询失败 (ID={user_id})：用户不存在或已禁用。")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="找不带该已认证用户。",
+            detail="找不到该已认证用户。",
         )
     return user
 
@@ -60,24 +59,20 @@ async def _get_user_by_id(session: AsyncSession, user_id: str) -> User:
     status_code=status.HTTP_201_CREATED,
 )
 async def register(payload: RegisterRequest, session: AsyncSession = Depends(get_db)):
-    logger.info(f"收到注册请求: 用户名={payload.username}, 邮箱={payload.email}。")
+    logger.info(f"收到注册请求: 用户名={payload.username}。")
     existing_user = await session.scalar(
-        select(User).where(
-            or_(User.email == payload.email, User.username == payload.username)
-        )
+        select(User).where(User.username == payload.username)
     )
     if existing_user is not None:
-        logger.warning(
-            f"注册被拒绝，用户名或邮箱已存在: 用户名={payload.username}, 邮箱={payload.email}。"
-        )
+        logger.warning(f"注册被拒绝，用户名已存在: 用户名={payload.username}。")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="用户名或邮箱已存在。",
+            detail="用户名已存在。",
         )
 
     user = User(
         username=payload.username,
-        email=payload.email,
+        email=None,
         password_hash=hash_password(payload.password),
     )
     session.add(user)
@@ -89,13 +84,13 @@ async def register(payload: RegisterRequest, session: AsyncSession = Depends(get
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
-    logger.info(f"收到登录请求: 邮箱={payload.email}。")
-    user = await session.scalar(select(User).where(User.email == payload.email))
+    logger.info(f"收到登录请求: 用户名={payload.username}。")
+    user = await session.scalar(select(User).where(User.username == payload.username))
     if user is None or not verify_password(payload.password, user.password_hash):
-        logger.warning(f"登录失败: 邮箱={payload.email}。")
+        logger.warning(f"登录失败: 用户名={payload.username}。")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="邮箱或密码错误。",
+            detail="用户名或密码错误。",
         )
 
     if not user.is_active:
@@ -105,7 +100,7 @@ async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
             detail="账号已禁用。",
         )
 
-    token = create_access_token(str(user.id), user.email, user.username)
+    token = create_access_token(str(user.id), user.email or "", user.username)
     logger.info(f"登录成功: 用户ID={user.id}。")
     return TokenResponse(
         access_token=token,
