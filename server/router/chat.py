@@ -6,7 +6,6 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 
-from server.utils import logger
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.storage import (
@@ -15,6 +14,7 @@ from src.storage import (
     delete_object,
     upload_object_bytes,
 )
+from src.utils import logger
 from src.utils.image_process import store_image_assets
 
 router = APIRouter(prefix="/chat", tags=["chat"])
