@@ -30,6 +30,10 @@ web/tsconfig.tsbuildinfo
 .DS_Store
 Thumbs.db
 
+# Local container volumes
+docker/volume/
+.docker/
+
 # claude directories
 .claude/skills/*
 
