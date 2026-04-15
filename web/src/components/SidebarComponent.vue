@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { Home, LineChart, Settings } from "lucide-vue-next"
+import { useRouter } from "vue-router"
+import { Home, LineChart, Settings, LogOut } from "lucide-vue-next"
 
+const router = useRouter()
 const activeMenu = ref("overview")
 
 const menuItems = [
@@ -12,6 +14,12 @@ const menuItems = [
 
 const handleSelect = (key: string) => {
   activeMenu.value = key
+}
+
+const handleLogout = () => {
+  localStorage.removeItem("access_token")
+  localStorage.removeItem("user")
+  router.push({ name: "login" })
 }
 </script>
 
@@ -27,6 +35,14 @@ const handleSelect = (key: string) => {
           {{ item.label }}
         </span>
         <!-- Tooltip Arrow -->
+        <span class="tooltip-arrow" />
+      </div>
+
+      <div class="mt-auto nav-item group hover:text-red-500" @click="handleLogout">
+        <LogOut :size="20" :stroke-width="2.5" />
+        <span class="tooltip-text">
+          退出登录
+        </span>
         <span class="tooltip-arrow" />
       </div>
     </div>

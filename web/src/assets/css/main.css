@@ -5,6 +5,16 @@
   --app-bg: #f4f7fb;
   --panel-bg: rgba(255, 255, 255, 0.95);
   --border-color: #d7dee8;
+
+  /* Claude-inspired variables */
+  --claude-bg: #fcfaf7;
+  --claude-primary: #d97757;
+  --claude-primary-hover: #c4684b;
+  --claude-text: #1d1d1b;
+  --claude-muted: #6b6b69;
+  --claude-input-bg: #ffffff;
+  --claude-border: #e6e1db;
+  --claude-focus: #d97757;
 }
 
 /* 2. Base Styles (HTML Element Resets/Defaults) */
