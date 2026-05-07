@@ -1,23 +1,29 @@
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.configs.config import config
 
-_engine = None
-_session_maker = None
+_engine: AsyncEngine | None = None
+_session_maker: async_sessionmaker[AsyncSession] | None = None
 
 
-def get_engine():
+def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         if not config.database_url:
-            raise RuntimeError("必须配置 DATABASE_URL 才能初始化数据库。")
+            raise RuntimeError("Missing DATABASE_URL")
         _engine = create_async_engine(config.database_url, echo=False)
     return _engine
 
 
-def get_session_maker():
+def get_session_maker() -> async_sessionmaker[AsyncSession]:
     global _session_maker
     if _session_maker is None:
         _session_maker = async_sessionmaker(
@@ -28,7 +34,13 @@ def get_session_maker():
     return _session_maker
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+@asynccontextmanager
+async def session_context() -> AsyncGenerator[AsyncSession, None]:
     session_maker = get_session_maker()
     async with session_maker() as session:
+        yield session
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with session_context() as session:
         yield session

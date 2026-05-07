@@ -129,29 +129,6 @@ def _is_allowed_file(
     return content_type in allowed_types or extension in allowed_extensions
 
 
-def _build_human_message(payload: ChatRequest) -> HumanMessage:
-    """将请求负载转换为 LangChain 的 HumanMessage，处理文本和多模态（图片）内容"""
-    if not payload.attachments:
-        return HumanMessage(content=payload.input)
-
-    content_blocks: list[dict[str, Any]] = []
-    # 添加文本块
-    if payload.input.strip():
-        content_blocks.append({"type": "text", "text": payload.input})
-
-    # 添加图片块
-    for attachment in payload.attachments:
-        if attachment.content_type.startswith("image/"):
-            content_blocks.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": attachment.access_url},
-                }
-            )
-
-    return HumanMessage(content=content_blocks or payload.input)
-
-
 
 async def _upload_attachments(
     *,
@@ -325,54 +302,53 @@ async def chat_stream(
         f"收到流式对话请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
     )
     agent = agent_manager.get_agent(agent_id)
-    if agent is None:
-        logger.warning(f"流式对话请求失败: 未知的智能体ID={agent_id}.")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"未找到智能体 '{agent_id}'。",
-        )
-
+ 
     conversation_id, _ = await chat_service.save_message(
-        db, "user", payload.input,
+        db,
+        "user",
+        payload.input,
         conversation_id=payload.conversation_id,
         user_id=current_user.user_id,
     )
     await db.commit()
+    # content: list[dict[str, Any]] = []
+    # if payload.input.strip():
+    #     content.append({"type": "text", "text": payload.input})
+    # for a in payload.attachments:
+    #     if a.content_type.startswith("image/"):
+    #         content.append({"type": "image_url", "image_url": {"url": a.access_url}})
+    # human_msg = HumanMessage(content=content or payload.input)
 
-    human_msg = _build_human_message(payload)
+    # async def token_generator():
+    #     full_content = ""
+    #     try:
+    #         yield f"data: {json.dumps({'type': 'metadata', 'conversation_id': conversation_id})}\n\n"
 
-    async def event_generator():
-        full_content = ""
-        try:
-            yield f"data: {json.dumps({'type': 'metadata', 'conversation_id': conversation_id})}\n\n"
+    #         async for mode, chunk in agent.stream_messages(
+    #             {"messages": [human_msg]},
+    #             config={"configurable": {"thread_id": conversation_id}},
+    #         ):
+    #             if mode == "messages" and chunk.content:
+    #                 token = chunk.content if isinstance(chunk.content, str) else ""
+    #                 if token:
+    #                     full_content += token
+    #                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
-            async for mode, chunk in agent.stream(
-                {"messages": [human_msg]},
-                config={"configurable": {"thread_id": conversation_id}},
-            ):
-                if mode == "messages" and chunk.content:
-                    token = chunk.content if isinstance(chunk.content, str) else ""
-                    if token:
-                        full_content += token
-                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+    #         await chat_service.save_message(db, "assistant", full_content, conversation_id=conversation_id)
+    #         yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id})}\n\n"
+    #     except Exception:
+    #         logger.exception("流式对话异常: 用户ID=%s, 对话ID=%s.", current_user.user_id, conversation_id)
+    #         yield f"data: {json.dumps({'type': 'error', 'message': '流式输出中断'})}\n\n"
 
-            await chat_service.save_message(db, "assistant", full_content, conversation_id=conversation_id)
-            await db.commit()
-
-            yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id})}\n\n"
-        except Exception:
-            logger.exception("流式对话异常: 用户ID=%s, 对话ID=%s.", current_user.user_id, conversation_id)
-            yield f"data: {json.dumps({'type': 'error', 'message': '流式输出中断'})}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    # return StreamingResponse(
+    #     token_generator(),
+    #     media_type="text/event-stream",
+    #     headers={
+    #         "Cache-Control": "no-cache",
+    #         "Connection": "keep-alive",
+    #         "X-Accel-Buffering": "no",
+    #     },
+    # )
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])
@@ -418,7 +394,6 @@ async def get_conversation_messages(
 async def remove_conversation(
     conversation_id: str,
     current_user: AuthenticatedUser,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(dependency=get_db),
 ):
     await chat_service.delete_conversation(db, conversation_id, current_user.user_id)
-    await db.commit()

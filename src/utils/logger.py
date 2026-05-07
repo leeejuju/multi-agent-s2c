@@ -2,6 +2,24 @@ import logging
 from pathlib import Path
 
 
+class ColorFormatter(logging.Formatter):
+    COLORS = {
+        logging.DEBUG: "\033[36m",
+        logging.INFO: "\033[32m",
+        logging.WARNING: "\033[33m",
+        logging.ERROR: "\033[31m",
+        logging.CRITICAL: "\033[35m",
+    }
+    RESET = "\033[0m"
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = super().format(record)
+        color = self.COLORS.get(record.levelno)
+        if not color:
+            return message
+        return f"{color}{message}{self.RESET}"
+
+
 class Logger:
     """日志工具类."""
 
@@ -17,14 +35,21 @@ class Logger:
         if self.logger.handlers:
             return
 
-        formatter = logging.Formatter(
+        log_format = (
             "%(asctime)s | %(name)s | %(levelname)s | %(filename)s:%(lineno)d | %(message)s",
+        )
+        formatter = logging.Formatter(
+            log_format[0],
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        color_formatter = ColorFormatter(
+            log_format[0],
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
         stream_handler = logging.StreamHandler()
         stream_handler.setLevel(level)
-        stream_handler.setFormatter(formatter)
+        stream_handler.setFormatter(color_formatter)
         self.logger.addHandler(stream_handler)
 
         if log_file:
@@ -43,23 +68,23 @@ class Logger:
         payload["stacklevel"] = payload.get("stacklevel", 2)
         return payload
 
-    def debug(self, message: str) -> None:
-        self.logger.debug(message, **self._with_stacklevel({}))
+    def debug(self, message: str, *args: object) -> None:
+        self.logger.debug(message, *args, **self._with_stacklevel({}))
 
-    def info(self, message: str) -> None:
-        self.logger.info(message, **self._with_stacklevel({}))
+    def info(self, message: str, *args: object) -> None:
+        self.logger.info(message, *args, **self._with_stacklevel({}))
 
-    def warning(self, message: str) -> None:
-        self.logger.warning(message, **self._with_stacklevel({}))
+    def warning(self, message: str, *args: object) -> None:
+        self.logger.warning(message, *args, **self._with_stacklevel({}))
 
-    def error(self, message: str) -> None:
-        self.logger.error(message, **self._with_stacklevel({}))
+    def error(self, message: str, *args: object) -> None:
+        self.logger.error(message, *args, **self._with_stacklevel({}))
 
-    def exception(self, message: str) -> None:
-        self.logger.exception(message, **self._with_stacklevel({}))
+    def exception(self, message: str, *args: object) -> None:
+        self.logger.exception(message, *args, **self._with_stacklevel({}))
 
-    def critical(self, message: str) -> None:
-        self.logger.critical(message, **self._with_stacklevel({}))
+    def critical(self, message: str, *args: object) -> None:
+        self.logger.critical(message, *args, **self._with_stacklevel({}))
 
 
 Log = Logger

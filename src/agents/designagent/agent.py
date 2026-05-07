@@ -1,5 +1,6 @@
 from langchain.agents import create_agent
 from langgraph.graph.state import CompiledStateGraph
+
 from src.agents.common import BaseAgent, load_model
 from src.configs import config as sys_config
 
@@ -15,10 +16,10 @@ class DesignAgent(BaseAgent):
     def __init__(self):
         pass
 
-    def get_agent(self, checkpointer=None) -> CompiledStateGraph:
+    def get_agent(self, context = None) -> CompiledStateGraph:
         agent = create_agent(
             model=load_model(sys_config.default_model),
             system_prompt=self.context.system_prompt,
-            checkpointer=checkpointer,
+            context_schema=context,
         )
         return agent

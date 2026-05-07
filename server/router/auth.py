@@ -2,7 +2,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.utils.auth import (
@@ -12,6 +11,7 @@ from server.utils.auth import (
     verify_password,
 )
 from src.database import User, get_db
+from src.database.repositories import UserRepository
 from src.utils import logger
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -19,12 +19,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=6, max_length=128)
 
 
 class LoginRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=6, max_length=128)
 
 
 class UserResponse(BaseModel):
@@ -43,12 +43,13 @@ class TokenResponse(BaseModel):
 
 
 async def _get_user_by_id(session: AsyncSession, user_id: str) -> User:
-    user = await session.get(User, UUID(user_id))
-    if user is None or not user.is_active:
-        logger.warning(f"用户查询失败 (ID={user_id})：用户不存在或已禁用。")
+    user_repository = UserRepository(session)
+    user = await user_repository.get_active_by_id(user_id)
+    if user is None:
+        logger.warning("Authenticated user lookup failed: user_id=%s.", user_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="找不到该已认证用户。",
+            detail="Authenticated user was not found.",
         )
     return user
 
@@ -59,49 +60,51 @@ async def _get_user_by_id(session: AsyncSession, user_id: str) -> User:
     status_code=status.HTTP_201_CREATED,
 )
 async def register(payload: RegisterRequest, session: AsyncSession = Depends(get_db)):
-    logger.info(f"收到注册请求: 用户名={payload.username}。")
-    existing_user = await session.scalar(
-        select(User).where(User.username == payload.username)
-    )
+    logger.info("Registration requested: username=%s.", payload.username)
+    user_repository = UserRepository(session)
+    existing_user = await user_repository.get_by_username(payload.username)
     if existing_user is not None:
-        logger.warning(f"注册被拒绝，用户名已存在: 用户名={payload.username}。")
+        logger.warning(
+            "Registration rejected; username already exists: %s.",
+            payload.username,
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="用户名已存在。",
+            detail="Username already exists.",
         )
 
-    user = User(
+    user = await user_repository.create(
         username=payload.username,
         email=None,
         password_hash=hash_password(payload.password),
     )
-    session.add(user)
     await session.commit()
     await session.refresh(user)
-    logger.info(f"用户注册成功: 用户ID={user.id}。")
+    logger.info("User registered: user_id=%s.", user.id)
     return UserResponse.model_validate(user)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
-    logger.info(f"收到登录请求: 用户名={payload.username}。")
-    user = await session.scalar(select(User).where(User.username == payload.username))
+    logger.info("Login requested: username=%s.", payload.username)
+    user_repository = UserRepository(session)
+    user = await user_repository.get_by_username(payload.username)
     if user is None or not verify_password(payload.password, user.password_hash):
-        logger.warning(f"登录失败: 用户名={payload.username}。")
+        logger.warning("Login failed: username=%s.", payload.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误。",
+            detail="Invalid username or password.",
         )
 
     if not user.is_active:
-        logger.warning(f"登录被拒绝，用户已禁用: 用户ID={user.id}。")
+        logger.warning("Login rejected; user is disabled: user_id=%s.", user.id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="账号已禁用。",
+            detail="Account is disabled.",
         )
 
     token = create_access_token(str(user.id), user.email or "", user.username)
-    logger.info(f"登录成功: 用户ID={user.id}。")
+    logger.info("Login succeeded: user_id=%s.", user.id)
     return TokenResponse(
         access_token=token,
         user=UserResponse.model_validate(user),
@@ -110,6 +113,6 @@ async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: AuthenticatedUser, session: AsyncSession = Depends(get_db)):
-    logger.info(f"请求当前用户信息: 用户ID={current_user.user_id}。")
+    logger.info("Current user requested: user_id=%s.", current_user.user_id)
     user = await _get_user_by_id(session, current_user.user_id)
     return UserResponse.model_validate(user)
