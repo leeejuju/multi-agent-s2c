@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from src.configs import config
 from src.utils import logger
 
-password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+password_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 

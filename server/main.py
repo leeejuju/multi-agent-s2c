@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from server.lifespan import lifespan
 from server.router import api_router
 
-
 app = FastAPI(
     title="multi-agent-s2c",
     version="0.1.0",
