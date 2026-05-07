@@ -1,13 +1,18 @@
+import json
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.service import chat_service
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
+from src.database import get_db
 from src.storage import (
     build_object_key,
     create_object_access_url,
@@ -93,13 +98,18 @@ class ChatRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
-class ChatResponse(BaseModel):
-    """聊天响应结果"""
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
 
+
+class MessageResponse(BaseModel):
+    id: str
+    role: str
     content: str
-    user_id: str
-    agent_id: str
-    conversation_id: str | None = None
+    created_at: str
 
 
 def _file_extension(filename: str | None) -> str:
@@ -141,25 +151,6 @@ def _build_human_message(payload: ChatRequest) -> HumanMessage:
 
     return HumanMessage(content=content_blocks or payload.input)
 
-
-def _extract_response_content(response: dict[str, Any]) -> str:
-    """从智能体响应中提取最后一条消息的文本内容"""
-    messages = response.get("messages", [])
-    if not messages:
-        return ""
-
-    last_message = messages[-1]
-    content = getattr(last_message, "content", "")
-    # 处理列表形式的消息内容（通常出现在多模态响应中）
-    if isinstance(content, list):
-        text_parts = [
-            block.get("text", "")
-            for block in content
-            if isinstance(block, dict) and block.get("type") == "text"
-        ]
-        return "\n".join(part for part in text_parts if part)
-
-    return str(content)
 
 
 async def _upload_attachments(
@@ -322,35 +313,112 @@ async def upload_files(
     )
 
 
-@router.post("/agent/{agent_id}/run", response_model=ChatResponse)
-async def chat(
+@router.post("/agent/{agent_id}/run/stream")
+async def chat_stream(
     agent_id: str,
     payload: ChatRequest,
     current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
 ):
-    """调用智能体执行对话"""
+    """调用智能体执行对话（SSE流式输出）"""
     logger.info(
-        f"收到对话请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
+        f"收到流式对话请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
     )
     agent = agent_manager.get_agent(agent_id)
     if agent is None:
-        logger.warning(f"对话请求失败: 未知的智能体ID={agent_id}.")
+        logger.warning(f"流式对话请求失败: 未知的智能体ID={agent_id}.")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"未找到智能体 '{agent_id}'。",
         )
 
-    # 通过 LangGraph/Agent 执行流式/非流式对话
-    response = await agent.stream_messages(
-        {"messages": [_build_human_message(payload)]},
-        config=payload.config,
-    )
-    logger.info(
-        f"对话请求处理完成: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
-    )
-    return ChatResponse(
-        content=_extract_response_content(response),
-        user_id=current_user.user_id,
-        agent_id=agent_id,
+    conversation_id, _ = await chat_service.save_message(
+        db, "user", payload.input,
         conversation_id=payload.conversation_id,
+        user_id=current_user.user_id,
     )
+    await db.commit()
+
+    human_msg = _build_human_message(payload)
+
+    async def event_generator():
+        full_content = ""
+        try:
+            yield f"data: {json.dumps({'type': 'metadata', 'conversation_id': conversation_id})}\n\n"
+
+            async for mode, chunk in agent.stream(
+                {"messages": [human_msg]},
+                config={"configurable": {"thread_id": conversation_id}},
+            ):
+                if mode == "messages" and chunk.content:
+                    token = chunk.content if isinstance(chunk.content, str) else ""
+                    if token:
+                        full_content += token
+                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+            await chat_service.save_message(db, "assistant", full_content, conversation_id=conversation_id)
+            await db.commit()
+
+            yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id})}\n\n"
+        except Exception:
+            logger.exception("流式对话异常: 用户ID=%s, 对话ID=%s.", current_user.user_id, conversation_id)
+            yield f"data: {json.dumps({'type': 'error', 'message': '流式输出中断'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/conversations", response_model=list[ConversationSummary])
+async def list_conversations(
+    current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
+):
+    conversations = await chat_service.list_conversations(db, current_user.user_id)
+    return [
+        ConversationSummary(
+            id=str(c.id),
+            title=c.title,
+            created_at=c.created_at.isoformat(),
+            updated_at=c.updated_at.isoformat(),
+        )
+        for c in conversations
+    ]
+
+
+@router.get(
+    "/conversations/{conversation_id}/messages",
+    response_model=list[MessageResponse],
+)
+async def get_conversation_messages(
+    conversation_id: str,
+    current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
+):
+    await chat_service.get_conversation(db, conversation_id, current_user.user_id)
+    messages = await chat_service.get_messages(db, conversation_id)
+    return [
+        MessageResponse(
+            id=str(m.id),
+            role=m.role,
+            content=m.content,
+            created_at=m.created_at.isoformat(),
+        )
+        for m in messages
+    ]
+
+
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_conversation(
+    conversation_id: str,
+    current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
+):
+    await chat_service.delete_conversation(db, conversation_id, current_user.user_id)
+    await db.commit()
