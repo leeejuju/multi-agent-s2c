@@ -6,6 +6,31 @@
       </header>
 
       <section class="chat-body">
+        <div class="history-bar">
+          <button
+            class="history-btn"
+            @click="toggleHistory"
+          >
+            历史消息
+          </button>
+          <div v-if="showConversations" class="conv-dropdown">
+            <button class="conv-new-btn" @click="newConversation">＋ 新对话</button>
+            <div
+              v-for="conv in conversations"
+              :key="conv.id"
+              class="conv-item"
+              :class="{ active: conv.id === conversationId }"
+              @click="switchConversation(conv.id)"
+            >
+              <span class="conv-title">{{ conv.title }}</span>
+              <span class="conv-time">{{ conv.updated_at.slice(0, 10) }}</span>
+            </div>
+            <div v-if="conversations.length === 0" class="conv-empty">
+              暂无对话记录
+            </div>
+          </div>
+        </div>
+
         <div v-if="statusText && !isSending" class="status-banner" :class="{ 'is-error': statusType === 'error' }">
           {{ statusText }}
         </div>
@@ -23,8 +48,8 @@
               <span class="loading-line line-3" />
             </div>
 
-            <div v-else-if="message.content" class="message-content">
-              {{ message.content }}
+            <div v-else-if="message.content || message.streaming" class="message-content">
+              {{ message.content }}<span v-if="message.streaming" class="cursor-blink">|</span>
             </div>
 
             <div v-if="message.images?.length || message.attachments?.length" class="message-assets">
@@ -67,10 +92,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue"
+import { nextTick, onMounted, ref } from "vue"
 import { Paperclip } from "lucide-vue-next"
 import AgentMessageInputArea from "./AgentMessageInputArea.vue"
-import { agentApi, type AttachmentItem } from "@/api/agent"
+import {
+  agentApi,
+  type AttachmentItem,
+  type ConversationSummary,
+} from "@/api/agent"
 
 const DEFAULT_AGENT_ID = "DesignAgent"
 const acceptTypes = "image/*,.pdf,.txt,.md,.markdown,.json,.docx"
@@ -95,6 +124,7 @@ type ChatMessage = {
   images?: DraftImage[]
   attachments?: DraftAttachment[]
   loading?: boolean
+  streaming?: boolean
 }
 
 const draftText = ref("")
@@ -107,6 +137,8 @@ const isUploading = ref(false)
 const isSending = ref(false)
 const statusText = ref("")
 const statusType = ref<"info" | "error">("info")
+const conversations = ref<ConversationSummary[]>([])
+const showConversations = ref(false)
 
 const imageExtensions = new Set([
   "jpg",
@@ -348,6 +380,51 @@ const handleRemoveAttachment = (index: number) => {
   )
 }
 
+const scrollToBottom = () => {
+  nextTick(() => {
+    const body = document.querySelector(".chat-body")
+    if (body) body.scrollTop = body.scrollHeight
+  })
+}
+
+const loadConversations = async () => {
+  try {
+    conversations.value = await agentApi.getConversations()
+  } catch {
+    // 静默失败，不影响聊天功能
+  }
+}
+
+const switchConversation = async (convId: string) => {
+  conversationId.value = convId
+  showConversations.value = false
+  messages.value = []
+  try {
+    const history = await agentApi.getConversationMessages(convId)
+    messages.value = history.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }))
+  } catch {
+    setStatus("加载对话历史失败", "error")
+  }
+  scrollToBottom()
+}
+
+const newConversation = () => {
+  conversationId.value = null
+  messages.value = []
+  showConversations.value = false
+}
+
+const toggleHistory = () => {
+  showConversations.value = !showConversations.value
+}
+
+onMounted(() => {
+  loadConversations()
+})
+
 const handleSend = async () => {
   const trimmedText = draftText.value.trim()
   if (isUploading.value || isSending.value) {
@@ -376,48 +453,67 @@ const handleSend = async () => {
   messages.value.push({
     role: "assistant",
     content: "",
-    loading: true,
+    streaming: true,
   })
   clearDraftState()
+  scrollToBottom()
 
   isSending.value = true
-  setStatus("消息发送中...")
+  setStatus("")
 
-  try {
-    const response = await agentApi.send2Agent(
-      DEFAULT_AGENT_ID,
-      {
-        input: trimmedText,
-        conversation_id: conversationId.value || undefined,
-        attachments: payloadAttachments,
+  let conversationIdSet = false
+
+  agentApi.send2AgentStream(
+    DEFAULT_AGENT_ID,
+    {
+      input: trimmedText,
+      conversation_id: conversationId.value || undefined,
+      attachments: payloadAttachments,
+    },
+    {
+      model: selectedModelId.value,
+      stream: true,
+    },
+    {
+      onToken(token: string) {
+        const last = messages.value[messages.value.length - 1]
+        if (last && last.role === "assistant") {
+          last.content += token
+          scrollToBottom()
+        }
       },
-      {
-        model: selectedModelId.value,
-        stream: false,
+      onDone(data: Record<string, unknown>) {
+        if (!conversationIdSet) {
+          const convId = data.conversation_id as string
+          if (convId) {
+            conversationId.value = convId
+            conversationIdSet = true
+            loadConversations()
+          }
+        }
+        const last = messages.value[messages.value.length - 1]
+        if (last && last.role === "assistant") {
+          last.streaming = false
+        }
+        isSending.value = false
+        setStatus("")
       },
-    )
-
-    if (response.conversation_id) {
-      conversationId.value = response.conversation_id
-    }
-
-    if (messages.value[messages.value.length - 1]?.loading) {
-      messages.value.pop()
-    }
-    messages.value.push({
-      role: "assistant",
-      content: response.content || "已收到请求，但暂未返回内容。",
-    })
-    setStatus("")
-  } catch (error) {
-    messages.value.pop()
-    messages.value.pop()
-    restoreDraftState(trimmedText, messageImages, messageAttachments)
-    const message = error instanceof Error ? error.message : "消息发送失败。"
-    setStatus(message, "error")
-  } finally {
-    isSending.value = false
-  }
+      onError(err: Error) {
+        const last = messages.value[messages.value.length - 1]
+        if (last && last.streaming) {
+          if (!last.content) {
+            messages.value.pop()
+            messages.value.pop()
+            restoreDraftState(trimmedText, messageImages, messageAttachments)
+          } else {
+            last.streaming = false
+          }
+        }
+        isSending.value = false
+        setStatus(err.message, "error")
+      },
+    },
+  )
 }
 </script>
 
@@ -707,6 +803,116 @@ const handleSend = async () => {
 .is-assistant .message-image-label,
 .is-assistant .message-file-name {
   color: #334155;
+}
+
+.cursor-blink {
+  animation: cursorPulse 0.8s ease-in-out infinite;
+  color: #0f172a;
+  font-weight: 300;
+}
+
+@keyframes cursorPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.history-bar {
+  position: relative;
+  margin-bottom: 14px;
+  padding: 0 6px;
+}
+
+.history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  background: rgba(248, 250, 252, 0.9);
+  color: #475569;
+  font-size: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.history-btn:hover {
+  border-color: rgba(148, 163, 184, 0.5);
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.conv-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 6px;
+  right: 6px;
+  z-index: 10;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid rgba(226, 232, 240, 0.94);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+}
+
+.conv-new-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  background: rgba(241, 245, 249, 0.8);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+}
+
+.conv-new-btn:hover {
+  background: rgba(226, 232, 240, 0.8);
+}
+
+.conv-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.conv-item:hover {
+  background: rgba(241, 245, 249, 0.7);
+}
+
+.conv-item.active {
+  background: rgba(239, 246, 255, 0.8);
+}
+
+.conv-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  color: #0f172a;
+}
+
+.conv-time {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.conv-empty {
+  padding: 20px 14px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 @keyframes messageShimmer {

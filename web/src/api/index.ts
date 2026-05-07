@@ -128,5 +128,88 @@ export const put = <T>(url: string, data?: any, config?: RequestConfig) =>
 export const del = <T>(url: string, config?: RequestConfig) =>
   request<T>(url, { ...config, method: "DELETE" });
 
+/**
+ * SSE 流式请求
+ */
+export function requestStream(
+  url: string,
+  body: unknown,
+  callbacks: {
+    onToken: (token: string) => void;
+    onDone: (data: Record<string, unknown>) => void;
+    onError: (err: Error) => void;
+  },
+  timeout = 60000,
+): { abort: () => void } {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+
+  if (typeof window !== "undefined") {
+    const token = window.localStorage.getItem("access_token");
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  fetch(`${BASE_URL}${url}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  })
+    .then(async (response) => {
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+        throw new Error(err.message || "请求失败");
+      }
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let doneReading = false;
+
+      while (!doneReading) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === "token") {
+              callbacks.onToken(data.content);
+            } else if (data.type === "done") {
+              callbacks.onDone(data);
+              doneReading = true;
+            } else if (data.type === "error") {
+              callbacks.onError(new Error(data.message || "流式错误"));
+              doneReading = true;
+            } else if (data.type === "metadata") {
+              callbacks.onDone(data);
+            }
+          } catch {
+            // 跳过无法解析的行
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        callbacks.onError(new Error("请求超时"));
+      } else {
+        callbacks.onError(err);
+      }
+    });
+
+  return { abort: () => controller.abort() };
+}
+
 // Backwards compatibility or alternative export
 export { request as http };
