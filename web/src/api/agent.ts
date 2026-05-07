@@ -1,4 +1,4 @@
-import { post, postForm } from "./index";
+import { del, get, postForm, requestStream } from "./index";
 
 export interface AgentConfig {
   model?: string;
@@ -30,17 +30,6 @@ export interface Send2AgentPayload {
 }
 
 /**
- * 智能体响应结构
- */
-export interface AgentResponse {
-  content: string;
-  conversation_id?: string;
-  usage?: {
-    total_tokens: number;
-  };
-}
-
-/**
  * 构建上传文件的 FormData
  */
 function buildUploadFormData(files: File[], conversationId?: string): FormData {
@@ -50,6 +39,20 @@ function buildUploadFormData(files: File[], conversationId?: string): FormData {
   }
   files.forEach((file) => formData.append("files", file));
   return formData;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageResponse {
+  id: string;
+  role: string;
+  content: string;
+  created_at: string;
 }
 
 export const agentApi = {
@@ -74,21 +77,45 @@ export const agentApi = {
   },
 
   /**
-   * 调用智能体运行任务
+   * 调用智能体（SSE 流式）
    */
-  async send2Agent(
+  send2AgentStream(
     agentId: string,
     payload: Send2AgentPayload,
-    config: AgentConfig = {},
-    options: RequestInit = {},
-  ): Promise<AgentResponse> {
-    return post<AgentResponse>(
-      `/chat/agent/${agentId}/run`,
-      {
-        ...payload,
-        config,
-      },
-      options,
+    config: AgentConfig,
+    callbacks: {
+      onToken: (token: string) => void;
+      onDone: (data: Record<string, unknown>) => void;
+      onError: (err: Error) => void;
+    },
+  ) {
+    return requestStream(
+      `/chat/agent/${agentId}/run/stream`,
+      { ...payload, config },
+      callbacks,
     );
+  },
+
+  /**
+   * 获取会话列表
+   */
+  getConversations() {
+    return get<ConversationSummary[]>("/chat/conversations");
+  },
+
+  /**
+   * 获取会话消息历史
+   */
+  getConversationMessages(conversationId: string) {
+    return get<MessageResponse[]>(
+      `/chat/conversations/${conversationId}/messages`,
+    );
+  },
+
+  /**
+   * 删除会话
+   */
+  deleteConversation(conversationId: string) {
+    return del(`/chat/conversations/${conversationId}`);
   },
 };
