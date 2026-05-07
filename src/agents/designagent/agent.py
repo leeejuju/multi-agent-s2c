@@ -15,10 +15,10 @@ class DesignAgent(BaseAgent):
     def __init__(self):
         pass
 
-    def get_agent(self) -> CompiledStateGraph:
-        # 需要结合上下文
+    def get_agent(self, checkpointer=None) -> CompiledStateGraph:
         agent = create_agent(
             model=load_model(sys_config.default_model),
             system_prompt=self.context.system_prompt,
+            checkpointer=checkpointer,
         )
         return agent
