@@ -1,12 +1,13 @@
 from .base import Base
 from .initializer import PostgreSQLInitializer
-from .models import Attachment, Conversation, User
+from .models import Attachment, Conversation, Message, User
 from .session import get_db, get_engine, get_session_maker
 
 __all__ = [
     "Attachment",
     "Base",
     "Conversation",
+    "Message",
     "PostgreSQLInitializer",
     "User",
     "get_db",
