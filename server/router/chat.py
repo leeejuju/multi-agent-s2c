@@ -1,17 +1,14 @@
-import json
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.service import chat_service
 from server.utils.auth import AuthenticatedUser
-from src.agents import agent_manager
 from src.database import get_db
 from src.storage import (
     build_object_key,
@@ -127,7 +124,6 @@ def _is_allowed_file(
     """校验文件类型或后缀是否在允许范围内"""
     extension = _file_extension(filename)
     return content_type in allowed_types or extension in allowed_extensions
-
 
 
 async def _upload_attachments(
@@ -301,54 +297,17 @@ async def chat_stream(
     logger.info(
         f"收到流式对话请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
     )
-    agent = agent_manager.get_agent(agent_id)
- 
-    conversation_id, _ = await chat_service.save_message(
-        db,
-        "user",
-        payload.input,
-        conversation_id=payload.conversation_id,
-        user_id=current_user.user_id,
+    return StreamingResponse(
+        chat_service.stream_chunk(
+            db,
+            agent_id=agent_id,
+            input_text=payload.input,
+            conversation_id=payload.conversation_id,
+            user_id=current_user.user_id,
+            attachments=payload.attachments,
+        ),
+        media_type="application/json",
     )
-    await db.commit()
-    # content: list[dict[str, Any]] = []
-    # if payload.input.strip():
-    #     content.append({"type": "text", "text": payload.input})
-    # for a in payload.attachments:
-    #     if a.content_type.startswith("image/"):
-    #         content.append({"type": "image_url", "image_url": {"url": a.access_url}})
-    # human_msg = HumanMessage(content=content or payload.input)
-
-    # async def token_generator():
-    #     full_content = ""
-    #     try:
-    #         yield f"data: {json.dumps({'type': 'metadata', 'conversation_id': conversation_id})}\n\n"
-
-    #         async for mode, chunk in agent.stream_messages(
-    #             {"messages": [human_msg]},
-    #             config={"configurable": {"thread_id": conversation_id}},
-    #         ):
-    #             if mode == "messages" and chunk.content:
-    #                 token = chunk.content if isinstance(chunk.content, str) else ""
-    #                 if token:
-    #                     full_content += token
-    #                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-
-    #         await chat_service.save_message(db, "assistant", full_content, conversation_id=conversation_id)
-    #         yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id})}\n\n"
-    #     except Exception:
-    #         logger.exception("流式对话异常: 用户ID=%s, 对话ID=%s.", current_user.user_id, conversation_id)
-    #         yield f"data: {json.dumps({'type': 'error', 'message': '流式输出中断'})}\n\n"
-
-    # return StreamingResponse(
-    #     token_generator(),
-    #     media_type="text/event-stream",
-    #     headers={
-    #         "Cache-Control": "no-cache",
-    #         "Connection": "keep-alive",
-    #         "X-Accel-Buffering": "no",
-    #     },
-    # )
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])
