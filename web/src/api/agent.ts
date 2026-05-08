@@ -6,9 +6,6 @@ export interface AgentConfig {
   enable_think?: boolean;
 }
 
-/**
- * 附件条目信息
- */
 export interface AttachmentItem {
   id: string;
   file_name: string;
@@ -20,25 +17,10 @@ export interface AttachmentItem {
   thumb_url?: string | null;
 }
 
-/**
- * 发送给智能体的请求负载
- */
 export interface Send2AgentPayload {
   input: string;
   conversation_id?: string;
   attachments?: AttachmentItem[];
-}
-
-/**
- * 构建上传文件的 FormData
- */
-function buildUploadFormData(files: File[], conversationId?: string): FormData {
-  const formData = new FormData();
-  if (conversationId) {
-    formData.append("conversation_id", conversationId);
-  }
-  files.forEach((file) => formData.append("files", file));
-  return formData;
 }
 
 export interface ConversationSummary {
@@ -55,10 +37,16 @@ export interface MessageResponse {
   created_at: string;
 }
 
+function buildUploadFormData(files: File[], conversationId?: string): FormData {
+  const formData = new FormData();
+  if (conversationId) {
+    formData.append("conversation_id", conversationId);
+  }
+  files.forEach((file) => formData.append("files", file));
+  return formData;
+}
+
 export const agentApi = {
-  /**
-   * 上传图片（包含缩略图生成逻辑）
-   */
   uploadImages(files: File[], conversationId?: string) {
     return postForm<AttachmentItem[]>(
       "/chat/attachments/images/upload",
@@ -66,9 +54,6 @@ export const agentApi = {
     );
   },
 
-  /**
-   * 上传普通文件
-   */
   uploadFiles(files: File[], conversationId?: string) {
     return postForm<AttachmentItem[]>(
       "/chat/attachments/files/upload",
@@ -76,9 +61,6 @@ export const agentApi = {
     );
   },
 
-  /**
-   * 调用智能体（SSE 流式）
-   */
   send2AgentStream(
     agentId: string,
     payload: Send2AgentPayload,
@@ -96,25 +78,16 @@ export const agentApi = {
     );
   },
 
-  /**
-   * 获取会话列表
-   */
   getConversations() {
     return get<ConversationSummary[]>("/chat/conversations");
   },
 
-  /**
-   * 获取会话消息历史
-   */
   getConversationMessages(conversationId: string) {
     return get<MessageResponse[]>(
       `/chat/conversations/${conversationId}/messages`,
     );
   },
 
-  /**
-   * 删除会话
-   */
   deleteConversation(conversationId: string) {
     return del(`/chat/conversations/${conversationId}`);
   },
