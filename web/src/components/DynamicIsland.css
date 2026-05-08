@@ -1,0 +1,11 @@
+.dynamic-island {
+  @apply glass-effect flex items-center justify-center overflow-hidden pointer-events-auto;
+}
+
+.island-content-wrapper {
+  @apply relative w-full h-full flex items-center justify-center;
+}
+
+.island-text {
+  @apply flex flex-col items-center justify-center text-center;
+}
