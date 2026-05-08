@@ -1,0 +1,38 @@
+/* ——— Interactive Grid Canvas ——— */
+.grid-canvas {
+  @apply absolute inset-0 z-0 overflow-hidden touch-none bg-[#f4f4f7] cursor-default;
+}
+
+.grid-canvas.is-panning {
+  @apply cursor-grabbing;
+}
+
+.canvas-grid {
+  @apply absolute inset-0 pointer-events-none;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.12) 1px, transparent 1px);
+}
+
+.canvas-workspace {
+  @apply absolute inset-0 pointer-events-none origin-[0_0];
+}
+
+/* ——— Grid Nodes ——— */
+.grid-node {
+  @apply absolute pointer-events-auto rounded-[20px] bg-white border border-black/5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] p-5 flex flex-col select-none transition-shadow duration-200;
+}
+
+.grid-node:hover {
+  @apply shadow-[0_8px_30px_rgba(0,0,0,0.08)];
+}
+
+.grid-node h3 {
+  @apply m-0 font-display text-[15px] font-extrabold text-on-surface;
+}
+
+.grid-node p {
+  @apply mt-1.5 text-[13px] leading-relaxed text-on-surface-variant;
+}
+
+.node-accent {
+  @apply absolute left-0 top-5 bottom-5 w-1 bg-on-surface rounded-r;
+}
