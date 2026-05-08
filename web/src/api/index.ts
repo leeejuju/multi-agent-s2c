@@ -1,9 +1,15 @@
-/**
- * 基础配置与类型定义
- */
+import { useAuthStore } from "@/store/auth";
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
-export interface ApiResponse<T = any> {
+function handleUnauthorized() {
+  useAuthStore.getState().clearAuth();
+  if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
+    window.location.href = "/login";
+  }
+}
+
+export interface ApiResponse<T = unknown> {
   data: T;
   status: number;
   message?: string;
@@ -14,26 +20,21 @@ export type RequestConfig = RequestInit & {
   timeout?: number;
 };
 
-/**
- * 带有增强 Fetch 功能的核心请求函数
- */
-export async function request<T = any>(
+export async function request<T = unknown>(
   url: string,
   config: RequestConfig = {},
 ): Promise<T> {
   const { params, timeout = 10000, headers: customHeaders, ...rest } = config;
 
-  // 1. 构建带有查询参数的 URL
   const searchParams = new URLSearchParams();
   if (params) {
-    Object.entries(params).forEach(([key, val]) =>
-      searchParams.append(key, String(val)),
-    );
+    Object.entries(params).forEach(([key, value]) => {
+      searchParams.append(key, String(value));
+    });
   }
+
   const queryString = searchParams.toString();
   const fullUrl = `${BASE_URL}${url}${queryString ? `?${queryString}` : ""}`;
-
-  // 2. 默认请求头设置
   const headers = new Headers(customHeaders);
   const isFormData =
     typeof FormData !== "undefined" && rest.body instanceof FormData;
@@ -42,19 +43,15 @@ export async function request<T = any>(
     headers.set("Content-Type", "application/json");
   }
 
-  if (
-    typeof window !== "undefined" &&
-    !headers.has("Authorization")
-  ) {
-    const accessToken = window.localStorage.getItem("access_token");
+  if (typeof window !== "undefined" && !headers.has("Authorization")) {
+    const accessToken = useAuthStore.getState().token;
     if (accessToken) {
       headers.set("Authorization", `Bearer ${accessToken}`);
     }
   }
 
-  // 3. 超时控制
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
 
   try {
     const response = await fetch(fullUrl, {
@@ -63,44 +60,84 @@ export async function request<T = any>(
       signal: controller.signal,
     });
 
-    clearTimeout(timeoutId);
+    window.clearTimeout(timeoutId);
 
-    // 4. 处理 204 No Content 场景
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
+
     if (response.status === 204) {
       return {} as T;
     }
 
-    // 5. 统一错误处理
     if (!response.ok) {
-      let errorDetail;
+      let errorDetail: { detail?: unknown; message?: string } = {};
       try {
-        errorDetail = await response.json();
+        errorDetail = (await response.json()) as {
+          detail?: unknown;
+          message?: string;
+        };
       } catch {
-        errorDetail = { message: `HTTP 错误 ${response.status}` };
+        errorDetail = { message: `HTTP error ${response.status}` };
       }
-      throw new Error(errorDetail.message || "网络请求错误");
+      throw new Error(formatApiError(errorDetail, response.status));
     }
 
-    // 6. 根据 Content-Type 解析响应内容
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       return (await response.json()) as T;
     }
 
-    return (await response.text()) as unknown as T;
-  } catch (error: any) {
-    if (error.name === "AbortError") {
-      throw new Error("请求超时");
+    return (await response.text()) as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Request timed out");
     }
     throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 
-// Convenience helper methods
+function formatApiError(
+  errorDetail: { detail?: unknown; message?: string },
+  status: number,
+) {
+  if (errorDetail.message) {
+    return errorDetail.message;
+  }
+
+  if (typeof errorDetail.detail === "string") {
+    return errorDetail.detail;
+  }
+
+  if (Array.isArray(errorDetail.detail)) {
+    const messages = errorDetail.detail
+      .map((item) => {
+        if (
+          item &&
+          typeof item === "object" &&
+          "msg" in item &&
+          typeof item.msg === "string"
+        ) {
+          return item.msg;
+        }
+        return "";
+      })
+      .filter(Boolean);
+
+    if (messages.length > 0) {
+      return messages.join(" ");
+    }
+  }
+
+  return `HTTP error ${status}`;
+}
+
 export const get = <T>(url: string, config?: RequestConfig) =>
   request<T>(url, { ...config, method: "GET" });
 
-export const post = <T>(url: string, data?: any, config?: RequestConfig) =>
+export const post = <T>(url: string, data?: unknown, config?: RequestConfig) =>
   request<T>(url, {
     ...config,
     method: "POST",
@@ -118,7 +155,7 @@ export const postForm = <T>(
     body: data,
   });
 
-export const put = <T>(url: string, data?: any, config?: RequestConfig) =>
+export const put = <T>(url: string, data?: unknown, config?: RequestConfig) =>
   request<T>(url, {
     ...config,
     method: "PUT",
@@ -128,88 +165,128 @@ export const put = <T>(url: string, data?: any, config?: RequestConfig) =>
 export const del = <T>(url: string, config?: RequestConfig) =>
   request<T>(url, { ...config, method: "DELETE" });
 
-/**
- * SSE 流式请求
- */
+type StreamCallbacks = {
+  onToken: (token: string) => void;
+  onDone: (data: Record<string, unknown>) => void;
+  onError: (err: Error) => void;
+};
+
 export function requestStream(
   url: string,
   body: unknown,
-  callbacks: {
-    onToken: (token: string) => void;
-    onDone: (data: Record<string, unknown>) => void;
-    onError: (err: Error) => void;
-  },
+  callbacks: StreamCallbacks,
   timeout = 60000,
 ): { abort: () => void } {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
 
   const headers = new Headers();
   headers.set("Content-Type", "application/json");
+  headers.set("Accept", "application/json");
 
   if (typeof window !== "undefined") {
-    const token = window.localStorage.getItem("access_token");
+    const token = useAuthStore.getState().token;
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
   }
 
-  fetch(`${BASE_URL}${url}`, {
+  void fetch(`${BASE_URL}${url}`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
     signal: controller.signal,
   })
     .then(async (response) => {
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
-        throw new Error(err.message || "请求失败");
+      window.clearTimeout(timeoutId);
+
+      if (response.status === 401) {
+        handleUnauthorized();
       }
-      const reader = response.body!.getReader();
+
+      if (!response.ok) {
+        const errorDetail = await response
+          .json()
+          .catch(() => ({ message: `HTTP ${response.status}` }));
+        throw new Error(errorDetail.message || "Request failed");
+      }
+
+      if (!response.body) {
+        throw new Error("Streaming response is empty");
+      }
+
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let doneReading = false;
 
       while (!doneReading) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
+          const jsonLine = line.trim();
+          if (!jsonLine) {
+            continue;
+          }
+
           try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === "token") {
-              callbacks.onToken(data.content);
-            } else if (data.type === "done") {
+            const data = JSON.parse(jsonLine) as Record<string, unknown>;
+            const token =
+              typeof data.content === "string"
+                ? data.content
+                : typeof data.response === "string"
+                  ? data.response
+                  : "";
+            if (
+              (data.type === "token" || data.status === "stream") &&
+              token
+            ) {
+              callbacks.onToken(token);
+            } else if (data.type === "done" || data.status === "done") {
               callbacks.onDone(data);
               doneReading = true;
-            } else if (data.type === "error") {
-              callbacks.onError(new Error(data.message || "流式错误"));
+            } else if (data.type === "error" || data.status === "error") {
+              callbacks.onError(
+                new Error(
+                  typeof data.message === "string"
+                    ? data.message
+                    : "Streaming request failed",
+                ),
+              );
               doneReading = true;
-            } else if (data.type === "metadata") {
+            } else if (data.type === "metadata" || data.status === "init") {
               callbacks.onDone(data);
             }
           } catch {
-            // 跳过无法解析的行
+            // Ignore malformed JSON lines so a partial chunk does not stop the stream.
           }
         }
       }
     })
-    .catch((err) => {
-      clearTimeout(timeoutId);
-      if (err.name === "AbortError") {
-        callbacks.onError(new Error("请求超时"));
+    .catch((error: unknown) => {
+      window.clearTimeout(timeoutId);
+      if (error instanceof DOMException && error.name === "AbortError") {
+        callbacks.onError(new Error("Request timed out"));
+      } else if (error instanceof Error) {
+        callbacks.onError(error);
       } else {
-        callbacks.onError(err);
+        callbacks.onError(new Error("Request failed"));
       }
     });
 
-  return { abort: () => controller.abort() };
+  return {
+    abort: () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    },
+  };
 }
 
-// Backwards compatibility or alternative export
 export { request as http };
