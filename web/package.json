@@ -5,22 +5,29 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "lucide-vue-next": "^0.577.0",
-    "vue": "3.5.29",
-    "vue-router": "^4.6.4"
+    "lucide-react": "^0.577.0",
+    "motion": "^12.23.24",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^24.10.1",
-    "@vitejs/plugin-vue": "^6.0.2",
-    "@vue/tsconfig": "^0.8.1",
+    "@types/react": "^19.2.6",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1",
-    "vue-tsc": "^3.1.5"
+    "typescript-eslint": "^8.46.3",
+    "vite": "^7.3.1"
   }
 }
