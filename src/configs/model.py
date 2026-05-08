@@ -20,13 +20,10 @@ DEFAULT_BASE_MODEL_PROVIER: dict[str, BaseModelProvider] = {
     "dashscope": BaseModelProvider(
         name="dashscope",
         api_key="DASHSCOPE_API_KEY",
-        default_model="qwen3.5-plus",
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        default_model="qwen3.6-plus",
+        base_url="https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
         model_list=[
-            "qwen3.5-plus",
-            "qwen3.5-plus-2026-02-15",
-            "qwen3.5-flash-2026-02-23",
-            "qwen3.5-122b-a10b",
+            "qwen3.6-plus",
         ],
     ),
     # openai

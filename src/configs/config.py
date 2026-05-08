@@ -22,14 +22,17 @@ class Config(BaseSettings):
 
     # ---------- 模型 ----------
     default_model: str = Field(
-        default="dashscope/qwen3.5-plus-2026-02-15", description="默认使用的模型名称"
+        default="dashscope/qwen3.6-plus", description="默认使用的模型名称"
     )
     fallback_model: str = Field(
-        default="dashscope/qwen3.5-122b-a10b3", description="备用模型名称"
+        default="dashscope/qwen3.6-plus", description="备用模型名称"
     )
     flash_model: str = Field(
-        default="dashscope/qwen3.5-flash-2026-02-23", description="快速推断模型名称"
+        default="dashscope/qwen3.6-plus", description="快速推断模型名称"
     )
+    image_model: str = Field(default="qwen-image-2.0-pro-2026-04-22", description="图片生成模型名称")
+
+    
     embed_model: str = Field(default="", description="向量生成模型名称")
     rerank_model: str = Field(default="", description="重排序模型名称")
 
