@@ -64,27 +64,27 @@ export default function AttachmentCapsules({
   onRemoveImage,
 }: Props) {
   return (
-    <div className="attachment-capsules">
+    <div className="flex flex-wrap gap-2 mb-2">
       {images.map((image, index) => (
         <div
-          className={`attachment-capsule ${image.uploading ? "is-uploading" : ""}`}
+          className={`flex max-w-[210px] items-center gap-1.5 rounded-full p-0.5 pr-2 glass-effect-sm bg-white ${image.uploading ? "opacity-70" : ""}`}
           key={image.id || `image-${index}`}
         >
           <img
             alt={image.fileName || image.file?.name || "image"}
-            className="attachment-thumb"
+            className="h-6 w-6 rounded-full object-cover bg-white"
             src={image.src}
           />
-          <span className="attachment-name">
+          <span className="min-w-0 overflow-hidden text-ellipsis white-space-nowrap text-[12px] font-medium text-on-surface">
             {image.file?.name || image.fileName || "Image"}
           </span>
           <button
             aria-label="Remove image"
-            className="attachment-remove"
+            className="flex h-5 w-5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full text-on-surface-variant transition-colors hover:text-[#ff3b30]"
             onClick={() => onRemoveImage(index)}
             type="button"
           >
-            <X size={14} />
+            <X size={12} />
           </button>
         </div>
       ))}
@@ -93,22 +93,22 @@ export default function AttachmentCapsules({
         const Icon = file.uploading ? Loader2 : resolveFileIcon(file);
         return (
           <div
-            className={`attachment-capsule ${file.uploading ? "is-uploading" : ""}`}
+            className={`flex max-w-[210px] items-center gap-1.5 rounded-full p-0.5 pr-2 glass-effect-sm bg-white ${file.uploading ? "opacity-70" : ""}`}
             key={file.id || `file-${index}`}
           >
-            <span className="attachment-file-icon">
-              <Icon size={14} />
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-on-surface-variant">
+              <Icon size={12} className={file.uploading ? "animate-spin" : ""} />
             </span>
-            <span className="attachment-name">
+            <span className="min-w-0 overflow-hidden text-ellipsis white-space-nowrap text-[12px] font-medium text-on-surface">
               {file.name || file.file_name || "Attachment"}
             </span>
             <button
               aria-label="Remove attachment"
-              className="attachment-remove"
+              className="flex h-5 w-5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full text-on-surface-variant transition-colors hover:text-[#ff3b30]"
               onClick={() => onRemoveAttachment(index)}
               type="button"
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           </div>
         );
