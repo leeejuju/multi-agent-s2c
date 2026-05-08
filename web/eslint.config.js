@@ -1,36 +1,25 @@
-import pluginVue from 'eslint-plugin-vue';
-import { globalIgnores } from 'eslint/config'
-import globals from 'globals'
-import vueTsEslintConfig from '@vue/eslint-config-typescript';
-import skipFormatting from '@vue/eslint-config-prettier/skip-formatting';
+import js from '@eslint/js';
+import { globalIgnores } from 'eslint/config';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
 
 export default [
-  {
-    name: 'app/files-to-lint',
-    files: ['**/*.{js,mjs,cjs,ts,mts,tsx,vue}'],
-  },
-
   globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
-
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
+    files: ['**/*.{js,mjs,cjs,ts,mts,tsx}'],
     languageOptions: {
       globals: {
         ...globals.browser,
+        ...globals.node,
       },
     },
-  },
-
-  ...pluginVue.configs['flat/essential'],
-  ...vueTsEslintConfig(),
-  skipFormatting,
-
-  {
     rules: {
-      'vue/multi-word-component-names': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/ban-ts-comment': 'off',
       'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
       'no-debugger': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
-    }
-  }
+    },
+  },
 ];
