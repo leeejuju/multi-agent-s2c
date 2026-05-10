@@ -67,7 +67,7 @@ export default function AttachmentCapsules({
     <div className="flex flex-wrap gap-2 mb-2">
       {images.map((image, index) => (
         <div
-          className={`flex max-w-[210px] items-center gap-1.5 rounded-full p-0.5 pr-2 glass-effect-sm bg-white ${image.uploading ? "opacity-70" : ""}`}
+          className={`flex max-w-[140px] items-center gap-1.5 rounded-full p-0.5 pr-2 glass-effect-sm bg-white ${image.uploading ? "opacity-70" : ""}`}
           key={image.id || `image-${index}`}
         >
           <img
@@ -75,7 +75,7 @@ export default function AttachmentCapsules({
             className="h-6 w-6 rounded-full object-cover bg-white"
             src={image.src}
           />
-          <span className="min-w-0 overflow-hidden text-ellipsis white-space-nowrap text-[12px] font-medium text-on-surface">
+          <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-on-surface">
             {image.file?.name || image.fileName || "Image"}
           </span>
           <button
@@ -93,13 +93,13 @@ export default function AttachmentCapsules({
         const Icon = file.uploading ? Loader2 : resolveFileIcon(file);
         return (
           <div
-            className={`flex max-w-[210px] items-center gap-1.5 rounded-full p-0.5 pr-2 glass-effect-sm bg-white ${file.uploading ? "opacity-70" : ""}`}
+            className={`flex max-w-[140px] items-center gap-1.5 rounded-full p-0.5 pr-2 glass-effect-sm bg-white ${file.uploading ? "opacity-70" : ""}`}
             key={file.id || `file-${index}`}
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-on-surface-variant">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-variant text-on-surface-variant">
               <Icon size={12} className={file.uploading ? "animate-spin" : ""} />
             </span>
-            <span className="min-w-0 overflow-hidden text-ellipsis white-space-nowrap text-[12px] font-medium text-on-surface">
+            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-on-surface">
               {file.name || file.file_name || "Attachment"}
             </span>
             <button

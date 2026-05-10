@@ -1,4 +1,6 @@
 /* ——— Base Message Style (Inheritable) ——— */
+@reference "../assets/css/main.css";
+
 .message-bubble {
   @apply py-3 px-4 rounded-[24px] text-sm leading-relaxed;
 }

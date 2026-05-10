@@ -1,14 +1,14 @@
-import { CSSProperties, PointerEvent, WheelEvent, useMemo, useRef, useState } from "react";
+import { CSSProperties, PointerEvent, WheelEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Brush, Crop, MessageSquare, Trash2 } from "lucide-react";
+import { useWorkspaceStore, type CanvasNode } from "@/store/workspace";
+import NodeContainer from "./NodeContainer";
 import "./GridCanvas.css";
 
-type GridNode = {
-  id: string;
-  title: string;
-  subtitle: string;
+type ContextMenuState = {
+  show: boolean;
   x: number;
   y: number;
-  width: number;
-  height: number;
+  nodeId: string;
 };
 
 type PanState = {
@@ -35,36 +35,6 @@ const MIN_SCALE = 0.1;
 const MAX_SCALE = 3;
 const ZOOM_STEP = 0.08;
 
-const initialNodes: GridNode[] = [
-  {
-    id: "agent-1",
-    title: "Planner",
-    subtitle: "Breaks down the script",
-    x: 120,
-    y: 120,
-    width: 220,
-    height: 104,
-  },
-  {
-    id: "agent-2",
-    title: "Executor",
-    subtitle: "Runs editing steps",
-    x: 408,
-    y: 120,
-    width: 220,
-    height: 104,
-  },
-  {
-    id: "agent-3",
-    title: "Memory",
-    subtitle: "Keeps project context",
-    x: 120,
-    y: 304,
-    width: 220,
-    height: 104,
-  },
-];
-
 const defaultPanState: PanState = {
   active: false,
   pointerId: -1,
@@ -84,6 +54,13 @@ const defaultDragState: DragState = {
   originNodeY: 0,
 };
 
+const defaultContextMenu: ContextMenuState = {
+  show: false,
+  x: 0,
+  y: 0,
+  nodeId: "",
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -94,12 +71,52 @@ function snapToGrid(value: number) {
 
 export default function GridCanvas() {
   const viewportRef = useRef<HTMLElement | null>(null);
-  const [nodes, setNodes] = useState(initialNodes);
+  const { nodes, updateNodePosition, removeNode } = useWorkspaceStore();
   const [panX, setPanX] = useState(28);
   const [panY, setPanY] = useState(28);
   const [scale, setScale] = useState(1);
   const [panState, setPanState] = useState<PanState>(defaultPanState);
   const [dragState, setDragState] = useState<DragState>(defaultDragState);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(defaultContextMenu);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.key === "Backspace" || event.key === "Delete") && selectedNodeId) {
+        // Only trigger if not typing in an input/textarea
+        const isInput = document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA";
+        if (!isInput) {
+          removeNode(selectedNodeId);
+          setSelectedNodeId(null);
+        }
+      }
+    };
+
+    const closeMenu = () => setContextMenu(defaultContextMenu);
+    
+    // Explicitly prevent browser native zoom when hovering over the canvas
+    const handleWheel = (e: globalThis.WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+    
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.addEventListener("wheel", handleWheel, { passive: false });
+    }
+    
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("click", closeMenu);
+    
+    return () => {
+      if (viewport) {
+        viewport.removeEventListener("wheel", handleWheel);
+      }
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("click", closeMenu);
+    };
+  }, [selectedNodeId, removeNode]);
 
   const workspaceStyle = useMemo<CSSProperties>(
     () => ({
@@ -121,6 +138,11 @@ export default function GridCanvas() {
   };
 
   const onViewportPointerDown = (event: PointerEvent<HTMLElement>) => {
+    // Clear selection on background click (left click)
+    if (event.button === 0) {
+      setSelectedNodeId(null);
+    }
+
     // Trigger panning on middle mouse button (1)
     if (event.button !== 1) {
       return;
@@ -147,12 +169,14 @@ export default function GridCanvas() {
   };
 
   const onNodePointerDown = (
-    node: GridNode,
+    node: CanvasNode,
     event: PointerEvent<HTMLElement>,
   ) => {
     if (event.button !== 0) {
       return;
     }
+
+    setSelectedNodeId(node.id);
 
     setDragState({
       active: true,
@@ -166,6 +190,21 @@ export default function GridCanvas() {
     viewportRef.current?.setPointerCapture(event.pointerId);
   };
 
+  const onNodeContextMenu = (
+    node: CanvasNode,
+    event: React.MouseEvent<HTMLElement>,
+  ) => {
+    if (node.type !== "image") return;
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      show: true,
+      x: event.clientX,
+      y: event.clientY,
+      nodeId: node.id,
+    });
+  };
+
   const onViewportPointerMove = (event: PointerEvent<HTMLElement>) => {
     if (dragState.active && event.pointerId === dragState.pointerId) {
       const deltaWorldX = (event.clientX - dragState.startClientX) / scale;
@@ -173,13 +212,7 @@ export default function GridCanvas() {
       const nextX = snapToGrid(dragState.originNodeX + deltaWorldX);
       const nextY = snapToGrid(dragState.originNodeY + deltaWorldY);
 
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === dragState.nodeId
-            ? { ...node, x: nextX, y: nextY }
-            : node,
-        ),
-      );
+      updateNodePosition(dragState.nodeId, nextX, nextY);
       return;
     }
 
@@ -248,23 +281,50 @@ export default function GridCanvas() {
       <div className="canvas-grid" style={gridBackgroundStyle} />
       <div className="canvas-workspace" style={workspaceStyle}>
         {nodes.map((node) => (
-          <article
-            className="grid-node"
+          <NodeContainer
             key={node.id}
+            node={node}
+            isSelected={selectedNodeId === node.id}
             onPointerDown={(event) => onNodePointerDown(node, event)}
-            style={{
-              height: node.height,
-              left: node.x,
-              top: node.y,
-              width: node.width,
-            }}
-          >
-            <span className="node-accent" />
-            <h3>{node.title}</h3>
-            <p>{node.subtitle}</p>
-          </article>
+            onContextMenu={(event) => onNodeContextMenu(node, event)}
+            onRemove={removeNode}
+          />
         ))}
       </div>
+
+      {contextMenu.show && (
+        <div 
+          className="canvas-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="menu-item" onClick={() => setContextMenu(defaultContextMenu)}>
+            <Crop size={16} />
+            <span>裁剪</span>
+          </button>
+          <button className="menu-item" onClick={() => setContextMenu(defaultContextMenu)}>
+            <Brush size={16} />
+            <span>涂抹</span>
+          </button>
+          <div className="menu-divider" />
+          <button className="menu-item is-primary" onClick={() => setContextMenu(defaultContextMenu)}>
+            <MessageSquare size={16} />
+            <span>Ask Agent</span>
+          </button>
+          <div className="menu-divider" />
+          <button 
+            className="menu-item text-[#ff3b30]" 
+            onClick={() => {
+              removeNode(contextMenu.nodeId);
+              setSelectedNodeId(null);
+              setContextMenu(defaultContextMenu);
+            }}
+          >
+            <Trash2 size={16} />
+            <span>删除</span>
+          </button>
+        </div>
+      )}
     </section>
   );
 }

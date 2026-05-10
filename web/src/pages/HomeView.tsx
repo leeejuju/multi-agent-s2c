@@ -14,17 +14,14 @@ export default function HomeView() {
       <Sidebar />
 
       {/* Center hint */}
-      <section className="workspace-main">
+      <section className="workspace-main flex-1 h-full relative pointer-events-none">
         <DynamicIsland />
-        <motion.div
+        {/* <motion.div
           className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <p className="text-on-surface-variant text-sm opacity-50">
-            Start with an idea, or attach files to begin an agent run.
-          </p>
-        </motion.div>
+        </motion.div> */}
       </section>
 
       <AgentChat />
