@@ -1,3 +1,5 @@
+@reference "../assets/css/main.css";
+
 .sidebar-capsule {
   @apply glass-effect;
 }

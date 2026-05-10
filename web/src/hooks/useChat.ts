@@ -19,6 +19,7 @@ export function useChat() {
   const [isSending, setIsSending] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [showConversations, setShowConversations] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -59,7 +60,7 @@ export function useChat() {
 
   const handleSend = (onScrollToBottom: () => void) => {
     const trimmedText = draftText.trim();
-    if (!trimmedText || isSending) return;
+    if ((!trimmedText && attachments.length === 0) || isSending) return;
 
     setMessages((current) => [
       ...current,
@@ -67,6 +68,7 @@ export function useChat() {
       { role: "assistant", content: "", streaming: true },
     ]);
     setDraftText("");
+    setAttachments([]); // Clear attachments after sending
     onScrollToBottom();
     setIsSending(true);
 
@@ -107,6 +109,14 @@ export function useChat() {
     );
   };
 
+  const addAttachments = (files: File[]) => {
+    setAttachments((prev) => [...prev, ...files]);
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   return {
     draftText,
     setDraftText,
@@ -123,5 +133,9 @@ export function useChat() {
     handleSend,
     switchConversation,
     newConversation,
+    attachments,
+    setAttachments,
+    addAttachments,
+    removeAttachment,
   };
 }

@@ -4,10 +4,11 @@ import "./DynamicIsland.css";
 
 export default function DynamicIsland() {
   return (
-    <div className="relative z-50 flex justify-center pt-5 pointer-events-none">
+    <div className="relative z-50 flex justify-center pt-5 pointer-events-none w-full">
       <motion.div
         className="dynamic-island"
         initial={false}
+        animate="resting"
         whileHover="expanded"
         variants={{
           resting: {

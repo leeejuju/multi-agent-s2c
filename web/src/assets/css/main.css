@@ -42,7 +42,7 @@
   }
 
   button, input, textarea {
-    @apply font-inherit;
+    font: inherit;
   }
 
   button {

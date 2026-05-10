@@ -79,7 +79,7 @@ def stream_chunk(
 ) -> AsyncIterator[bytes]:
     meta: dict[str, Any] = {"request_id": None}
 
-    def generator_chunk(content: str | None = None, **kwargs: Any) -> bytes:
+    def generater_chunk(content: str | None = None, **kwargs: Any) -> bytes:
         return (
             json.dumps(
                 {
@@ -139,7 +139,7 @@ def stream_chunk(
             else:
                 agent_content = input_text
 
-            yield generator_chunk(
+            yield generater_chunk(
                 status="init",
                 type="metadata",
                 meta=meta,
@@ -166,7 +166,7 @@ def stream_chunk(
                     continue
 
                 full_content += token
-                yield generator_chunk(
+                yield generater_chunk(
                     token,
                     status="stream",
                     type="token",
@@ -180,7 +180,7 @@ def stream_chunk(
                 conversation_id=resolved_conversation_id,
             )
             await db.commit()
-            yield generator_chunk(
+            yield generater_chunk(
                 status="done",
                 type="done",
                 conversation_id=resolved_conversation_id,
@@ -192,7 +192,7 @@ def stream_chunk(
                 user_id,
                 resolved_conversation_id,
             )
-            yield generator_chunk(
+            yield generater_chunk(
                 status="error",
                 type="error",
                 message="Streaming response failed.",

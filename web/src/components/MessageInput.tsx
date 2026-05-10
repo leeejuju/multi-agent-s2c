@@ -23,6 +23,7 @@ type Props = {
   onClickAttachment: () => void;
   onRemoveImage: (index: number) => void;
   onRemoveAttachment: (index: number) => void;
+  onFileSelect?: (files: File[]) => void;
 };
 
 const models = [
@@ -42,9 +43,11 @@ export default function MessageInput({
   onTextChange,
   selectedModelId,
   onClickAttachment,
+  onFileSelect,
   text,
 }: Props) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [agentEnabled, setAgentEnabled] = useState(false);
 
@@ -59,7 +62,7 @@ export default function MessageInput({
       }
     };
     window.addEventListener("click", closeSelector);
-    return () => window.removeEventListener("click", closeSelector);
+    return () => window.addEventListener("click", closeSelector);
   }, []);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -69,19 +72,44 @@ export default function MessageInput({
     }
   };
 
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+    onClickAttachment();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0 && onFileSelect) {
+      onFileSelect(Array.from(files));
+    }
+    // Reset input value to allow selecting same file again
+    event.target.value = "";
+  };
+
   return (
-    <div className="flex flex-col gap-2 rounded-3xl overflow-hidden glass-effect-sm bg-white" ref={wrapperRef}>
-      <div className="py-3 px-4 pb-1">
-        {(images.length > 0 || attachments.length > 0) && (
+    <div className="flex flex-col rounded-3xl overflow-hidden glass-effect-sm bg-white" ref={wrapperRef}>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        multiple
+      />
+
+      {(images.length > 0 || attachments.length > 0) && (
+        <div className="bg-black/5 px-3 pt-3 pb-1 border-b border-black/5">
           <AttachmentCapsules
             attachments={attachments}
             images={images}
             onRemoveAttachment={onRemoveAttachment}
             onRemoveImage={onRemoveImage}
           />
-        )}
+        </div>
+      )}
+
+      <div className="py-3 px-3 pb-1">
         <textarea
-          className="w-full min-h-[44px] max-h-[180px] border-0 bg-transparent outline-none text-sm resize-none py-1"
+          className="w-full min-h-[96px] max-h-[220px] border-0 bg-transparent outline-none text-sm resize-none py-1"
           disabled={disabled}
           onChange={(event) => onTextChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -90,11 +118,11 @@ export default function MessageInput({
         />
       </div>
 
-      <div className="flex items-center justify-between py-2 px-3 pb-3">
+      <div className="flex items-center justify-between py-1.5 px-2 pb-2">
         <div className="flex items-center gap-1">
           <button 
             className="flex h-8 px-2.5 items-center gap-1.5 rounded-xl text-xs font-semibold text-on-surface-variant transition-colors hover:bg-black/5 hover:text-on-surface disabled:opacity-30 disabled:cursor-not-allowed" 
-            onClick={onClickAttachment}
+            onClick={handleAttachmentClick}
             disabled={disabled}
             title="Add Attachment"
           >
