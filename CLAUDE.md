@@ -1,160 +1,120 @@
-# CLAUDE.md
+# Repository Agent Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file is kept in sync with `AGENTS.md` and `CLAUDE.md` for Claude/Codex-style coding agents. Update both files whenever architecture or workflow guidance changes.
 
-## Project Overview
+## Current Project Shape
 
-**multi-agent-s2c** is a script-driven image/video editing and generation system built on a multi-agent architecture. Agents collaborate through LangGraph to process user requests and generate visual content based on textual scripts.
+`multi-agent-s2c` is a script-driven visual creation system. The backend is a FastAPI service built around LangChain/LangGraph agents, SQLAlchemy repositories, PostgreSQL, and MinIO-backed uploads. The frontend is a React + TypeScript + Vite app under `web/`.
 
-**Tech Stack:**
-- Backend: Python 3.13+, FastAPI, LangChain, LangGraph, Pydantic
-- Frontend: Vue 3, TypeScript, Vite, Tailwind CSS
-- LLM: OpenAI-compatible models via LangChain
+At the moment, the only concrete business agent in `src/agents/` is `DesignAgent`. A `SearchAgent` has been designed but is not implemented yet.
 
-## Architecture
+## Backend Architecture
 
-### Agent System
+- Agent code lives in `src/agents/`.
+- Shared agent primitives live in `src/agents/common/`.
+- Each agent should live in `src/agents/<agentname>/` and expose its class from that package's `__init__.py`.
+- `AgentManager` in `src/agents/manager.py` auto-discovers agent packages and instantiates `BaseAgent` subclasses.
+- `BaseAgent.stream_messages(...)` wraps LangGraph streaming and yields normalized `("messages", message)` chunks for token streaming.
+- Chat HTTP routes live in `server/router/chat.py`.
+- Chat orchestration and persistence live in `server/service/chat_service.py`.
+- Database access should go through repository classes in `src/database/repositories/`; do not put raw SQL or persistence logic inside agents.
+- Uploaded files are stored through `src/storage/`; current upload responses are assembled in memory and are not fully persisted as attachment rows yet.
 
-The project uses a plugin-based agent architecture centered around `BaseAgent`:
+## Current Chat Flow
 
-```python
-# All agents inherit from BaseAgent
-class BaseAgent:
-    name: str                    # Agent identifier
-    description: str             # Agent purpose
-    context: type[BaseContext]   # State management
+1. `POST /api/chat/agent/{agent_id}/run/stream` receives user input and attachment metadata.
+2. `chat_service.stream_chunk(...)` saves the user message through `ConversationRepository`.
+3. Image attachment URLs are converted into LangChain multimodal message content when present.
+4. The selected agent is resolved by `agent_manager.get_agent(agent_id)`.
+5. Agent stream tokens are emitted as JSON lines.
+6. The assistant's final accumulated response is saved to the conversation.
 
-    @abstractmethod
-    async def get_agent(self) -> CompiledStateGraph:
-        # Returns LangGraph agent instance
-        pass
+## DesignAgent Status
 
-    async def stream(self, messages, context=None):
-        # Standard streaming interface
-        pass
+`DesignAgent` is currently positioned as a script and storyboard design agent. Its prompt asks it to produce structured creative planning outputs such as story summaries, dramatic structure, character notes, scene lists, shot tables, camera language, visual emphasis, and sound/music suggestions.
+
+When changing `DesignAgent`, keep it responsible for understanding the user's creative intent and producing final creative plans. Do not move repository or storage concerns into it.
+
+## Planned SearchAgent Direction
+
+The planned `SearchAgent` should be an independent retrieval and reference-organization agent, not a middleware that automatically runs before every request.
+
+First version scope:
+
+- No web search.
+- `DesignAgent` should call it on demand through a single tool such as `search_references(query, scopes, limit)`.
+- Search must return stable structured JSON:
+
+```json
+{
+  "reference_context": {
+    "project_history": [],
+    "material_refs": [],
+    "knowledge_refs": []
+  },
+  "recommended_usage": {
+    "must_follow": [],
+    "can_use": [],
+    "avoid": []
+  },
+  "search_notes": []
+}
 ```
 
-**Agent Discovery:** `AgentManager` in `src/agents/manager.py` auto-discovers all `BaseAgent` subclasses in `src/agents/*/agent.py` at runtime. No manual registration required.
+The first local retrieval routes should be:
 
-**Agent Structure:**
-```
-src/agents/
-├── common/          # Shared base classes and utilities
-│   ├── base_agent.py      # BaseAgent abstraction
-│   ├── base_context.py    # BaseContext for state
-│   ├── middlewares/       # Agent middleware
-│   └── utils/             # Model tools, helpers
-├── designagent/     # UI/Design specialist
-├── deepagents/      # Deep processing agent
-├── deepsearchagent/ # Search/retrieval agent
-└── manager.py       # AgentManager (auto-discovers agents)
-```
+- `ProjectHistorySearch`: current user's conversation history, established characters, scenes, style, and previous plans.
+- `MaterialSearch`: current and historical attachment summaries, filenames, user references, and parsed text or image descriptions once available.
+- `KnowledgeSearch`: LightRAG or local knowledge providers for story structure, genre patterns, storyboard conventions, and camera language templates.
 
-**Agent Communication:** Agents communicate via LangGraph's message passing system. Messages are structured dictionaries with `from`, `to`, `type`, `payload`, and `timestamp` fields. No direct cross-agent method calls allowed.
+`SearchAgent` should read data through repositories or provider factories. It should not parse raw attachments itself and should not generate final scripts or storyboards.
 
-### API Layer
+## Frontend Architecture
 
-FastAPI routes in `server/router/` expose agent functionality:
-- `POST /api/chat/agent/{agent_id}/run` - Execute agent with streaming response
-- CORS enabled for `localhost:5173` (Vite dev server)
+For frontend-specific conventions, follow `web/AGENTS.md` and `GEMINI.md`.
 
-### Frontend
+Current frontend stack:
 
-Vue 3 SPA in `web/` using TypeScript and Tailwind CSS:
-- Components in `PascalCase` (e.g., `AgentChatComponent.vue`)
-- Vue Router for navigation
-- 2-space indentation
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS
+- Zustand
+- `react-router-dom`
 
-## Common Commands
+Frontend code lives under `web/src/`.
 
-### Backend (run from repo root)
+## Development Commands
+
+Backend:
+
 ```bash
-# Start FastAPI server with hot-reload
-python server/main.py
-
-# Run backend tests
-python -m pytest
-
-# Install dependencies (uses uv)
 uv sync
+python server/main.py
+python -m pytest
 ```
 
-### Frontend (run from `web/`)
+Frontend:
+
 ```bash
 cd web
-npm install          # Install dependencies
-npm run dev          # Start Vite dev server (http://localhost:5173)
-npm run build        # Build for production (runs vue-tsc + vite build)
-npm run preview      # Preview production build
+npm install
+npm run dev
+npm run build
 ```
 
-### Environment Setup
-Copy `.env.template` to `.env` and configure:
-- LLM API keys and endpoints
-- Model configuration
-- Agent-specific settings
+Targeted validation for backend edits:
 
-## Code Conventions
-
-### Python
-- 4-space indentation
-- `snake_case` for functions, variables, files
-- `PascalCase` for classes
-- Type hints required for all public functions
-- Docstrings for all classes and public methods
-
-### TypeScript/Vue
-- 2-space indentation
-- `PascalCase` for Vue SFC components
-- `camelCase` for functions/variables
-- Follow existing ESLint config in `web/eslint.config.js`
-
-### Commit Messages
-Conventional Commits format: `<type>(<scope>): <subject>`
-- Types: `feat`, `fix`, `refactor`, `doc`, `test`, `chore`, `build`, `ci`
-- Scopes: `agent`, `chat`, `web`, `deps`, etc.
-- Examples:
-  - `feat(agent): add stream response endpoint`
-  - `fix(chat): handle empty message payload`
-  - `refactor(config): split model options`
-
-## Adding a New Agent
-
-1. Create directory in `src/agents/<agentname>/`
-2. Implement `agent.py`:
-```python
-from src.agents.common import BaseAgent
-from .context import CustomContext
-
-class CustomAgent(BaseAgent):
-    name = "custom_agent"
-    description = "Agent description"
-    context = CustomContext
-
-    async def get_agent(self) -> CompiledStateGraph:
-        # Build and return LangGraph agent
-        pass
+```bash
+uv run --no-sync python -m compileall server/router server/service src/agents src/database/repositories
 ```
-3. Create `context.py` with `BaseContext` subclass
-4. `AgentManager` will auto-discover and register at startup
-5. Add route in `server/router/chat.py` to expose the agent
 
-## Project-Specific Rules
+## Working Rules
 
-The `.claude/rules/` directory contains project-specific rules that auto-load:
-- **agent-design.md**: Agent architecture, communication protocols, collaboration patterns
-- **code-style.md**: Detailed Python/TypeScript style guidelines
-- **testing-requirements.md**: Test coverage requirements, testing strategies
-
-Key principles:
-- Single responsibility per agent
-- No shared state between agents (message-passing only)
-- Standardized message format with timestamps
-- Graceful error handling that doesn't crash other agents
-- Agent response time target: < 2 seconds
-
-## Testing
-
-- Backend tests in `test/` as `test_*.py`
-- Frontend relies on type checking (`vue-tsc`) and manual testing
-- Coverage target: ≥80% overall, 100% for core business logic
+- Prefer existing local patterns over new abstractions.
+- Keep agent responsibilities narrow.
+- Keep API/service orchestration outside agents.
+- Keep database reads and writes in repositories.
+- Preserve user changes in the working tree; never revert unrelated modifications.
+- Add tests or compile checks for behavior changes with non-trivial blast radius.
+- If implementing `SearchAgent`, keep it opt-in from `DesignAgent`; do not add automatic pre-retrieval middleware.

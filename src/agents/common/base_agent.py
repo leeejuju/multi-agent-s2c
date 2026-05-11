@@ -32,14 +32,16 @@ class BaseAgent:
     def get_agent(self, context: BaseContext) -> CompiledStateGraph:
         pass
 
-
     async def stream_messages(self, messages, config=None, **kwargs):
-        context:BaseContext = self.context().get_context()    
-        agent: CompiledStateGraph = self.get_agent(context)    
+        context: BaseContext = self.context().get_context()
+        agent: CompiledStateGraph = self.get_agent(context)
         async for mode, chunk in agent.astream(
             messages,
             config=config,
             stream_mode=["messages", "values"],
             **kwargs,
         ):
-            yield mode, chunk
+            if mode == "messages":
+                yield mode, chunk[0]
+            else:
+                yield mode, chunk

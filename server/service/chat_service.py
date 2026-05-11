@@ -1,5 +1,6 @@
 import json
-from typing import Any, AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Sequence
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,25 +9,6 @@ from src.agents import agent_manager
 from src.database import Conversation, Message
 from src.database.repositories import ConversationRepository
 from src.utils import logger
-
-
-def _extract_token(chunk: Any) -> str:
-    message = chunk[0] if isinstance(chunk, tuple) and chunk else chunk
-    content = getattr(message, "content", None)
-
-    if isinstance(content, str):
-        return content
-
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict) and isinstance(item.get("text"), str):
-                parts.append(item["text"])
-        return "".join(parts)
-
-    return ""
 
 
 async def get_conversation(
@@ -52,22 +34,6 @@ async def list_conversations(
     return await repository.list_by_user(user_id)
 
 
-async def save_message(
-    db: AsyncSession,
-    role: str,
-    content: str,
-    conversation_id: str | None = None,
-    user_id: str | None = None,
-) -> tuple[str, Message]:
-    repository = ConversationRepository(session=db)
-    return await repository.save_message(
-        role,
-        content,
-        conversation_id=conversation_id,
-        user_id=user_id,
-    )
-
-
 def stream_chunk(
     db: AsyncSession,
     *,
@@ -78,8 +44,9 @@ def stream_chunk(
     attachments: Sequence[Any] | None = None,
 ) -> AsyncIterator[bytes]:
     meta: dict[str, Any] = {"request_id": None}
+    repository = ConversationRepository(session=db)
 
-    def generater_chunk(content: str | None = None, **kwargs: Any) -> bytes:
+    def generator_chunk(content: str | None = None, **kwargs: Any) -> bytes:
         return (
             json.dumps(
                 {
@@ -99,14 +66,13 @@ def stream_chunk(
         resolved_conversation_id = conversation_id
         full_content = ""
         try:
-            resolved_conversation_id, _ = await save_message(
-                db,
+            resolved_conversation_id, _ = await repository.save_message(
                 "user",
                 input_text,
                 conversation_id=conversation_id,
                 user_id=user_id,
             )
-            await db.commit()
+            await repository.commit()
             meta.update(
                 {
                     "request_id": resolved_conversation_id,
@@ -129,7 +95,7 @@ def stream_chunk(
             }
             if image_urls:
                 init_msg["image_content"] = image_urls
-                agent_content: str | list[dict[str, Any]] = [
+                messages: str | list[dict[str, Any]] = [
                     {"type": "text", "text": input_text},
                     *[
                         {"type": "image_url", "image_url": {"url": image_url}}
@@ -137,9 +103,9 @@ def stream_chunk(
                     ],
                 ]
             else:
-                agent_content = input_text
+                messages = input_text
 
-            yield generater_chunk(
+            yield generator_chunk(
                 status="init",
                 type="metadata",
                 meta=meta,
@@ -152,7 +118,7 @@ def stream_chunk(
                     "messages": [
                         {
                             "role": "user",
-                            "content": agent_content,
+                            "content": messages,
                         }
                     ]
                 },
@@ -161,38 +127,37 @@ def stream_chunk(
                 if mode != "messages":
                     continue
 
-                token = _extract_token(chunk)
+                token = chunk.content
                 if not token:
                     continue
 
                 full_content += token
-                yield generater_chunk(
+                yield generator_chunk(
                     token,
                     status="stream",
                     type="token",
                     conversation_id=resolved_conversation_id,
                 )
 
-            await save_message(
-                db,
+            await repository.save_message(
                 "assistant",
                 full_content,
                 conversation_id=resolved_conversation_id,
             )
-            await db.commit()
-            yield generater_chunk(
+            await repository.commit()
+            yield generator_chunk(
                 status="done",
                 type="done",
                 conversation_id=resolved_conversation_id,
             )
         except Exception:
-            await db.rollback()
+            await repository.rollback()
             logger.exception(
                 "Streaming chat failed: user_id=%s, conversation_id=%s.",
                 user_id,
                 resolved_conversation_id,
             )
-            yield generater_chunk(
+            yield generator_chunk(
                 status="error",
                 type="error",
                 message="Streaming response failed.",
@@ -216,11 +181,10 @@ async def delete_conversation(
     user_id: str,
 ) -> None:
     repository = ConversationRepository(db)
-    conversation = await repository.get_by_id_for_user(conversation_id, user_id)
-    if conversation is None:
+    deleted = await repository.delete_by_id_for_user(conversation_id, user_id)
+    if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found.",
         )
-    await repository.delete(conversation)
-    await db.commit()
+    await repository.commit()

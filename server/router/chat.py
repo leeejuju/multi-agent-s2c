@@ -7,7 +7,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.service import chat_service
+from server.service import (
+    delete_conversation,
+    get_conversation,
+    get_messages,
+    list_conversations,
+    stream_chunk,
+)
 from server.utils.auth import AuthenticatedUser
 from src.database import get_db
 from src.storage import (
@@ -298,7 +304,7 @@ async def chat_stream(
         f"收到流式对话请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
     )
     return StreamingResponse(
-        chat_service.stream_chunk(
+        stream_chunk(
             db,
             agent_id=agent_id,
             input_text=payload.input,
@@ -311,11 +317,11 @@ async def chat_stream(
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])
-async def list_conversations(
+async def list_conversation_summaries(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
 ):
-    conversations = await chat_service.list_conversations(db, current_user.user_id)
+    conversations = await list_conversations(db, current_user.user_id)
     return [
         ConversationSummary(
             id=str(c.id),
@@ -336,8 +342,8 @@ async def get_conversation_messages(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
 ):
-    await chat_service.get_conversation(db, conversation_id, current_user.user_id)
-    messages = await chat_service.get_messages(db, conversation_id)
+    await get_conversation(db, conversation_id, current_user.user_id)
+    messages = await get_messages(db, conversation_id)
     return [
         MessageResponse(
             id=str(m.id),
@@ -355,4 +361,4 @@ async def remove_conversation(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(dependency=get_db),
 ):
-    await chat_service.delete_conversation(db, conversation_id, current_user.user_id)
+    await delete_conversation(db, conversation_id, current_user.user_id)
