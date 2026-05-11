@@ -76,3 +76,17 @@ class ConversationRepository:
     async def delete(self, conversation: Conversation) -> None:
         await self.session.delete(conversation)
         await self.session.flush()
+
+    async def delete_by_id_for_user(self, conversation_id: str, user_id: str) -> bool:
+        conversation = await self.get_by_id_for_user(conversation_id, user_id)
+        if conversation is None:
+            return False
+
+        await self.delete(conversation)
+        return True
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        await self.session.rollback()
