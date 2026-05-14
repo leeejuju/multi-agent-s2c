@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type NodeType = "agent" | "attachment";
+export type NodeType = "agent" | "attachment" | "image";
 
 export interface CanvasNode {
   id: string;
@@ -14,6 +14,8 @@ export interface CanvasNode {
   subtitle?: string;
   // For attachment node
   count?: number;
+  // For image node
+  previewUrl?: string;
 }
 
 interface WorkspaceState {

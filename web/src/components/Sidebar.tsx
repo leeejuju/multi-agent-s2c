@@ -1,4 +1,4 @@
-import { Brush, Crop, Eraser, Lasso, LogOut, Move } from "lucide-react";
+import { BookOpen, Brush, Crop, Eraser, Lasso, LogOut, Move } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { useAuthStore } from "@/store/auth";
@@ -12,7 +12,11 @@ const tools = [
   { key: "crop", label: "Crop", icon: Crop },
 ];
 
-export default function Sidebar() {
+type SidebarProps = {
+  onOpenLibrary: () => void;
+};
+
+export default function Sidebar({ onOpenLibrary }: SidebarProps) {
   const [activeTool, setActiveTool] = useState("move");
   const clearAuth = useAuthStore((state) => state.clearAuth);
 
@@ -48,6 +52,19 @@ export default function Sidebar() {
             </button>
           );
         })}
+
+        <div className="h-px w-6 bg-black/5 my-2" />
+
+        <button
+          aria-label="Library"
+          className="tool-item"
+          onClick={onOpenLibrary}
+          title="Library"
+          type="button"
+        >
+          <BookOpen size={20} strokeWidth={2.2} />
+          <span className="tooltip-text">Library</span>
+        </button>
 
         <div className="h-px w-6 bg-black/5 my-2" />
 

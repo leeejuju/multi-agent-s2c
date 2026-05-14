@@ -1,17 +1,20 @@
-import { motion } from "motion/react";
+import { useState } from "react";
 
 import AgentChat from "@/components/AgentChat";
 import DynamicIsland from "@/components/DynamicIsland";
-import Sidebar from "@/components/Sidebar";
 import GridCanvas from "@/components/GridCanvas";
+import LibraryDrawer from "@/components/LibraryDrawer";
+import Sidebar from "@/components/Sidebar";
 
 export default function HomeView() {
+  const [libraryOpen, setLibraryOpen] = useState(false);
+
   return (
     <main className="flex h-screen w-screen relative overflow-hidden bg-surface">
       {/* Interactive Infinite Canvas */}
       <GridCanvas />
 
-      <Sidebar />
+      <Sidebar onOpenLibrary={() => setLibraryOpen(true)} />
 
       {/* Center hint */}
       <section className="workspace-main flex-1 h-full relative pointer-events-none">
@@ -25,6 +28,11 @@ export default function HomeView() {
       </section>
 
       <AgentChat />
+
+      <LibraryDrawer
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+      />
     </main>
   );
 }
