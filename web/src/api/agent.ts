@@ -6,6 +6,12 @@ export interface AgentConfig {
   enable_think?: boolean;
 }
 
+export interface AgentSummary {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface AttachmentItem {
   id: string;
   file_name: string;
@@ -47,6 +53,10 @@ function buildUploadFormData(files: File[], conversationId?: string): FormData {
 }
 
 export const agentApi = {
+  getAgents() {
+    return get<AgentSummary[]>("/chat/agents");
+  },
+
   uploadImages(files: File[], conversationId?: string) {
     return postForm<AttachmentItem[]>(
       "/chat/attachments/images/upload",

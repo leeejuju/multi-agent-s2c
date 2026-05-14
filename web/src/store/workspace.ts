@@ -31,8 +31,8 @@ const initialNodes: CanvasNode[] = [
   {
     id: "agent-1",
     type: "agent",
-    title: "Planner",
-    subtitle: "Breaks down the script",
+    title: "Design",
+    subtitle: "Script and storyboard planning",
     x: 120,
     y: 120,
     width: 220,
@@ -41,8 +41,8 @@ const initialNodes: CanvasNode[] = [
   {
     id: "agent-2",
     type: "agent",
-    title: "Executor",
-    subtitle: "Runs editing steps",
+    title: "Search",
+    subtitle: "References and project context",
     x: 408,
     y: 120,
     width: 220,
@@ -51,8 +51,8 @@ const initialNodes: CanvasNode[] = [
   {
     id: "agent-3",
     type: "agent",
-    title: "Memory",
-    subtitle: "Keeps project context",
+    title: "Layout",
+    subtitle: "Composition and image prompts",
     x: 120,
     y: 304,
     width: 220,

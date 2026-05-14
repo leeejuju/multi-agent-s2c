@@ -21,6 +21,9 @@ export default function AgentChat() {
     messages,
     selectedModelId,
     setSelectedModelId,
+    selectedAgentId,
+    setSelectedAgentId,
+    agents,
     conversationId,
     isSending,
     conversations,
@@ -129,12 +132,31 @@ export default function AgentChat() {
           <div className="flex flex-col h-full w-full overflow-hidden rounded-[32px] glass-effect">
             <header className="flex items-center justify-between py-5 px-6 border-b border-black/5">
               <div className="flex flex-col">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-                  Agent Active
-                </span>
                 <h1 className="m-0 font-display text-xl font-extrabold tracking-tight">
                   {conversationId ? "Conversation" : "New Chat"}
                 </h1>
+                <select
+                  aria-label="Agent"
+                  className="mt-2 w-fit max-w-[220px] rounded-lg border border-black/5 bg-white/70 px-2 py-1 text-xs font-semibold text-on-surface-variant outline-none transition-colors hover:text-on-surface"
+                  disabled={isSending}
+                  onChange={(event) => setSelectedAgentId(event.target.value)}
+                  value={selectedAgentId}
+                >
+                  {(agents.length
+                    ? agents
+                    : [
+                        {
+                          id: selectedAgentId,
+                          name: selectedAgentId,
+                          description: "",
+                        },
+                      ]
+                  ).map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.id}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-center gap-2">
                 <button
