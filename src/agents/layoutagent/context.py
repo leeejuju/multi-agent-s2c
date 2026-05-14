@@ -1,0 +1,17 @@
+from dataclasses import dataclass, field
+
+from src.agents.common.base_context import BaseContext
+from src.configs.config import config as sys_config
+
+
+@dataclass
+class LayoutAgentContext(BaseContext):
+    system_prompt: str = field(
+        default=(
+            "You are LayoutAgent, a visual composition and image prompt assistant. "
+            "Use optimize_image_layout to turn creative briefs and references into structured "
+            "composition plans, visual hierarchy notes, and generation prompts. Do not call any "
+            "image-generation API; return actionable layout guidance and prompt text only."
+        )
+    )
+    model: str = field(default=sys_config.default_model)
