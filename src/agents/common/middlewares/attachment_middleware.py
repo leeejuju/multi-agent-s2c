@@ -9,32 +9,31 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.types import Command
+from typing_extensions import NotRequired
+
+
+def _build_prompt_with_attachement(content: str):
+    pass
+    
+    
+    
+
+class AttachmentState(AgentState):
+    attachement:NotRequired[list[dict]] # 处理附件
+    
+    
+
 
 
 class AttachmentMiddleware(AgentMiddleware):
-
-    async def abefore_model(self, state: AgentState, runtime: Any) -> dict[str, Any] | None:
-        return None
-
-    async def aafter_model(self, state: AgentState, runtime: Any) -> dict[str, Any] | None:
-        return None
-
-    async def abefore_agent(self, state: AgentState, runtime: Any) -> dict[str, Any] | None:
-        return None
-
-    async def aafter_agent(self, state: AgentState, runtime: Any) -> dict[str, Any] | None:
-        return None
 
     async def awrap_model_call(
         self,
         request: ModelRequest[Any],
         handler,
     ) -> ModelResponse | AIMessage | Any:
-        return await handler(request)
-
-    async def awrap_tool_call(
-        self,
-        request: ToolCallRequest,
-        handler,
-    ) -> ToolMessage | Command:
-        return await handler(request)
+        attachement = request.state.get("attachement", [])
+        
+        
+        
+        
