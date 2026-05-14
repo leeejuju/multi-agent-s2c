@@ -43,6 +43,7 @@ class LightRAGKnowledgeProvider(BaseGraphKnowledgeProvider):
             await initializer()
 
     async def insert_documents(self, documents: list[KnowledgeDocument]) -> Any:
+        #TODO 这里需要异步
         client = self.get_client()
         if not documents:
             return []
