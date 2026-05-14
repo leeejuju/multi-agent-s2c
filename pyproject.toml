@@ -26,4 +26,6 @@ dependencies = [
     "langgraph-checkpoint-postgres>=3.0.5",
     "psycopg-binary>=3.3.4",
     "docling>=2.93.0",
+    "langfuse>=4.6.1",
+    "langchain-tavily>=0.2.0",
 ]
