@@ -1,0 +1,14 @@
+from src.agents.common import BaseContext
+
+from dataclasses import dataclass, field
+from src.configs.config import config as sys_config
+
+@dataclass
+class SearchAgentContext(BaseContext):
+    
+    system_prompt: str = field(default=())
+    
+    sub_model: str = field(default=sys_config.flash_model)
+    
+    
+    
