@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import Conversation, Message
@@ -72,6 +72,30 @@ class ConversationRepository:
             .order_by(Message.created_at.asc())
         )
         return list(result.scalars().all())
+
+    async def search_messages_for_user(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int = 5,
+    ) -> list[tuple[Conversation, Message]]:
+        pattern = f"%{query}%"
+        result = await self.session.execute(
+            select(Conversation, Message)
+            .join(Message, Message.conversation_id == Conversation.id)
+            .where(
+                Conversation.user_id == UUID(user_id),
+                or_(
+                    Conversation.title.ilike(pattern),
+                    Conversation.summary.ilike(pattern),
+                    Message.content.ilike(pattern),
+                ),
+            )
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        return list(result.all())
 
     async def delete(self, conversation: Conversation) -> None:
         await self.session.delete(conversation)

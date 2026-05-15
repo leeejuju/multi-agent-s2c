@@ -70,6 +70,21 @@ class Config(BaseSettings):
     milvus_token: str = Field(default="", description="Milvus 访问令牌")
     milvus_db_name: str = Field(default="", description="Milvus 数据库名称")
 
+    # ---------- Search ----------
+    tavily_api_key: str = Field(default="", description="Tavily Web Search API Key")
+    search_max_concurrency: int = Field(default=4, description="并行搜索最大任务数")
+    search_route_timeout_seconds: float = Field(default=8.0, description="单路搜索超时时间")
+    local_reference_root: str = Field(default="", description="本地参考资料搜索根目录")
+
+    # ---------- Langfuse ----------
+    langfuse_public_key: str = Field(default="", description="Langfuse Public Key")
+    langfuse_secret_key: str = Field(default="", description="Langfuse Secret Key")
+    langfuse_base_url: str = Field(
+        default="https://cloud.langfuse.com", description="Langfuse 服务地址"
+    )
+    langfuse_tracing_enabled: bool = Field(default=True, description="是否启用 Langfuse tracing")
+    langfuse_tracing_environment: str = Field(default="development", description="Langfuse 环境")
+
     # ---------- API Keys ----------
     dashscope_api_key: str = Field(default="", description="阿里 DashScope API Key")
     openai_api_key: str = Field(default="", description="OpenAI API Key")

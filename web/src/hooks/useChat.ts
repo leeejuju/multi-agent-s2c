@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { agentApi, type ConversationSummary } from "@/api/agent";
+import { agentApi, type AgentSummary, type ConversationSummary } from "@/api/agent";
 
 const DEFAULT_AGENT_ID = "DesignAgent";
 
@@ -15,6 +15,8 @@ export function useChat() {
   const [draftText, setDraftText] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedModelId, setSelectedModelId] = useState("gpt-4o");
+  const [selectedAgentId, setSelectedAgentId] = useState(DEFAULT_AGENT_ID);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -31,6 +33,15 @@ export function useChat() {
 
   useEffect(() => {
     void loadConversations();
+    void agentApi.getAgents().then(setAgents).catch(() => {
+      setAgents([
+        {
+          id: DEFAULT_AGENT_ID,
+          name: "design_agent",
+          description: "Default creative planning agent",
+        },
+      ]);
+    });
     return () => streamRef.current?.abort();
   }, [loadConversations]);
 
@@ -73,7 +84,7 @@ export function useChat() {
     setIsSending(true);
 
     streamRef.current = agentApi.send2AgentStream(
-      DEFAULT_AGENT_ID,
+      selectedAgentId,
       { input: trimmedText, conversation_id: conversationId || undefined },
       { model: selectedModelId, stream: true },
       {
@@ -124,6 +135,9 @@ export function useChat() {
     setMessages,
     selectedModelId,
     setSelectedModelId,
+    selectedAgentId,
+    setSelectedAgentId,
+    agents,
     conversationId,
     setConversationId,
     isSending,

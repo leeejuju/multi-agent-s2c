@@ -1,25 +1,22 @@
-from typing import Any
+from typing import Any, NotRequired
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     AgentState,
     ModelRequest,
     ModelResponse,
-    ToolCallRequest,
 )
-from langchain_core.messages import AIMessage, ToolMessage
-from langgraph.types import Command
-from typing_extensions import NotRequired
+from langchain.messages import AIMessage
 
 
-def _build_prompt_with_attachement(content: str):
+def _build_prompt_with_attachement(attachement: list[dict]):
     pass
     
     
     
 
 class AttachmentState(AgentState):
-    attachement:NotRequired[list[dict]] # 处理附件
+    attachement: NotRequired[list[dict]] # 处理附件
     
     
 
@@ -32,7 +29,7 @@ class AttachmentMiddleware(AgentMiddleware):
         request: ModelRequest[Any],
         handler,
     ) -> ModelResponse | AIMessage | Any:
-        attachement = request.state.get("attachement", [])
+        attachement: list[dict] = request.state.get("attachement", [])
         
         
         

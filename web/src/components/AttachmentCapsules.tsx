@@ -45,7 +45,6 @@ const fileIconMap: Record<string, ComponentType<{ size?: number }>> = {
   xlsx: FileSpreadsheet,
   zip: FileArchive,
   rar: FileArchive,
-  "7z": FileArchive,
 };
 
 function getFileExtension(file: AttachmentLike) {

@@ -15,6 +15,7 @@ from server.service import (
     stream_chunk,
 )
 from server.utils.auth import AuthenticatedUser
+from src.agents import agent_manager
 from src.database import get_db
 from src.storage import (
     build_object_key,
@@ -115,6 +116,12 @@ class MessageResponse(BaseModel):
     created_at: str
 
 
+class AgentSummary(BaseModel):
+    id: str
+    name: str
+    description: str
+
+
 def _file_extension(filename: str | None) -> str:
     """获取文件后缀名（小写）"""
     return Path(filename or "").suffix.lower()
@@ -130,6 +137,11 @@ def _is_allowed_file(
     """校验文件类型或后缀是否在允许范围内"""
     extension = _file_extension(filename)
     return content_type in allowed_types or extension in allowed_extensions
+
+
+@router.get("/agents", response_model=list[AgentSummary])
+async def list_agent_summaries(current_user: AuthenticatedUser):
+    return [AgentSummary(**agent) for agent in agent_manager.list_agents()]
 
 
 async def _upload_attachments(

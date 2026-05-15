@@ -6,7 +6,7 @@ This file is kept in sync with `AGENTS.md` and `CLAUDE.md` for Claude/Codex-styl
 
 `multi-agent-s2c` is a script-driven visual creation system. The backend is a FastAPI service built around LangChain/LangGraph agents, SQLAlchemy repositories, PostgreSQL, and MinIO-backed uploads. The frontend is a React + TypeScript + Vite app under `web/`.
 
-At the moment, the only concrete business agent in `src/agents/` is `DesignAgent`. A `SearchAgent` has been designed but is not implemented yet.
+The concrete business agents in `src/agents/` are `DesignAgent`, `SearchAgent`, and `LayoutAgent`.
 
 ## Backend Architecture
 
@@ -35,14 +35,14 @@ At the moment, the only concrete business agent in `src/agents/` is `DesignAgent
 
 When changing `DesignAgent`, keep it responsible for understanding the user's creative intent and producing final creative plans. Do not move repository or storage concerns into it.
 
-## Planned SearchAgent Direction
+## SearchAgent Direction
 
-The planned `SearchAgent` should be an independent retrieval and reference-organization agent, not a middleware that automatically runs before every request.
+`SearchAgent` is an independent retrieval and reference-organization agent, not a middleware that automatically runs before every request.
 
 First version scope:
 
-- No web search.
-- `DesignAgent` should call it on demand through a single tool such as `search_references(query, scopes, limit)`.
+- Tavily web search is supported when `TAVILY_API_KEY` is configured.
+- `DesignAgent` should call it on demand through `search_references(query, scopes, limit)`.
 - Search must return stable structured JSON:
 
 ```json
@@ -50,7 +50,9 @@ First version scope:
   "reference_context": {
     "project_history": [],
     "material_refs": [],
-    "knowledge_refs": []
+    "knowledge_refs": [],
+    "web_refs": [],
+    "local_file_refs": []
   },
   "recommended_usage": {
     "must_follow": [],
@@ -61,13 +63,19 @@ First version scope:
 }
 ```
 
-The first local retrieval routes should be:
+The retrieval routes are:
 
 - `ProjectHistorySearch`: current user's conversation history, established characters, scenes, style, and previous plans.
 - `MaterialSearch`: current and historical attachment summaries, filenames, user references, and parsed text or image descriptions once available.
 - `KnowledgeSearch`: LightRAG or local knowledge providers for story structure, genre patterns, storyboard conventions, and camera language templates.
+- `WebSearch`: Tavily web results.
+- `LocalFileSearch`: LangChain filesystem search under `LOCAL_REFERENCE_ROOT`.
 
 `SearchAgent` should read data through repositories or provider factories. It should not parse raw attachments itself and should not generate final scripts or storyboards.
+
+## LayoutAgent Direction
+
+`LayoutAgent` is responsible for image composition analysis, layout optimization, and generation-ready prompt drafting. It should not call image generation APIs in the first version.
 
 ## Frontend Architecture
 
