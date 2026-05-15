@@ -8,7 +8,6 @@ from langfuse.langchain import CallbackHandler
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents import agent_manager
-from src.agents.common import AgentRuntimeContext, agent_runtime_context
 from src.configs.config import config as sys_config
 from src.database import Conversation, Message
 from src.database.repositories import ConversationRepository
@@ -214,37 +213,31 @@ def stream_chunk(
                 attachment_count=len(attachment_metadata),
             )
 
-            runtime_context = AgentRuntimeContext(
-                user_id=user_id,
-                conversation_id=resolved_conversation_id,
-                attachments=attachment_metadata,
-            )
-            with agent_runtime_context(runtime_context):
-                async for mode, chunk in agent.stream_messages(
-                    {
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": messages,
-                            }
-                        ]
-                    },
-                    config=run_config,
-                ):
-                    if mode != "messages":
-                        continue
+            async for mode, chunk in agent.stream_messages(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": messages,
+                        }
+                    ]
+                },
+                config=run_config,
+            ):
+                if mode != "messages":
+                    continue
 
-                    token = chunk.content
-                    if not token:
-                        continue
+                token = chunk.content
+                if not token:
+                    continue
 
-                    full_content += token
-                    yield generator_chunk(
-                        token,
-                        status="stream",
-                        type="token",
-                        conversation_id=resolved_conversation_id,
-                    )
+                full_content += token
+                yield generator_chunk(
+                    token,
+                    status="stream",
+                    type="token",
+                    conversation_id=resolved_conversation_id,
+                )
 
             await repository.save_message(
                 "assistant",

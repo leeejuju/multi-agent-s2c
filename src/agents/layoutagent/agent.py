@@ -4,12 +4,10 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import (
     ModelRetryMiddleware,
     SummarizationMiddleware,
-    ToolCallLimitMiddleware,
 )
 from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.common import BaseAgent, load_model
-from src.agents.common.tools import optimize_image_layout
 from src.configs import config as sys_config
 
 from .context import LayoutAgentContext
@@ -24,7 +22,6 @@ class LayoutAgent(BaseAgent):
         flash_model = load_model(sys_config.flash_model)
         middleware: list[Any] = [
             ModelRetryMiddleware(max_retries=1, on_failure="continue"),
-            ToolCallLimitMiddleware(run_limit=6, exit_behavior="continue"),
             SummarizationMiddleware(
                 flash_model,
                 trigger=("messages", 24),
@@ -33,7 +30,7 @@ class LayoutAgent(BaseAgent):
         ]
         return create_agent(
             model=load_model(sys_config.default_model),
-            tools=[optimize_image_layout],
+            tools=[],
             system_prompt=self.context.system_prompt,
             middleware=middleware,
         )
