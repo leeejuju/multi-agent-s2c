@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRetryMiddleware
 from langgraph.graph.state import CompiledStateGraph
 
-from src.agents.subagent import web_search
+from src.agents.subagent import web_search_parallel, web_search_one
 
 from src.agents.common import BaseAgent, load_model
 from src.configs import config as sys_config
@@ -84,7 +84,7 @@ class SearchAgent(BaseAgent):
         model = load_model(model=sys_config.flash_model)
         return create_agent(
             model=model,
-            tools=[web_search],
+            tools=[web_search_parallel, web_search_one],
             system_prompt=SEARCH_AGENT_SYSTEM_PROMPT,
             middleware=[
                 ModelRetryMiddleware(max_retries=1, on_failure="continue"),

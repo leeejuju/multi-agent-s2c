@@ -28,4 +28,5 @@ dependencies = [
     "docling>=2.93.0",
     "langfuse>=4.6.1",
     "langchain-tavily>=0.2.0",
+    "deepagents>=0.6.2",
 ]

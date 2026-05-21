@@ -1,8 +1,9 @@
-from langchain.agents import create_agent
+import asyncio
+from typing import Any
+
 from langchain.tools import tool
 from langchain_tavily import TavilySearch
 
-from src.agents.common import load_model
 from src.configs import config as sys_config
 
 
@@ -25,14 +26,40 @@ Return concise search findings for the upstream orchestrator.
 """
 
 
-search_agent = create_agent(
-    model=load_model(sys_config.flash_model),
-    tools=[TavilySearch()],
-    system_prompt=WEB_SEARCH_SUBAGENT_PROMPT,
-)
+def _build_tavily_tool(max_results: int = 5) -> TavilySearch:
+    return TavilySearch(
+        max_results=max_results,
+        tavily_api_key=sys_config.tavily_api_key or None,
+    )
 
 
-@tool(description="Focused web search tool.")
-def web_search(query: str) -> str:
-    search_result = search_agent.ainvoke({"messages": [("user", query)]})
-    return search_result["messages"][-1].content
+@tool(description="Run one focused web search query.")
+async def web_search_one(query: str) -> Any:
+    search_tool = _build_tavily_tool(max_results=5)
+    return await search_tool.ainvoke({"query": query})
+
+
+@tool(description="Run multiple focused web search queries concurrently.")
+async def web_search_parallel(queries: list[str]) -> list[dict[str, Any]]:
+    tasks = [web_search_one.ainvoke({"query": query}) for query in queries]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    valid_results = []
+    for query, result in zip(queries, results, strict=False):
+        if isinstance(result, Exception):
+            valid_results.append(
+                {
+                    "query": query,
+                    "error": str(result),
+                    "results": [],
+                }
+            )
+        else:
+            valid_results.append(
+                {
+                    "query": query,
+                    "result": result,
+                }
+            )
+
+    return valid_results
