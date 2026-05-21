@@ -1,71 +1,18 @@
 import json
-import os
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 from fastapi import HTTPException, status
-from langfuse.langchain import CallbackHandler
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents import agent_manager
-from src.configs.config import config as sys_config
 from src.database import Conversation, Message
 from src.database.repositories import ConversationRepository
 from src.utils import logger
 
-
-def _is_langfuse_configured() -> bool:
-    return bool(
-        sys_config.langfuse_tracing_enabled
-        and sys_config.langfuse_public_key
-        and sys_config.langfuse_secret_key
-    )
-
-
-def _get_langfuse_handler() -> CallbackHandler | None:
-    if not _is_langfuse_configured():
-        return None
-
-    try:
-        os.environ["LANGFUSE_PUBLIC_KEY"] = sys_config.langfuse_public_key
-        os.environ["LANGFUSE_SECRET_KEY"] = sys_config.langfuse_secret_key
-        os.environ["LANGFUSE_BASE_URL"] = sys_config.langfuse_base_url
-        os.environ["LANGFUSE_TRACING_ENVIRONMENT"] = sys_config.langfuse_tracing_environment
-        return CallbackHandler()
-    except Exception:
-        logger.exception("Failed to initialize Langfuse callback handler.")
-        return None
-
-
-def _with_langfuse_tracing(
-    run_config: dict[str, Any],
-    *,
-    user_id: str,
-    conversation_id: str,
-    agent_id: str,
-    user_message_id: str,
-    message_type: str,
-    attachment_count: int,
-) -> dict[str, Any]:
-    handler = _get_langfuse_handler()
-    if handler is None:
-        return run_config
-
-    config = dict(run_config)
-    config["callbacks"] = [*list(config.get("callbacks") or []), handler]
-    config["tags"] = [*list(config.get("tags") or []), "chat", agent_id]
-    config["metadata"] = {
-        **dict(config.get("metadata") or {}),
-        "langfuse_user_id": user_id,
-        "langfuse_session_id": conversation_id,
-        "langfuse_trace_name": f"chat:{agent_id}",
-        "agent_id": agent_id,
-        "conversation_id": conversation_id,
-        "user_message_id": user_message_id,
-        "message_type": message_type,
-        "attachment_count": attachment_count,
-    }
-    return config
+from .langfuse_service import (
+    with_langfuse_config,
+)
 
 
 async def get_conversation(
@@ -99,6 +46,7 @@ def stream_chunk(
     conversation_id: str | None,
     user_id: str,
     attachments: Sequence[Any] | None = None,
+    request_config: Mapping[str, Any] | None = None,
 ) -> AsyncIterator[bytes]:
     meta: dict[str, Any] = {"request_id": None}
     repository = ConversationRepository(session=db)
@@ -176,41 +124,15 @@ def stream_chunk(
                 conversation_id=resolved_conversation_id,
             )
 
-            attachment_metadata = [
-                attachment.model_dump(mode="json")
-                if hasattr(attachment, "model_dump")
-                else dict(attachment)
-                if isinstance(attachment, dict)
-                else {
-                    key: getattr(attachment, key)
-                    for key in (
-                        "id",
-                        "file_name",
-                        "content_type",
-                        "category",
-                        "access_url",
-                        "thumb_url",
-                    )
-                    if hasattr(attachment, key)
-                }
-                for attachment in attachments or []
-            ]
-            run_config = _with_langfuse_tracing(
-                {
-                    "configurable": {"thread_id": resolved_conversation_id},
-                    "metadata": {
-                        "user_id": user_id,
-                        "conversation_id": resolved_conversation_id,
-                        "agent_id": agent_id,
-                        "attachment_count": len(attachment_metadata),
-                    },
-                },
+            attachment_count = len(attachments or [])
+            langfuse_config = with_langfuse_config(
                 user_id=user_id,
                 conversation_id=resolved_conversation_id,
                 agent_id=agent_id,
                 user_message_id=str(user_message.id),
                 message_type=message_type,
-                attachment_count=len(attachment_metadata),
+                attachment_count=attachment_count,
+                request_config=dict(request_config or {}),
             )
 
             async for mode, chunk in agent.stream_messages(
@@ -222,7 +144,10 @@ def stream_chunk(
                         }
                     ]
                 },
-                config=run_config,
+                config={
+                    "configurable": {"thread_id": resolved_conversation_id},
+                    **langfuse_config,
+                },
             ):
                 if mode != "messages":
                     continue

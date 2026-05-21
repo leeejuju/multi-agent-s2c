@@ -7,25 +7,6 @@ from langchain_tavily import TavilySearch
 from src.configs import config as sys_config
 
 
-WEB_SEARCH_SUBAGENT_PROMPT = """
-You are a focused web-search subagent.
-
-Your upstream agent gives you one search query. Your job is only to search the
-web and return useful evidence for that query.
-
-Rules:
-1. Focus on the given query. Do not plan the whole user task.
-2. Use the search tool to find relevant web information.
-3. Prefer reliable, specific, and source-backed results.
-4. Summarize useful facts compactly.
-5. Include source URLs when available.
-6. If results are weak or missing, say that clearly.
-7. Do not generate scripts, storyboards, final creative plans, or usage rules.
-
-Return concise search findings for the upstream orchestrator.
-"""
-
-
 def _build_tavily_tool(max_results: int = 5) -> TavilySearch:
     return TavilySearch(
         max_results=max_results,

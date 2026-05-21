@@ -323,6 +323,7 @@ async def chat_stream(
             conversation_id=payload.conversation_id,
             user_id=current_user.user_id,
             attachments=payload.attachments,
+            request_config=payload.config,
         ),
         media_type="application/json",
     )
