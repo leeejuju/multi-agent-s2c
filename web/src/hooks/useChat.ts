@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { agentApi, type AgentSummary, type ConversationSummary } from "@/api/agent";
+import type { ToolStreamEvent } from "@/api/index";
 
 const DEFAULT_AGENT_ID = "DesignAgent";
 
@@ -7,6 +8,19 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
+  toolActivities?: ToolActivity[];
+};
+
+export type ToolActivity = {
+  id: string;
+  name: string;
+  resultCount?: number;
+  resultItems?: string[];
+  searchScope?: string | string[];
+  source?: string;
+  status: ToolStreamEvent["status"];
+  title?: string;
+  query?: string;
 };
 
 export function useChat() {
@@ -95,6 +109,55 @@ export function useChat() {
             if (last?.role === "assistant") {
               next[next.length - 1] = { ...last, content: `${last.content}${token}` };
             }
+            return next;
+          });
+          onScrollToBottom();
+        },
+        onToolEvent(event) {
+          setMessages((current) => {
+            const next = [...current];
+            let last = next[next.length - 1];
+            if (last?.role !== "assistant") {
+              last = {
+                role: "assistant",
+                content: "",
+                streaming: true,
+                toolActivities: [],
+              };
+              next.push(last);
+            }
+
+            const activities = [...(last.toolActivities ?? [])];
+            const index = activities.findIndex(
+              (activity) => activity.id === event.tool_call_id,
+            );
+            const existing = index >= 0 ? activities[index] : undefined;
+            const resultItems = event.result_items ?? existing?.resultItems;
+            const searchScope =
+              event.search_scopes ??
+              event.search_scope ??
+              event.source ??
+              existing?.searchScope;
+
+            const activity: ToolActivity = {
+              id: event.tool_call_id,
+              name: event.tool_name,
+              query: event.query ?? existing?.query,
+              resultCount:
+                event.result_count ?? resultItems?.length ?? existing?.resultCount,
+              resultItems,
+              searchScope,
+              source: event.source ?? existing?.source,
+              status: event.status,
+              title: event.title ?? existing?.title,
+            };
+
+            if (index >= 0) {
+              activities[index] = activity;
+            } else {
+              activities.push(activity);
+            }
+            next[next.length - 1] = { ...last, toolActivities: activities };
             return next;
           });
           onScrollToBottom();

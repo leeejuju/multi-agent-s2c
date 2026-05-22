@@ -165,11 +165,81 @@ export const put = <T>(url: string, data?: unknown, config?: RequestConfig) =>
 export const del = <T>(url: string, config?: RequestConfig) =>
   request<T>(url, { ...config, method: "DELETE" });
 
+export type ToolStreamStatus =
+  | "started"
+  | "updated"
+  | "completed"
+  | "failed"
+  | "searching"
+  | "searched";
+
+export type ToolStreamEvent = {
+  type: "tool";
+  status: ToolStreamStatus;
+  tool_call_id: string;
+  tool_name: string;
+  title?: string;
+  query?: string;
+  source?: string;
+  search_scope?: string | string[];
+  search_scopes?: string[];
+  result_items?: string[];
+  result_count?: number;
+  conversation_id?: string;
+};
+
 type StreamCallbacks = {
   onToken: (token: string) => void;
   onDone: (data: Record<string, unknown>) => void;
   onError: (err: Error) => void;
+  onToolEvent?: (event: ToolStreamEvent) => void;
 };
+
+const toolStatuses: ToolStreamStatus[] = [
+  "started",
+  "updated",
+  "completed",
+  "failed",
+  "searching",
+  "searched",
+];
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.filter((item): item is string => typeof item === "string");
+  return items.length ? items : undefined;
+}
+
+function normalizeToolEvent(data: Record<string, unknown>): ToolStreamEvent | null {
+  if (
+    data.type !== "tool" ||
+    typeof data.tool_call_id !== "string" ||
+    typeof data.status !== "string" ||
+    !toolStatuses.includes(data.status as ToolStreamStatus)
+  ) {
+    return null;
+  }
+
+  return {
+    type: "tool",
+    status: data.status as ToolStreamStatus,
+    tool_call_id: data.tool_call_id,
+    tool_name: typeof data.tool_name === "string" ? data.tool_name : "tool_call",
+    title: typeof data.title === "string" ? data.title : undefined,
+    query: typeof data.query === "string" ? data.query : undefined,
+    source: typeof data.source === "string" ? data.source : undefined,
+    search_scope:
+      typeof data.search_scope === "string" || Array.isArray(data.search_scope)
+        ? (data.search_scope as string | string[])
+        : undefined,
+    search_scopes: toStringArray(data.search_scopes),
+    result_items: toStringArray(data.result_items),
+    result_count:
+      typeof data.result_count === "number" ? data.result_count : undefined,
+    conversation_id:
+      typeof data.conversation_id === "string" ? data.conversation_id : undefined,
+  };
+}
 
 export function requestStream(
   url: string,
@@ -249,20 +319,28 @@ export function requestStream(
               token
             ) {
               callbacks.onToken(token);
-            } else if (data.type === "done" || data.status === "done") {
-              callbacks.onDone(data);
-              doneReading = true;
-            } else if (data.type === "error" || data.status === "error") {
-              callbacks.onError(
-                new Error(
-                  typeof data.message === "string"
-                    ? data.message
-                    : "Streaming request failed",
-                ),
-              );
-              doneReading = true;
-            } else if (data.type === "metadata" || data.status === "init") {
-              callbacks.onDone(data);
+            } else {
+              const toolEvent = normalizeToolEvent(data);
+              if (toolEvent) {
+                callbacks.onToolEvent?.(toolEvent);
+                continue;
+              }
+
+              if (data.type === "done" || data.status === "done") {
+                callbacks.onDone(data);
+                doneReading = true;
+              } else if (data.type === "error" || data.status === "error") {
+                callbacks.onError(
+                  new Error(
+                    typeof data.message === "string"
+                      ? data.message
+                      : "Streaming request failed",
+                  ),
+                );
+                doneReading = true;
+              } else if (data.type === "metadata" || data.status === "init") {
+                callbacks.onDone(data);
+              }
             }
           } catch {
             // Ignore malformed JSON lines so a partial chunk does not stop the stream.

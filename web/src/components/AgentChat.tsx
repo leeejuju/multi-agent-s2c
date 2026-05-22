@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useChat } from "@/hooks/useChat";
 import { useWorkspaceStore } from "@/store/workspace";
 import MessageInput from "@/components/MessageInput";
+import ToolCallPanel from "@/components/ToolCallPanel";
 import "./AgentChat.css";
 
 const ATTACHMENT_NODE_ID = "global-attachments-container";
@@ -214,7 +215,12 @@ export default function AgentChat() {
                       <div
                         className={`message-bubble animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "is-user" : "is-assistant"}`}
                       >
-                        {m.streaming && !m.content ? (
+                        {m.toolActivities && m.toolActivities.length > 0 && (
+                          <ToolCallPanel activities={m.toolActivities} />
+                        )}
+                        {m.streaming &&
+                        !m.content &&
+                        (!m.toolActivities || m.toolActivities.length === 0) ? (
                           <div className="thinking-indicator">
                             <span />
                             <span />

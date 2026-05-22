@@ -1,4 +1,4 @@
-import { del, get, postForm, requestStream } from "./index";
+import { del, get, postForm, requestStream, type ToolStreamEvent } from "./index";
 
 export interface AgentConfig {
   model?: string;
@@ -79,6 +79,7 @@ export const agentApi = {
       onToken: (token: string) => void;
       onDone: (data: Record<string, unknown>) => void;
       onError: (err: Error) => void;
+      onToolEvent?: (event: ToolStreamEvent) => void;
     },
   ) {
     return requestStream(
