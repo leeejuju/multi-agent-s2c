@@ -65,6 +65,19 @@ def stream_chunk(
             + b"\n"
         )
 
+    def iter_tool_activities(value: Any):
+        if isinstance(value, Mapping):
+            activities = value.get("tool_activities")
+            if isinstance(activities, Mapping):
+                for activity in activities.values():
+                    if isinstance(activity, Mapping):
+                        yield activity
+            for nested in value.values():
+                yield from iter_tool_activities(nested)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            for item in value:
+                yield from iter_tool_activities(item)
+
     try:
         agent = agent_manager.get_agent(agent_id)
     except KeyError as exc:
@@ -149,6 +162,24 @@ def stream_chunk(
                     **langfuse_config,
                 },
             ):
+                if mode in {"updates", "values"}:
+                    for activity in iter_tool_activities(chunk):
+                        yield generator_chunk(
+                            status=activity.get("status", "updated"),
+                            type="tool",
+                            tool_call_id=activity.get("tool_call_id", "tool_call"),
+                            tool_name=activity.get("tool_name", "tool_call"),
+                            title=activity.get("title"),
+                            query=activity.get("query"),
+                            source=activity.get("source"),
+                            search_scope=activity.get("search_scope"),
+                            search_scopes=activity.get("search_scopes"),
+                            result_items=activity.get("result_items"),
+                            result_count=activity.get("result_count"),
+                            conversation_id=resolved_conversation_id,
+                        )
+                    continue
+
                 if mode != "messages":
                     continue
 

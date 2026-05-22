@@ -1,4 +1,4 @@
 from .attachment_middleware import AttachmentMiddleware
-from .concurrent_middleware import ConcurrentMiddleware
+from .search_tool_middleware import SearchToolMiddleware
 
-__all__ = ["AttachmentMiddleware", "ConcurrentMiddleware"]
+__all__ = ["AttachmentMiddleware", "SearchToolMiddleware"]

@@ -38,7 +38,7 @@ class BaseAgent:
         async for mode, chunk in agent.astream(
             messages,
             config=config,
-            stream_mode=["messages", "values"],
+            stream_mode=["messages", "updates"],
             **kwargs,
         ):
             if mode == "messages":
