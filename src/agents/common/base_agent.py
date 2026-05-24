@@ -8,6 +8,8 @@ from src.configs.config import config as sys_config
 
 from .base_context import BaseContext
 
+from src.utils.logger import logger
+
 
 class BaseAgent:
     name: str = "base_agent"
@@ -41,6 +43,7 @@ class BaseAgent:
             stream_mode=["messages", "updates"],
             **kwargs,
         ):
+            logger.info(f"模式：{mode}, 消息：{chunk}")
             if mode == "messages":
                 yield mode, chunk[0]
             else:

@@ -82,7 +82,7 @@ class Config(BaseSettings):
     langfuse_base_url: str = Field(
         default="https://cloud.langfuse.com", description="Langfuse 服务地址"
     )
-    langfuse_tracing_enabled: bool = Field(default=True, description="是否启用 Langfuse tracing")
+    langfuse_tracing_enabled: bool = Field(default=False, description="是否启用 Langfuse tracing")
     langfuse_tracing_environment: str = Field(default="development", description="Langfuse 环境")
 
     # ---------- API Keys ----------
