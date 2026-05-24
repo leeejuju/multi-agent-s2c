@@ -1,0 +1,87 @@
+@import "antd/dist/reset.css";
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-variant: #f8f9fa;
+  --color-on-surface: #1a1a1a;
+  --color-on-surface-variant: #666666;
+  --color-accent: #000000;
+  --color-glass: rgba(255, 255, 255, 0.7);
+  --color-glass-border: rgba(255, 255, 255, 0.4);
+
+  --font-sans: sans-serif;
+  --font-display: sans-serif;
+}
+
+@utility glass-effect { 
+  background: var(--color-glass);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid var(--color-glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
+}
+
+@utility glass-effect-sm {
+  background: var(--color-glass);
+  backdrop-filter: blur(8px) saturate(160%);
+  border: 1px solid var(--color-glass-border);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.04);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #app {
+    @apply min-h-full;
+  }
+
+  body {
+    @apply m-0 overflow-hidden bg-[#f4f4f7] text-on-surface font-sans font-medium;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button, input, textarea, select {
+    font: inherit;
+  }
+
+  .ant-app,
+  .ant-btn,
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-select,
+  .ant-select-item,
+  .ant-switch,
+  .ant-tabs,
+  .ant-popover,
+  .ant-list,
+  .ant-empty,
+  .ant-form {
+    font-family: var(--font-sans);
+    font-weight: inherit;
+  }
+
+  button {
+    @apply text-inherit cursor-pointer;
+  }
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}

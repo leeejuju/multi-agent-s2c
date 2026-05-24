@@ -1,8 +1,8 @@
 /* ——— Base Message Style (Inheritable) ——— */
-@reference "../assets/css/main.css";
+@reference "../../assets/css/Global.css";
 
 .message-bubble {
-  @apply py-3 px-4 rounded-[24px] text-sm leading-relaxed;
+  @apply rounded-[24px] px-4 py-2.5 text-[14px] font-medium leading-[1.55];
 }
 
 /* ——— Directional Shapes ——— */
@@ -36,6 +36,84 @@
 .cursor-blink {
   @apply inline-block w-2 h-[15px] bg-current ml-0.5 align-middle;
   animation: cursor-pulse 0.8s infinite;
+}
+
+.markdown-body {
+  @apply text-[14px] font-medium leading-[1.55] text-[#2f3640];
+}
+
+.markdown-body > :first-child {
+  @apply mt-0;
+}
+
+.markdown-body > :last-child {
+  @apply mb-0;
+}
+
+.markdown-body h1 {
+  @apply mb-2 mt-4 text-[14px] font-medium leading-tight text-[#2f3640];
+}
+
+.markdown-body h2 {
+  @apply mb-2 mt-4 text-[14px] font-medium leading-tight text-[#2f3640];
+}
+
+.markdown-body h3 {
+  @apply mb-1.5 mt-3 text-[14px] font-medium leading-tight text-[#2f3640];
+}
+
+.markdown-body p {
+  @apply my-1.5;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  @apply my-1.5 pl-5;
+}
+
+.markdown-body ul {
+  @apply list-disc;
+}
+
+.markdown-body ol {
+  @apply list-decimal;
+}
+
+.markdown-body li {
+  @apply my-0.5;
+}
+
+.markdown-body strong {
+  @apply font-medium;
+}
+
+.markdown-body code {
+  @apply whitespace-pre-wrap break-words rounded-md bg-black/5 px-1.5 py-0.5 text-[14px] font-medium text-[#2f3640];
+}
+
+.markdown-body pre {
+  @apply my-2 whitespace-pre-wrap break-words rounded-xl bg-black/5 p-3 text-[14px] font-medium leading-[1.5] text-[#2f3640];
+}
+
+.markdown-body pre code {
+  @apply whitespace-pre-wrap break-words bg-transparent p-0 text-[14px] font-medium text-[#2f3640];
+}
+
+.markdown-body blockquote {
+  @apply my-2 border-l-4 border-black/15 pl-3 text-on-surface-variant;
+}
+
+.markdown-body table {
+  @apply my-2 w-full border-collapse text-left text-xs;
+}
+
+.markdown-body th,
+.markdown-body td {
+  @apply border border-black/10 px-2 py-1.5;
+}
+
+.markdown-body th {
+  @apply bg-black/5 font-bold;
 }
 
 @keyframes cursor-pulse {

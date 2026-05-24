@@ -1,4 +1,4 @@
-@reference "../assets/css/main.css";
+@reference "../../assets/css/Global.css";
 
 .dynamic-island {
   @apply glass-effect flex items-center justify-center overflow-hidden pointer-events-auto;

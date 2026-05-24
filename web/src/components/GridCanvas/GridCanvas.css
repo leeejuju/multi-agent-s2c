@@ -1,5 +1,5 @@
 /* ——— Interactive Grid Canvas ——— */
-@reference "../assets/css/main.css";
+@reference "../../assets/css/Global.css";
 
 .grid-canvas {
   @apply absolute inset-0 z-0 overflow-hidden touch-none bg-[#f4f4f7] cursor-default;

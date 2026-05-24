@@ -2,13 +2,12 @@ import {
   BookOpen,
   Clapperboard,
   Film,
-  Search,
-  SlidersHorizontal,
   Users,
   X,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { Empty, Input, Select, Spin, Tabs } from "antd";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { PointerEvent, useEffect, useMemo, useState } from "react";
 
 import {
   libraryApi,
@@ -16,6 +15,10 @@ import {
   type LibraryStatus,
   type ScreenplayItem,
 } from "@/api/library";
+import {
+  getLibraryPanelMotion,
+  libraryOverlayMotion,
+} from "@/assets/animations/LibraryDrawer.motion";
 import CharacterRelationshipGraph from "@/components/CharacterRelationshipGraph";
 import "./LibraryDrawer.css";
 
@@ -47,12 +50,34 @@ export default function LibraryDrawer({
   onClose,
   open,
 }: LibraryDrawerProps) {
+  const shouldReduceMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState<LibraryTab>(initialTab);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<LibraryStatus | "all">("all");
   const [drawingScripts, setDrawingScripts] = useState<DrawingScriptItem[]>([]);
   const [screenplays, setScreenplays] = useState<ScreenplayItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const tabItems = [
+    {
+      key: "drawing-scripts",
+      label: (
+        <span className="inline-flex items-center gap-2">
+          <Clapperboard size={16} />
+          Drawing Scripts
+        </span>
+      ),
+    },
+    {
+      key: "screenplays",
+      label: (
+        <span className="inline-flex items-center gap-2">
+          <BookOpen size={16} />
+          Screenplays
+        </span>
+      ),
+    },
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -111,106 +136,96 @@ export default function LibraryDrawer({
     [screenplays, searchValue, statusFilter],
   );
 
+  const handleDragStart = (event: PointerEvent<HTMLElement>) => {
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startPosition = position;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const handleMove = (moveEvent: globalThis.PointerEvent) => {
+      setPosition({
+        x: startPosition.x + moveEvent.clientX - startX,
+        y: startPosition.y + moveEvent.clientY - startY,
+      });
+    };
+
+    const handleUp = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+  };
+
+  const panelMotion = getLibraryPanelMotion(shouldReduceMotion);
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          aria-modal="true"
-          className="library-overlay pointer-events-auto"
-          exit={{ opacity: 0 }}
-          initial={{ opacity: 0 }}
-          role="dialog"
-          transition={{ duration: 0.18 }}
+          className="library-floating-overlay"
+          onClick={onClose}
+          {...libraryOverlayMotion}
         >
-          <button
-            aria-label="Close library"
-            className="library-scrim"
-            onClick={onClose}
-            type="button"
-          />
-
-          <motion.section
-            className="library-drawer"
-            exit={{ opacity: 0, scale: 0.98, y: 24 }}
-            initial={{ opacity: 0, scale: 0.98, y: 32 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 28 }}
+          <motion.div
+            className="library-floating-shell"
+            onClick={(event) => event.stopPropagation()}
+            style={{ originX: 0, originY: 0.55 }}
+            {...panelMotion}
           >
-            <header className="library-header">
-              <div>
-                <span className="library-eyebrow">Creative Library</span>
-                <h2>Production Assets</h2>
-              </div>
-              <button
-                aria-label="Close library"
-                className="library-icon-btn"
-                onClick={onClose}
-                title="Close"
-                type="button"
-              >
-                <X size={18} />
-              </button>
-            </header>
-
-            <div className="library-controls">
-              <div className="library-tabs" role="tablist">
+            <section
+              aria-modal="true"
+              className="library-floating-panel pointer-events-auto"
+              role="dialog"
+              style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+            >
+              <header className="library-header" onPointerDown={handleDragStart}>
+                <div className="library-drag-handle" />
                 <button
-                  aria-selected={activeTab === "drawing-scripts"}
-                  className={activeTab === "drawing-scripts" ? "is-active" : ""}
-                  onClick={() => setActiveTab("drawing-scripts")}
-                  role="tab"
+                  aria-label="Close library"
+                  className="library-icon-btn"
+                  onClick={onClose}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  title="Close"
                   type="button"
                 >
-                  <Clapperboard size={16} />
-                  <span>Drawing Scripts</span>
+                  <X size={18} />
                 </button>
-                <button
-                  aria-selected={activeTab === "screenplays"}
-                  className={activeTab === "screenplays" ? "is-active" : ""}
-                  onClick={() => setActiveTab("screenplays")}
-                  role="tab"
-                  type="button"
-                >
-                  <BookOpen size={16} />
-                  <span>Screenplays</span>
-                </button>
-              </div>
+              </header>
 
-              <label className="library-search">
-                <Search size={16} />
-                <input
+              <div className="library-controls">
+                <Tabs
+                  activeKey={activeTab}
+                  items={tabItems}
+                  onChange={(key) => setActiveTab(key as LibraryTab)}
+                />
+
+                <Input.Search
+                  allowClear
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search library"
                   value={query}
                 />
-              </label>
 
-              <div className="library-filter">
-                <SlidersHorizontal size={15} />
-                <select
-                  onChange={(event) =>
-                    setStatusFilter(event.target.value as LibraryStatus | "all")
-                  }
+                <Select
+                  onChange={(value) => setStatusFilter(value)}
+                  options={filters.map((filter) => ({
+                    label: filter === "all" ? "All status" : statusLabels[filter],
+                    value: filter,
+                  }))}
                   value={statusFilter}
-                >
-                  {filters.map((filter) => (
-                    <option key={filter} value={filter}>
-                      {filter === "all" ? "All status" : statusLabels[filter]}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
-            </div>
 
-            {activeTab === "drawing-scripts" ? (
-              <DrawingScriptLibrary
-                items={filteredDrawingScripts}
-                loading={loading}
-              />
-            ) : (
-              <ScreenplayLibrary items={filteredScreenplays} loading={loading} />
-            )}
-          </motion.section>
+              {activeTab === "drawing-scripts" ? (
+                <DrawingScriptLibrary items={filteredDrawingScripts} loading={loading} />
+              ) : (
+                <ScreenplayLibrary items={filteredScreenplays} loading={loading} />
+              )}
+            </section>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -225,7 +240,7 @@ function DrawingScriptLibrary({
   loading: boolean;
 }) {
   if (loading) {
-    return <LibraryEmptyState label="Loading drawing scripts" />;
+    return <LibraryLoadingState label="Loading drawing scripts" />;
   }
 
   if (items.length === 0) {
@@ -285,7 +300,7 @@ function ScreenplayLibrary({
   }, [items]);
 
   if (loading) {
-    return <LibraryEmptyState label="Loading screenplays" />;
+    return <LibraryLoadingState label="Loading screenplays" />;
   }
 
   if (!selected) {
@@ -337,8 +352,15 @@ function ScreenplayLibrary({
 function LibraryEmptyState({ label }: { label: string }) {
   return (
     <div className="library-empty-state">
-      <span>{label}</span>
+      <Empty description={label} image={Empty.PRESENTED_IMAGE_SIMPLE} />
     </div>
   );
 }
 
+function LibraryLoadingState({ label }: { label: string }) {
+  return (
+    <div className="library-empty-state">
+      <Spin tip={label} />
+    </div>
+  );
+}

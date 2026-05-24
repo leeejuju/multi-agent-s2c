@@ -25,6 +25,9 @@ export type ToolActivity = {
 
 export function useChat() {
   const streamRef = useRef<{ abort: () => void } | null>(null);
+  const tokenBufferRef = useRef("");
+  const tokenFrameRef = useRef<number | null>(null);
+  const scrollToBottomRef = useRef<(() => void) | null>(null);
 
   const [draftText, setDraftText] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -45,6 +48,31 @@ export function useChat() {
     }
   }, []);
 
+  const flushTokenBuffer = useCallback(() => {
+    const tokenBuffer = tokenBufferRef.current;
+    if (!tokenBuffer) return;
+
+    tokenBufferRef.current = "";
+    setMessages((current) => {
+      const next = [...current];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") {
+        next[next.length - 1] = { ...last, content: `${last.content}${tokenBuffer}` };
+      }
+      return next;
+    });
+    scrollToBottomRef.current?.();
+  }, []);
+
+  const scheduleTokenFlush = useCallback(() => {
+    if (tokenFrameRef.current !== null) return;
+
+    tokenFrameRef.current = window.requestAnimationFrame(() => {
+      tokenFrameRef.current = null;
+      flushTokenBuffer();
+    });
+  }, [flushTokenBuffer]);
+
   useEffect(() => {
     void loadConversations();
     void agentApi.getAgents().then(setAgents).catch(() => {
@@ -56,7 +84,13 @@ export function useChat() {
         },
       ]);
     });
-    return () => streamRef.current?.abort();
+    return () => {
+      streamRef.current?.abort();
+      if (tokenFrameRef.current !== null) {
+        window.cancelAnimationFrame(tokenFrameRef.current);
+        tokenFrameRef.current = null;
+      }
+    };
   }, [loadConversations]);
 
   const switchConversation = async (convId: string) => {
@@ -95,6 +129,12 @@ export function useChat() {
     setDraftText("");
     setAttachments([]); // Clear attachments after sending
     onScrollToBottom();
+    scrollToBottomRef.current = onScrollToBottom;
+    tokenBufferRef.current = "";
+    if (tokenFrameRef.current !== null) {
+      window.cancelAnimationFrame(tokenFrameRef.current);
+      tokenFrameRef.current = null;
+    }
     setIsSending(true);
 
     streamRef.current = agentApi.send2AgentStream(
@@ -103,17 +143,11 @@ export function useChat() {
       { model: selectedModelId, stream: true },
       {
         onToken(token) {
-          setMessages((current) => {
-            const next = [...current];
-            const last = next[next.length - 1];
-            if (last?.role === "assistant") {
-              next[next.length - 1] = { ...last, content: `${last.content}${token}` };
-            }
-            return next;
-          });
-          onScrollToBottom();
+          tokenBufferRef.current += token;
+          scheduleTokenFlush();
         },
         onToolEvent(event) {
+          flushTokenBuffer();
           setMessages((current) => {
             const next = [...current];
             let last = next[next.length - 1];
@@ -167,6 +201,7 @@ export function useChat() {
           if (data.status === "init" || data.type === "metadata") {
             return;
           }
+          flushTokenBuffer();
           setMessages((current) => {
             const next = [...current];
             const last = next[next.length - 1];
@@ -174,13 +209,38 @@ export function useChat() {
             return next;
           });
           setIsSending(false);
+          streamRef.current = null;
+          scrollToBottomRef.current = null;
           void loadConversations();
         },
         onError() {
+          flushTokenBuffer();
           setIsSending(false);
+          streamRef.current = null;
+          scrollToBottomRef.current = null;
         },
       }
     );
+  };
+
+  const stopSending = () => {
+    streamRef.current?.abort();
+    streamRef.current = null;
+    if (tokenFrameRef.current !== null) {
+      window.cancelAnimationFrame(tokenFrameRef.current);
+      tokenFrameRef.current = null;
+    }
+    flushTokenBuffer();
+    setIsSending(false);
+    scrollToBottomRef.current = null;
+    setMessages((current) => {
+      const next = [...current];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") {
+        next[next.length - 1] = { ...last, streaming: false };
+      }
+      return next;
+    });
   };
 
   const addAttachments = (files: File[]) => {
@@ -208,6 +268,7 @@ export function useChat() {
     showConversations,
     setShowConversations,
     handleSend,
+    stopSending,
     switchConversation,
     newConversation,
     attachments,

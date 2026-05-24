@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, History, PanelRightClose, Plus, X } from "lucide-react";
+import { Bot, History, PanelRightClose, Plus } from "lucide-react";
+import { Button, List, Popover } from "antd";
 import { AnimatePresence, motion } from "motion/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { useChat } from "@/hooks/useChat";
 import { useWorkspaceStore } from "@/store/workspace";
@@ -22,15 +25,13 @@ export default function AgentChat() {
     messages,
     selectedModelId,
     setSelectedModelId,
-    selectedAgentId,
-    setSelectedAgentId,
-    agents,
     conversationId,
     isSending,
     conversations,
     showConversations,
     setShowConversations,
     handleSend,
+    stopSending,
     switchConversation,
     newConversation,
     attachments,
@@ -101,7 +102,7 @@ export default function AgentChat() {
         <motion.button
           key="collapsed"
           aria-label="Expand chat"
-          className="absolute right-5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2 p-3 rounded-[32px] glass-effect pointer-events-auto group"
+          className="absolute right-5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2 p-3 rounded-[32px] glass-effect border border-[#b8b8b8] ring-1 ring-[#b8b8b8] pointer-events-auto group"
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 100, opacity: 0 }}
@@ -130,72 +131,67 @@ export default function AgentChat() {
           exit={{ x: 500, opacity: 0 }}
           transition={{ type: "spring", stiffness: 200, damping: 24 }}
         >
-          <div className="flex flex-col h-full w-full overflow-hidden rounded-[32px] glass-effect">
+          <div className="flex flex-col h-full w-full overflow-hidden rounded-[32px] glass-effect border border-[#b8b8b8] ring-1 ring-[#b8b8b8]">
             <header className="flex items-center justify-between py-5 px-6 border-b border-black/5">
               <div className="flex flex-col">
                 <h1 className="m-0 font-display text-xl font-extrabold tracking-tight">
                   {conversationId ? "Conversation" : "New Chat"}
                 </h1>
-                <select
-                  aria-label="Agent"
-                  className="mt-2 w-fit max-w-[220px] rounded-lg border border-black/5 bg-white/70 px-2 py-1 text-xs font-semibold text-on-surface-variant outline-none transition-colors hover:text-on-surface"
-                  disabled={isSending}
-                  onChange={(event) => setSelectedAgentId(event.target.value)}
-                  value={selectedAgentId}
-                >
-                  {(agents.length
-                    ? agents
-                    : [
-                        {
-                          id: selectedAgentId,
-                          name: selectedAgentId,
-                          description: "",
-                        },
-                      ]
-                  ).map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.id}
-                    </option>
-                  ))}
-                </select>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-black/5 hover:text-on-surface"
-                  onClick={() => setShowConversations(!showConversations)}
-                  title="History"
+                <Popover
+                  arrow={false}
+                  content={
+                    <div className="w-[360px]">
+                      <Button
+                        block
+                        className="mb-2 justify-start"
+                        icon={<Plus size={14} />}
+                        onClick={newConversation}
+                        type="text"
+                      >
+                        New conversation
+                      </Button>
+                      <List
+                        dataSource={conversations}
+                        locale={{ emptyText: "No conversations" }}
+                        renderItem={(conversation) => (
+                          <List.Item className="!px-0 !py-1">
+                            <Button
+                              block
+                              className="justify-start text-left"
+                              onClick={() => switchConversation(conversation.id)}
+                              type="text"
+                            >
+                              <span className="truncate">
+                                {conversation.title || "Untitled"}
+                              </span>
+                            </Button>
+                          </List.Item>
+                        )}
+                        size="small"
+                      />
+                    </div>
+                  }
+                  onOpenChange={setShowConversations}
+                  open={showConversations}
+                  placement="bottomRight"
+                  trigger="click"
                 >
-                  <History size={16} />
-                </button>
-                <button
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-black/5 hover:text-on-surface"
+                  <Button
+                    icon={<History size={16} />}
+                    title="History"
+                    type="text"
+                  />
+                </Popover>
+                <Button
+                  icon={<PanelRightClose size={16} />}
                   onClick={toggleCollapse}
                   title="Collapse"
-                >
-                  <PanelRightClose size={16} />
-                </button>
+                  type="text"
+                />
               </div>
             </header>
-
-            {showConversations && (
-              <div className="absolute left-[18px] right-[18px] top-20 z-20 max-height-[280px] overflow-y-auto rounded-2xl p-2 glass-effect">
-                <button
-                  className="flex w-full items-center gap-2 rounded-xl bg-transparent py-2.5 px-3 text-left text-sm font-semibold transition-colors hover:bg-black/5"
-                  onClick={newConversation}
-                >
-                  <Plus size={14} /> New conversation
-                </button>
-                {conversations.map((c) => (
-                  <button
-                    key={c.id}
-                    className="flex w-full items-center gap-3 rounded-xl bg-transparent py-2.5 px-3 text-left text-sm transition-colors hover:bg-black/5"
-                    onClick={() => switchConversation(c.id)}
-                  >
-                    <span className="truncate">{c.title || "Untitled"}</span>
-                  </button>
-                ))}
-              </div>
-            )}
 
             <div
               className="flex-1 overflow-y-auto p-6 scrollbar-hide"
@@ -206,11 +202,11 @@ export default function AgentChat() {
                   Start a conversation with the agent.
                 </div>
               ) : (
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3">
                   {messages.map((m, i) => (
                     <div
                       key={i}
-                      className={`mb-6 max-w-[90%] group ${m.role === "user" ? "ml-auto" : ""}`}
+                      className={`max-w-[90%] group ${m.role === "user" ? "ml-auto" : ""}`}
                     >
                       <div
                         className={`message-bubble animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "is-user" : "is-assistant"}`}
@@ -227,8 +223,14 @@ export default function AgentChat() {
                             <span />
                           </div>
                         ) : (
-                          <div className="whitespace-pre-wrap break-words">
-                            {m.content}
+                          <div className={m.role === "assistant" ? "markdown-body break-words" : "whitespace-pre-wrap break-words"}>
+                            {m.role === "assistant" ? (
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {m.content}
+                              </ReactMarkdown>
+                            ) : (
+                              m.content
+                            )}
                             {m.streaming && <span className="cursor-blink" />}
                           </div>
                         )}
@@ -239,13 +241,15 @@ export default function AgentChat() {
               )}
             </div>
 
-            <footer className="px-2 pb-4 pt-2">
+            <footer className="px-[5px] pb-[5px] pt-2">
               <MessageInput
                 selectedModelId={selectedModelId}
                 onSelectedModelChange={setSelectedModelId}
                 onSend={onSend}
+                onStop={stopSending}
                 onTextChange={setDraftText}
                 text={draftText}
+                sending={isSending}
                 disabled={isSending}
                 attachments={attachments}
                 images={[]}

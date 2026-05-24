@@ -3,8 +3,8 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import type { ToolActivity } from "@/hooks/useChat";
-import ToolCallReel from "@/components/ToolCallReel";
-import ToolCallStatus from "@/components/ToolCallStatus";
+import ToolCallReel from "./ToolCallReel";
+import ToolCallStatus from "./ToolCallStatus";
 
 type Props = {
   activities: ToolActivity[];

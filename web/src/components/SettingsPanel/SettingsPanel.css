@@ -1,0 +1,51 @@
+@reference "../../assets/css/Global.css";
+
+.settings-floating-overlay {
+  @apply absolute inset-0 z-50 grid place-items-center pointer-events-auto;
+}
+
+.settings-floating-shell {
+  @apply pointer-events-auto;
+}
+
+.settings-floating-panel {
+  @apply flex h-[min(560px,calc(100vh-40px))] w-[min(620px,calc(100vw-96px))] min-w-[520px] flex-col overflow-hidden rounded-[24px] border border-[#d8d8d8] bg-white shadow-[0_18px_48px_rgba(0,0,0,0.12)];
+}
+
+.settings-header {
+  @apply flex items-center justify-between border-b border-[#e5e5e5] px-4 py-3;
+}
+
+.settings-header h2 {
+  @apply m-0 text-[15px] font-semibold leading-tight text-on-surface;
+}
+
+.settings-icon-btn {
+  @apply flex h-7 w-7 cursor-pointer items-center justify-center rounded-[8px] border border-[#d8d8d8] bg-white text-on-surface-variant transition-colors hover:bg-black/[0.04] hover:text-on-surface;
+}
+
+.settings-body {
+  @apply flex flex-1 flex-col gap-4 overflow-y-auto p-4;
+}
+
+.settings-section {
+  @apply rounded-[8px] border border-[#e1e1e1] bg-white;
+}
+
+.settings-row {
+  @apply flex items-center justify-between gap-4 border-b border-[#eeeeee] px-4 py-3 last:border-b-0;
+}
+
+.settings-row-label {
+  @apply min-w-0 text-sm font-medium text-on-surface;
+}
+
+.settings-row-value {
+  @apply shrink-0 text-sm font-medium text-on-surface-variant;
+}
+
+@media (max-width: 680px) {
+  .settings-floating-panel {
+    @apply h-[calc(100vh-24px)] w-[calc(100vw-24px)] min-w-0 rounded-[18px];
+  }
+}

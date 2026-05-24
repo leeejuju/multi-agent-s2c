@@ -1,4 +1,4 @@
-@reference "../assets/css/main.css";
+@reference "../../assets/css/Global.css";
 
 .sidebar-capsule {
   @apply glass-effect;

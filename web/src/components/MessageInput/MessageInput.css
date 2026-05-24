@@ -1,0 +1,5 @@
+@reference "../../assets/css/Global.css";
+
+.message-input-textarea {
+  @apply font-medium leading-[1.45] text-on-surface placeholder:text-on-surface-variant;
+}

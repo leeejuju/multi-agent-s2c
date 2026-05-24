@@ -1,4 +1,4 @@
-import { BookOpen, Brush, Crop, Eraser, Lasso, LogOut, Move } from "lucide-react";
+import { BookOpen, Brush, Crop, Eraser, Lasso, LogOut, Move, Settings } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { useAuthStore } from "@/store/auth";
@@ -14,9 +14,10 @@ const tools = [
 
 type SidebarProps = {
   onOpenLibrary: () => void;
+  onOpenSettings: () => void;
 };
 
-export default function Sidebar({ onOpenLibrary }: SidebarProps) {
+export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps) {
   const [activeTool, setActiveTool] = useState("move");
   const clearAuth = useAuthStore((state) => state.clearAuth);
 
@@ -64,6 +65,17 @@ export default function Sidebar({ onOpenLibrary }: SidebarProps) {
         >
           <BookOpen size={20} strokeWidth={2.2} />
           <span className="tooltip-text">Library</span>
+        </button>
+
+        <button
+          aria-label="Settings"
+          className="tool-item"
+          onClick={onOpenSettings}
+          title="Settings"
+          type="button"
+        >
+          <Settings size={20} strokeWidth={2.2} />
+          <span className="tooltip-text">Settings</span>
         </button>
 
         <div className="h-px w-6 bg-black/5 my-2" />

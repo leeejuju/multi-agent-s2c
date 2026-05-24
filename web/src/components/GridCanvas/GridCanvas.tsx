@@ -1,7 +1,7 @@
 import { CSSProperties, PointerEvent, WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Brush, Crop, MessageSquare, Trash2 } from "lucide-react";
 import { useWorkspaceStore, type CanvasNode } from "@/store/workspace";
-import NodeContainer from "./NodeContainer";
+import NodeContainer from "@/components/NodeContainer";
 import "./GridCanvas.css";
 
 type ContextMenuState = {
