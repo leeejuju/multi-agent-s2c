@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRetryMiddleware
 from langgraph.graph.state import CompiledStateGraph
 
-from src.agents.subagent import web_search_parallel, web_search_one
+from src.agents.subagent import knowledge_search, web_search_parallel, web_search_one
 
 from src.agents.common import BaseAgent, load_model
 from src.agents.common.middlewares import SearchToolMiddleware
@@ -85,7 +85,7 @@ class SearchAgent(BaseAgent):
         model = load_model(model=sys_config.flash_model)
         return create_agent(
             model=model,
-            tools=[web_search_parallel, web_search_one],
+            tools=[knowledge_search, web_search_parallel, web_search_one],
             system_prompt=SEARCH_AGENT_SYSTEM_PROMPT,
             middleware=[
                 SearchToolMiddleware(),

@@ -5,6 +5,7 @@ from langchain.tools import tool
 from langchain_tavily import TavilySearch
 
 from src.configs import config as sys_config
+from src.knowledge.factory import GraphKnowledgeFactory
 
 
 def _build_tavily_tool(max_results: int = 5) -> TavilySearch:
@@ -44,3 +45,42 @@ async def web_search_parallel(queries: list[str]) -> list[dict[str, Any]]:
             )
 
     return valid_results
+
+
+@tool(description="Search the local graph knowledge base through LightRAG.")
+async def knowledge_search(
+    query: str,
+    mode: str = "mix",
+    limit: int = 5,
+) -> dict[str, Any]:
+    provider = GraphKnowledgeFactory.create()
+    await provider.ensure_ready()
+    result = await provider.query(
+        query,
+        mode=mode,
+        top_k=limit,
+        chunk_top_k=limit,
+        only_need_context=True,
+        include_references=True,
+    )
+    return {
+        "reference_context": {
+            "project_history": [],
+            "material_refs": [],
+            "knowledge_refs": [
+                {
+                    "query": query,
+                    "mode": mode,
+                    "content": result,
+                }
+            ],
+            "web_refs": [],
+            "local_file_refs": [],
+        },
+        "recommended_usage": {
+            "must_follow": [],
+            "can_use": ["Use knowledge_refs as local project/reference context."],
+            "avoid": [],
+        },
+        "search_notes": [],
+    }

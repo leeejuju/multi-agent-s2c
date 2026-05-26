@@ -5,7 +5,7 @@ from langchain.agents.middleware import AgentMiddleware, AgentState, Runtime, To
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.types import Command
 
-SEARCH_TOOL_NAMES = {"web_search_one", "web_search_parallel"}
+SEARCH_TOOL_NAMES = {"knowledge_search", "web_search_one", "web_search_parallel"}
 
 
 def merge_tool_activities(
@@ -76,7 +76,7 @@ def _build_activity(
         "tool_call_id": tool_call_id,
         "tool_name": tool_name,
         "status": status,
-        "source": "web",
+        "source": "knowledge" if tool_name == "knowledge_search" else "web",
     }
     query = args.get("query")
     queries = args.get("queries")

@@ -66,6 +66,17 @@ class Config(BaseSettings):
         default="./save/lightrag", description="LightRAG 工作目录"
     )
     lightrag_workspace: str = Field(default="default", description="LightRAG 空间名称")
+    lightrag_llm_model: str = Field(
+        default="", description="LightRAG 使用的 OpenAI-compatible 聊天模型，留空时使用 DEFAULT_MODEL"
+    )
+    lightrag_embedding_model: str = Field(
+        default="dashscope/text-embedding-v4",
+        description="LightRAG 使用的 OpenAI-compatible embedding 模型",
+    )
+    lightrag_embedding_dim: int = Field(default=1024, description="LightRAG embedding 维度")
+    lightrag_embedding_max_token_size: int = Field(
+        default=8192, description="LightRAG embedding 最大 token 数"
+    )
     milvus_uri: str = Field(default="", description="Milvus 连接地址")
     milvus_token: str = Field(default="", description="Milvus 访问令牌")
     milvus_db_name: str = Field(default="", description="Milvus 数据库名称")
