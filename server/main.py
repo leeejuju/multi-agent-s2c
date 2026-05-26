@@ -1,15 +1,8 @@
-import sys
-from pathlib import Path
-
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
-
-# 确保项目根目录（server/ 的父目录）在 sys.path 中
-# 这样无论当前工作目录在哪里，都能正确导入 src.* 包。
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from server.lifespan import lifespan
 from server.middleware import AuthMiddleware

@@ -17,6 +17,11 @@ from server.service import (
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.database import get_db
+from src.plugins.document_parser import (
+    DocumentParseRequest,
+    DocumentParseResult,
+    DocumentParserRunner,
+)
 from src.storage import (
     build_object_key,
     create_object_access_url,
@@ -45,8 +50,10 @@ ALLOWED_IMAGE_TYPES = {
 }
 ALLOWED_DOCUMENT_TYPES = {
     "application/pdf",
+    "application/csv",
     "text/plain",
     "text/markdown",
+    "text/csv",
     "application/json",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
@@ -64,9 +71,11 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
     ".txt",
     ".md",
     ".markdown",
+    ".csv",
     ".json",
     ".docx",
 }
+MAX_PARSED_DOCUMENT_CHARS = 80_000
 
 
 class ChatAttachment(BaseModel):
@@ -75,9 +84,16 @@ class ChatAttachment(BaseModel):
     id: str
     file_name: str
     content_type: str
+    file_size: int | None = None
+    object_key: str | None = None
     access_url: str
     category: str | None = None
     thumb_url: str | None = None
+    parser: str | None = None
+    parse_status: str | None = None
+    parse_error: str | None = None
+    parsed_text: str | None = None
+    parse_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class UploadedAttachmentResponse(BaseModel):
@@ -91,6 +107,11 @@ class UploadedAttachmentResponse(BaseModel):
     category: str
     access_url: str
     thumb_url: str | None = None
+    parser: str | None = None
+    parse_status: str | None = None
+    parse_error: str | None = None
+    parsed_text: str | None = None
+    parse_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatRequest(BaseModel):
@@ -137,6 +158,69 @@ def _is_allowed_file(
     """校验文件类型或后缀是否在允许范围内"""
     extension = _file_extension(filename)
     return content_type in allowed_types or extension in allowed_extensions
+
+
+def _truncate_parsed_text(text: str) -> tuple[str, bool]:
+    if len(text) <= MAX_PARSED_DOCUMENT_CHARS:
+        return text, False
+    return (
+        text[:MAX_PARSED_DOCUMENT_CHARS]
+        + "\n\n[Document content truncated by backend parser.]",
+        True,
+    )
+
+
+async def _parse_uploaded_document_with_docling(
+    *,
+    file_name: str,
+    content_type: str,
+    content: bytes,
+) -> dict[str, Any]:
+    request = DocumentParseRequest(
+        file_name=file_name,
+        content_type=content_type,
+        content=content,
+        parser_name="docling",
+    )
+    runner = DocumentParserRunner(max_workers=1)
+    events = []
+    try:
+        async for event in runner.parse(request):
+            events.append(event)
+    finally:
+        await runner.aclose()
+
+    result = DocumentParseResult.from_events(
+        request=request,
+        parser="docling",
+        events=events,
+    )
+    parsed_text, truncated = _truncate_parsed_text(result.content.strip())
+    warning_messages = [
+        event.message
+        for event in events
+        if event.type == "warning" and event.message
+    ]
+    parse_error = result.error
+    if not parse_error and warning_messages and not result.success:
+        parse_error = warning_messages[-1]
+
+    parse_metadata = {
+        **dict(result.metadata),
+        "event_count": len(events),
+        "truncated": truncated,
+        "warning_count": len(warning_messages),
+    }
+    if warning_messages:
+        parse_metadata["warnings"] = warning_messages
+
+    return {
+        "parser": result.parser,
+        "parse_status": "success" if result.success else "failed",
+        "parse_error": parse_error,
+        "parsed_text": parsed_text or None,
+        "parse_metadata": parse_metadata,
+    }
 
 
 @router.get("/agents", response_model=list[AgentSummary])
@@ -229,6 +313,14 @@ async def _upload_attachments(
                 access_url = await create_object_access_url(object_key)
                 thumb_url = None
 
+            parse_result: dict[str, Any] = {}
+            if category == "document":
+                parse_result = await _parse_uploaded_document_with_docling(
+                    file_name=upload.filename or "file",
+                    content_type=content_type or "application/octet-stream",
+                    content=content,
+                )
+
             # 组装内存级响应（注：此处暂未持久化到数据库）
             responses.append(
                 UploadedAttachmentResponse(
@@ -240,6 +332,7 @@ async def _upload_attachments(
                     category=category,
                     access_url=access_url,
                     thumb_url=thumb_url,
+                    **parse_result,
                 )
             )
     except Exception:

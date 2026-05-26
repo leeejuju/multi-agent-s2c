@@ -14,7 +14,6 @@ from .base import (
 )
 from .factory import DocumentParserFactory
 from .runner import (
-    DocumentParseExecutor,
     DocumentParserRunner,
     ResultWriter,
     run_blocking_event_stream,
@@ -24,7 +23,6 @@ __all__ = [
     "BaseDocumentParser",
     "BlockingDocumentParser",
     "DocumentParseEvent",
-    "DocumentParseExecutor",
     "DocumentParseRequest",
     "DocumentParseResult",
     "DocumentParserFactory",

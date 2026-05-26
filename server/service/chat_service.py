@@ -38,6 +38,32 @@ async def list_conversations(
     return await repository.list_by_user(user_id)
 
 
+def _attachment_value(attachment: Any, key: str, default: Any = None) -> Any:
+    if isinstance(attachment, Mapping):
+        return attachment.get(key, default)
+    return getattr(attachment, key, default)
+
+
+def _serialize_attachment_for_init(attachment: Any) -> dict[str, Any]:
+    return {
+        "id": _attachment_value(attachment, "id", ""),
+        "file_name": _attachment_value(attachment, "file_name", "Attachment"),
+        "content_type": _attachment_value(
+            attachment,
+            "content_type",
+            "application/octet-stream",
+        ),
+        "file_size": _attachment_value(attachment, "file_size"),
+        "object_key": _attachment_value(attachment, "object_key"),
+        "category": _attachment_value(attachment, "category"),
+        "access_url": _attachment_value(attachment, "access_url", ""),
+        "thumb_url": _attachment_value(attachment, "thumb_url"),
+        "parser": _attachment_value(attachment, "parser"),
+        "parse_status": _attachment_value(attachment, "parse_status"),
+        "parse_error": _attachment_value(attachment, "parse_error"),
+    }
+
+
 def stream_chunk(
     db: AsyncSession,
     *,
@@ -104,19 +130,37 @@ def stream_chunk(
                 }
             )
 
-            image_urls = [
-                getattr(attachment, "access_url", "")
+            attachment_payloads = [
+                _serialize_attachment_for_init(attachment)
                 for attachment in attachments or []
-                if getattr(attachment, "content_type", "").startswith("image/")
-                and getattr(attachment, "access_url", "")
             ]
-            message_type = "multimodal_image" if image_urls else "text"
+            image_urls = [
+                attachment["access_url"]
+                for attachment in attachment_payloads
+                if str(attachment.get("content_type") or "").startswith("image/")
+                and attachment.get("access_url")
+            ]
+            has_documents = any(
+                (attachment.get("category") == "document")
+                or not str(attachment.get("content_type") or "").startswith("image/")
+                for attachment in attachment_payloads
+            )
+            if image_urls and has_documents:
+                message_type = "multimodal_attachment"
+            elif image_urls:
+                message_type = "multimodal_image"
+            elif has_documents:
+                message_type = "document"
+            else:
+                message_type = "text"
             init_msg: dict[str, Any] = {
                 "role": "user",
                 "content": input_text,
                 "type": "human",
                 "message_type": message_type,
             }
+            if attachment_payloads:
+                init_msg["attachments"] = attachment_payloads
             if image_urls:
                 init_msg["image_content"] = image_urls
                 messages: str | list[dict[str, Any]] = [

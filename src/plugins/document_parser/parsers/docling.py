@@ -8,6 +8,7 @@ from ..base import BlockingDocumentParser, DocumentParseEvent, DocumentParseRequ
 from ..formats import (
     BASIC_FILE_CONTENT_TYPES,
     BASIC_FILE_EXTENSIONS,
+    is_text_document,
     iter_basic_extractable_events,
 )
 
@@ -31,23 +32,27 @@ class DoclingDocumentParser(BlockingDocumentParser):
             message="Starting Docling adapter.",
         )
 
-        basic_events = iter_basic_extractable_events(
-            parser_name=self.name,
-            request=request,
-            stop_event=stop_event,
-        )
-        if basic_events is not None:
-            yield from basic_events
-            return
+        if is_text_document(request):
+            basic_events = iter_basic_extractable_events(
+                parser_name=self.name,
+                request=request,
+                stop_event=stop_event,
+            )
+            if basic_events is not None:
+                yield from basic_events
+                return
 
         try:
             from docling.document_converter import DocumentConverter
-        except ImportError:
+        except ImportError as exc:
             yield DocumentParseEvent.warning(
                 parser=self.name,
                 file_name=request.file_name,
-                message="docling is not installed; Docling parsing is unavailable.",
-                metadata={"missing_dependency": "docling"},
+                message="docling or one of its dependencies is not installed; Docling parsing is unavailable.",
+                metadata={
+                    "missing_dependency": "docling",
+                    "exception_type": type(exc).__name__,
+                },
             )
             yield DocumentParseEvent.completed(
                 parser=self.name,
