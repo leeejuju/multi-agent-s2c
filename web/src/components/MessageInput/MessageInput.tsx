@@ -1,9 +1,11 @@
 import {
   ArrowUp,
+  Check,
+  Cpu,
   Paperclip,
   Square,
 } from "lucide-react";
-import { Button, Select, Switch } from "antd";
+import { Button, Popover, Switch } from "antd";
 import { KeyboardEvent, useMemo, useRef, useState } from "react";
 
 import AttachmentCapsules from "@/components/AttachmentCapsules";
@@ -50,10 +52,17 @@ export default function MessageInput({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [agentEnabled, setAgentEnabled] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const selectedModel =
+    models.find((model) => model.id === selectedModelId) || models[0];
 
   const canSend = useMemo(() => {
-    return !disabled && (text.trim().length > 0 || images.length > 0 || attachments.length > 0);
-  }, [attachments.length, disabled, images.length, text]);
+    return (
+      !disabled &&
+      !sending &&
+      (text.trim().length > 0 || images.length > 0 || attachments.length > 0)
+    );
+  }, [attachments.length, disabled, images.length, sending, text]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -75,6 +84,32 @@ export default function MessageInput({
     // Reset input value to allow selecting same file again
     event.target.value = "";
   };
+
+  const selectModel = (modelId: string) => {
+    onSelectedModelChange(modelId);
+    setModelPickerOpen(false);
+  };
+
+  const modelPicker = (
+    <div className="model-picker">
+      {models.map((model) => {
+        const selected = model.id === selectedModelId;
+        return (
+          <button
+            className={`model-picker-option ${selected ? "is-selected" : ""}`}
+            key={model.id}
+            onClick={() => selectModel(model.id)}
+            type="button"
+          >
+            <span className="model-picker-icon">
+              {selected ? <Check size={14} /> : <Cpu size={14} />}
+            </span>
+            <span className="model-picker-name">{model.name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="message-input flex flex-col rounded-3xl overflow-hidden glass-effect-sm bg-white">
@@ -128,22 +163,28 @@ export default function MessageInput({
             />
             <span>Agent</span>
           </div>
-          
-          <Select
-            className="min-w-[118px]"
-            disabled={disabled}
-            onChange={onSelectedModelChange}
-            options={models.map((model) => ({
-              label: model.name,
-              value: model.id,
-            }))}
-            size="small"
-            value={selectedModelId}
-          />
+
+          <Popover
+            arrow={false}
+            content={modelPicker}
+            onOpenChange={setModelPickerOpen}
+            open={!disabled && modelPickerOpen}
+            placement="topLeft"
+            trigger="click"
+          >
+            <Button
+              className="message-model-button"
+              disabled={disabled}
+              icon={<Cpu size={14} />}
+              type="text"
+            >
+              {selectedModel.name}
+            </Button>
+          </Popover>
         </div>
 
         <Button
-          className={sending ? "bg-red-500 hover:!bg-red-600" : ""}
+          className={`message-send-button ${sending ? "bg-red-500 hover:!bg-red-600" : ""}`}
           danger={sending}
           disabled={sending ? false : !canSend}
           icon={sending ? <Square size={14} fill="currentColor" /> : <ArrowUp size={18} />}

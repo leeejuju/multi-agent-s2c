@@ -12,9 +12,13 @@ type Props = {
 
 function isActive(activity: ToolActivity) {
   return (
+    activity.status === "analyzing" ||
+    activity.status === "parsing" ||
+    activity.status === "processing" ||
+    activity.status === "searching" ||
     activity.status === "started" ||
     activity.status === "updated" ||
-    activity.status === "searching"
+    activity.status === "uploading"
   );
 }
 

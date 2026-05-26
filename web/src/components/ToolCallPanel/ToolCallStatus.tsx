@@ -1,4 +1,16 @@
-import { AlertCircle, CheckCircle2, Loader2, Search, Wrench } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Database,
+  FileSearch,
+  FileText,
+  Globe2,
+  Image,
+  Loader2,
+  Search,
+  Wrench,
+} from "lucide-react";
+import type { ComponentType } from "react";
 
 import type { ToolActivity } from "@/hooks/useChat";
 
@@ -6,65 +18,165 @@ type Props = {
   activity: ToolActivity;
 };
 
-function normalizeScope(scope?: string | string[]) {
-  if (Array.isArray(scope)) {
-    const label = scope.filter(Boolean).join(" / ");
-    return label || "References";
-  }
-  return scope || "References";
+type StatusKind =
+  | "document"
+  | "generic"
+  | "image"
+  | "knowledge"
+  | "local"
+  | "search"
+  | "web";
+
+type StatusKindInfo = {
+  detailLabel: string;
+  icon: ComponentType<{ size?: number; className?: string }>;
+  kind: StatusKind;
+  label: string;
+};
+
+function scopeText(scope?: string | string[]) {
+  return Array.isArray(scope) ? scope.join(" ") : scope || "";
 }
 
-function isSearchActivity(activity: ToolActivity) {
-  const raw = `${activity.name} ${activity.source || ""} ${activity.query || ""}`.toLowerCase();
-  return (
-    raw.includes("search") ||
-    raw.includes("reference") ||
-    raw.includes("web") ||
-    raw.includes("tavily") ||
-    raw.includes("local") ||
+function getRawText(activity: ToolActivity) {
+  return [
+    activity.name,
+    activity.source,
+    scopeText(activity.searchScope),
+    activity.title,
+    activity.query,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function getStatusKind(activity: ToolActivity): StatusKindInfo {
+  const source = (activity.source || "").toLowerCase();
+  const raw = getRawText(activity);
+
+  if (source.includes("web") || raw.includes("web") || raw.includes("tavily")) {
+    return {
+      detailLabel: "Network reference",
+      icon: Globe2,
+      kind: "web",
+      label: "Web search",
+    };
+  }
+  if (
+    source.includes("image") ||
+    raw.includes("image") ||
+    raw.includes("vision") ||
+    raw.includes("visual") ||
+    raw.includes("layout")
+  ) {
+    return {
+      detailLabel: "Visual context",
+      icon: Image,
+      kind: "image",
+      label: "Image analysis",
+    };
+  }
+  if (
+    source.includes("document") ||
+    source.includes("doc") ||
+    raw.includes("document") ||
+    raw.includes("docling") ||
+    raw.includes("pdf") ||
+    raw.includes("docx") ||
+    raw.includes("parse")
+  ) {
+    return {
+      detailLabel: "Document context",
+      icon: FileText,
+      kind: "document",
+      label: "Document analysis",
+    };
+  }
+  if (
+    source.includes("knowledge") ||
+    source.includes("rag") ||
     raw.includes("knowledge") ||
     raw.includes("rag")
-  );
+  ) {
+    return {
+      detailLabel: "Knowledge base",
+      icon: Database,
+      kind: "knowledge",
+      label: "Knowledge search",
+    };
+  }
+  if (source.includes("local") || raw.includes("local_file") || raw.includes("local file")) {
+    return {
+      detailLabel: "Local reference",
+      icon: FileSearch,
+      kind: "local",
+      label: "Local file search",
+    };
+  }
+  if (raw.includes("search") || raw.includes("reference")) {
+    return {
+      detailLabel: "Reference lookup",
+      icon: Search,
+      kind: "search",
+      label: "Reference search",
+    };
+  }
+  return {
+    detailLabel: "Tool call",
+    icon: Wrench,
+    kind: "generic",
+    label: activity.title || activity.name,
+  };
 }
 
-function inferScope(activity: ToolActivity) {
-  if (activity.searchScope) return activity.searchScope;
-
-  const raw = `${activity.name} ${activity.source || ""} ${activity.query || ""}`.toLowerCase();
-  const scopes: string[] = [];
-  if (raw.includes("web") || raw.includes("tavily")) scopes.push("Web");
-  if (raw.includes("local") || raw.includes("file")) scopes.push("Local");
-  if (raw.includes("knowledge") || raw.includes("rag")) scopes.push("Knowledge");
-  if (raw.includes("search") || raw.includes("reference")) scopes.push("References");
-  return scopes.length ? scopes : undefined;
+function getTone(status: ToolActivity["status"]) {
+  if (status === "failed") return "failed";
+  if (
+    status === "analyzed" ||
+    status === "completed" ||
+    status === "parsed" ||
+    status === "searched" ||
+    status === "uploaded"
+  ) {
+    return "done";
+  }
+  return "active";
 }
 
 function getStatusCopy(activity: ToolActivity) {
-  const search = isSearchActivity(activity);
-  const scope = normalizeScope(inferScope(activity));
+  const kind = getStatusKind(activity);
+  const tone = getTone(activity.status);
 
-  if (activity.status === "failed") {
-    return search ? `Search failed: ${scope}` : `Failed ${activity.name}`;
+  if (tone === "failed") {
+    return `${kind.label} failed`;
   }
-  if (activity.status === "completed" || activity.status === "searched") {
-    return search ? `Searched ${scope}` : `Done ${activity.name}`;
+  if (tone === "done") {
+    return `${kind.label} complete`;
   }
-  return search ? `Searching ${scope}...` : activity.title || `Doing ${activity.name}...`;
+
+  if (activity.status === "uploading") return `Uploading ${kind.detailLabel}`;
+  if (activity.status === "parsing") return `Parsing ${kind.detailLabel}`;
+  if (activity.status === "analyzing") return `Analyzing ${kind.detailLabel}`;
+  if (activity.status === "searching") return `Searching ${kind.detailLabel}`;
+  return activity.title || `Running ${kind.label}`;
 }
 
 export default function ToolCallStatus({ activity }: Props) {
-  const active =
-    activity.status === "started" ||
-    activity.status === "updated" ||
-    activity.status === "searching";
-  const failed = activity.status === "failed";
-  const done = activity.status === "completed" || activity.status === "searched";
-  const Icon = failed ? AlertCircle : done ? CheckCircle2 : isSearchActivity(activity) ? Search : Wrench;
+  const kind = getStatusKind(activity);
+  const tone = getTone(activity.status);
+  const Icon = tone === "failed" ? AlertCircle : kind.icon;
 
   return (
-    <div className={`tool-call-status is-${activity.status}`}>
+    <div className={`tool-call-status is-${activity.status} is-kind-${kind.kind}`}>
       <span className="tool-call-status-icon">
-        {active ? <Loader2 size={14} /> : <Icon size={14} />}
+        <Icon size={14} />
+        {tone === "active" && (
+          <Loader2 className="tool-call-status-spinner" size={9} />
+        )}
+        {tone === "done" && (
+          <CheckCircle2 className="tool-call-status-check" size={10} />
+        )}
       </span>
       <span className="tool-call-status-copy">
         <span className="tool-call-status-title">{getStatusCopy(activity)}</span>

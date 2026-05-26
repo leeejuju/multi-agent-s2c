@@ -5,13 +5,43 @@
   @apply rounded-[24px] px-4 py-2.5 text-[14px] font-medium leading-[1.55];
 }
 
-/* ——— Directional Shapes ——— */
-.is-user .message-bubble {
-  @apply bg-on-surface text-white rounded-br-[4px];
+.message-row {
+  @apply flex w-full;
 }
 
-.is-assistant .message-bubble {
-  @apply bg-white text-on-surface rounded-bl-[4px] shadow-sm border border-black/5;
+.message-row.is-user {
+  @apply justify-end;
+}
+
+.message-row.is-assistant {
+  @apply justify-start;
+}
+
+.message-stack {
+  @apply flex max-w-[88%] flex-col gap-2;
+}
+
+.message-stack.is-user {
+  @apply items-end;
+}
+
+.message-stack.is-assistant {
+  @apply w-full max-w-none items-stretch;
+}
+
+/* ——— Directional Shapes ——— */
+.is-user .message-bubble,
+.message-bubble.is-user {
+  @apply rounded-[22px] bg-on-surface px-4 py-2.5 text-white;
+}
+
+.message-bubble.is-user.is-compact {
+  @apply rounded-full px-4 py-2;
+}
+
+.is-assistant .message-bubble,
+.message-bubble.is-assistant {
+  @apply w-full rounded-none border-0 bg-transparent px-0 py-1 text-on-surface shadow-none;
 }
 
 /* ——— Thinking Indicator ——— */
@@ -152,22 +182,48 @@
 }
 
 .tool-call-status-icon {
-  @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-white;
+  @apply relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-white;
 }
 
-.tool-call-status.is-started .tool-call-status-icon svg,
-.tool-call-status.is-updated .tool-call-status-icon svg,
-.tool-call-status.is-searching .tool-call-status-icon svg {
+.tool-call-status-spinner {
+  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-[#101114] p-0.5 text-white/80;
   animation: tool-call-spin 0.9s linear infinite;
 }
 
+.tool-call-status-check {
+  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-[#101114] p-0.5 text-[#67d391];
+}
+
 .tool-call-status.is-completed .tool-call-status-icon,
-.tool-call-status.is-searched .tool-call-status-icon {
+.tool-call-status.is-searched .tool-call-status-icon,
+.tool-call-status.is-uploaded .tool-call-status-icon,
+.tool-call-status.is-parsed .tool-call-status-icon,
+.tool-call-status.is-analyzed .tool-call-status-icon {
   @apply bg-[#1f8f45]/20 text-[#67d391];
 }
 
 .tool-call-status.is-failed .tool-call-status-icon {
   @apply bg-[#ff3b30]/20 text-[#ff8a80];
+}
+
+.tool-call-status.is-kind-web .tool-call-status-icon {
+  @apply bg-[#0f7bdc]/20 text-[#70b7ff];
+}
+
+.tool-call-status.is-kind-document .tool-call-status-icon {
+  @apply bg-[#9b6b18]/25 text-[#f0c267];
+}
+
+.tool-call-status.is-kind-image .tool-call-status-icon {
+  @apply bg-[#b13d75]/20 text-[#f59bc8];
+}
+
+.tool-call-status.is-kind-knowledge .tool-call-status-icon {
+  @apply bg-[#1b8064]/20 text-[#6ee0bd];
+}
+
+.tool-call-status.is-kind-local .tool-call-status-icon {
+  @apply bg-[#5d64c8]/20 text-[#a9afff];
 }
 
 .tool-call-status-copy {
@@ -276,4 +332,65 @@
 
 @keyframes tool-call-spin {
   to { transform: rotate(360deg); }
+}
+
+.message-attachments {
+  @apply flex max-w-[320px] flex-col gap-2 rounded-[20px] border border-black/10 bg-white/90 p-2 shadow-sm;
+}
+
+.message-attachments.is-single {
+  @apply w-fit min-w-[220px];
+}
+
+.message-attachment {
+  @apply flex min-w-0 items-center gap-2 rounded-2xl border px-2 py-2 text-left no-underline transition-colors;
+}
+
+.is-user .message-attachment {
+  @apply border-black/10 bg-black/5 text-on-surface hover:bg-black/10;
+}
+
+.is-assistant .message-attachment {
+  @apply border-black/10 bg-black/5 text-on-surface hover:bg-black/10;
+}
+
+.message-attachment.is-uploading {
+  @apply pointer-events-none opacity-75;
+}
+
+.message-attachment.is-error {
+  @apply border-[#ff8a80]/50;
+}
+
+.message-attachment-thumb {
+  @apply relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/15;
+}
+
+.is-assistant .message-attachment-thumb {
+  @apply bg-white;
+}
+
+.message-attachment-thumb img {
+  @apply h-full w-full object-cover;
+}
+
+.message-attachment-spinner {
+  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-black/50 p-0.5 text-white;
+  animation: tool-call-spin 0.9s linear infinite;
+}
+
+.message-attachment-copy {
+  @apply flex min-w-0 flex-1 flex-col gap-0.5;
+}
+
+.message-attachment-name {
+  @apply truncate text-[12px] font-bold leading-tight;
+}
+
+.message-attachment-meta {
+  @apply truncate text-[11px] font-semibold leading-tight opacity-65;
+}
+
+.message-attachment-download {
+  @apply shrink-0 opacity-70;
 }

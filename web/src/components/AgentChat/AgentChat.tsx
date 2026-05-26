@@ -1,17 +1,95 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, History, PanelRightClose, Plus } from "lucide-react";
+import {
+  Bot,
+  Download,
+  FileText,
+  History,
+  Image as ImageIcon,
+  Loader2,
+  PanelRightClose,
+  Plus,
+} from "lucide-react";
 import { Button, List, Popover } from "antd";
 import { AnimatePresence, motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { useChat } from "@/hooks/useChat";
+import { useChat, type ChatMessageAttachment } from "@/hooks/useChat";
 import { useWorkspaceStore } from "@/store/workspace";
 import MessageInput from "@/components/MessageInput";
 import ToolCallPanel from "@/components/ToolCallPanel";
 import "./AgentChat.css";
 
 const ATTACHMENT_NODE_ID = "global-attachments-container";
+
+function formatAttachmentSize(size?: number | null) {
+  if (!size) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function isImageAttachment(attachment: ChatMessageAttachment) {
+  return (
+    attachment.category === "image" ||
+    attachment.content_type.startsWith("image/")
+  );
+}
+
+function MessageAttachments({
+  attachments,
+}: {
+  attachments: ChatMessageAttachment[];
+}) {
+  if (attachments.length === 0) return null;
+
+  return (
+    <div className={`message-attachments ${attachments.length === 1 ? "is-single" : ""}`}>
+      {attachments.map((attachment) => {
+        const isImage = isImageAttachment(attachment);
+        const href = attachment.access_url;
+        const previewUrl = attachment.thumb_url || attachment.access_url;
+        const Icon = isImage ? ImageIcon : FileText;
+        const statusText = attachment.uploading
+          ? "Uploading"
+          : attachment.error || attachment.parse_error || formatAttachmentSize(attachment.file_size);
+
+        return (
+          <a
+            className={`message-attachment ${attachment.uploading ? "is-uploading" : ""} ${attachment.error ? "is-error" : ""}`}
+            href={href}
+            key={attachment.id}
+            rel="noreferrer"
+            target="_blank"
+            title={href || attachment.file_name}
+          >
+            <span className="message-attachment-thumb">
+              {isImage && previewUrl ? (
+                <img alt={attachment.file_name} src={previewUrl} />
+              ) : (
+                <Icon size={16} />
+              )}
+              {attachment.uploading && (
+                <Loader2 className="message-attachment-spinner" size={11} />
+              )}
+            </span>
+            <span className="message-attachment-copy">
+              <span className="message-attachment-name">
+                {attachment.file_name}
+              </span>
+              {statusText && (
+                <span className="message-attachment-meta">{statusText}</span>
+              )}
+            </span>
+            {href && !attachment.uploading && (
+              <Download className="message-attachment-download" size={14} />
+            )}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AgentChat() {
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -203,40 +281,56 @@ export default function AgentChat() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {messages.map((m, i) => (
+                  {messages.map((m, i) => {
+                    const isCompactUserMessage =
+                      m.role === "user" &&
+                      m.content.length <= 80 &&
+                      !m.content.includes("\n");
+                    const hasContent = m.content.trim().length > 0;
+                    return (
                     <div
                       key={i}
-                      className={`max-w-[90%] group ${m.role === "user" ? "ml-auto" : ""}`}
+                      className={`message-row group ${m.role === "user" ? "is-user" : "is-assistant"}`}
                     >
-                      <div
-                        className={`message-bubble animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "is-user" : "is-assistant"}`}
-                      >
-                        {m.toolActivities && m.toolActivities.length > 0 && (
-                          <ToolCallPanel activities={m.toolActivities} />
+                      <div className={`message-stack ${m.role === "user" ? "is-user" : "is-assistant"}`}>
+                        {m.attachments && m.attachments.length > 0 && (
+                          <MessageAttachments attachments={m.attachments} />
                         )}
-                        {m.streaming &&
-                        !m.content &&
-                        (!m.toolActivities || m.toolActivities.length === 0) ? (
-                          <div className="thinking-indicator">
-                            <span />
-                            <span />
-                            <span />
-                          </div>
-                        ) : (
-                          <div className={m.role === "assistant" ? "markdown-body break-words" : "whitespace-pre-wrap break-words"}>
-                            {m.role === "assistant" ? (
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {m.content}
-                              </ReactMarkdown>
-                            ) : (
-                              m.content
+                        {(m.toolActivities && m.toolActivities.length > 0) ||
+                        m.streaming ||
+                        hasContent ? (
+                          <div
+                            className={`message-bubble animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "is-user" : "is-assistant"} ${isCompactUserMessage ? "is-compact" : ""}`}
+                          >
+                            {m.toolActivities && m.toolActivities.length > 0 && (
+                              <ToolCallPanel activities={m.toolActivities} />
                             )}
-                            {m.streaming && <span className="cursor-blink" />}
+                            {m.streaming &&
+                            !m.content &&
+                            (!m.toolActivities || m.toolActivities.length === 0) ? (
+                              <div className="thinking-indicator">
+                                <span />
+                                <span />
+                                <span />
+                              </div>
+                            ) : hasContent ? (
+                              <div className={m.role === "assistant" ? "markdown-body break-words" : "whitespace-pre-wrap break-words"}>
+                                {m.role === "assistant" ? (
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {m.content}
+                                  </ReactMarkdown>
+                                ) : (
+                                  m.content
+                                )}
+                                {m.streaming && <span className="cursor-blink" />}
+                              </div>
+                            ) : null}
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -250,7 +344,6 @@ export default function AgentChat() {
                 onTextChange={setDraftText}
                 text={draftText}
                 sending={isSending}
-                disabled={isSending}
                 attachments={attachments}
                 images={[]}
                 onClickAttachment={() => {}} // This is now handled internally by MessageInput with a hidden file input
