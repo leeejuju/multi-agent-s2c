@@ -1,4 +1,11 @@
-import { del, get, postForm, requestStream, type ToolStreamEvent } from "./index";
+import {
+  del,
+  get,
+  postForm,
+  requestStream,
+  type RequestConfig,
+  type ToolStreamEvent,
+} from "./index";
 
 export interface AgentConfig {
   model?: string;
@@ -21,6 +28,11 @@ export interface AttachmentItem {
   category: "image" | "document";
   access_url: string;
   thumb_url?: string | null;
+  parser?: string | null;
+  parse_status?: "failed" | "success" | null;
+  parse_error?: string | null;
+  parsed_text?: string | null;
+  parse_metadata?: Record<string, unknown>;
 }
 
 export interface Send2AgentPayload {
@@ -57,17 +69,27 @@ export const agentApi = {
     return get<AgentSummary[]>("/chat/agents");
   },
 
-  uploadImages(files: File[], conversationId?: string) {
+  uploadImages(
+    files: File[],
+    conversationId?: string,
+    config?: Pick<RequestConfig, "signal">,
+  ) {
     return postForm<AttachmentItem[]>(
       "/chat/attachments/images/upload",
       buildUploadFormData(files, conversationId),
+      { timeout: 60000, signal: config?.signal },
     );
   },
 
-  uploadFiles(files: File[], conversationId?: string) {
+  uploadFiles(
+    files: File[],
+    conversationId?: string,
+    config?: Pick<RequestConfig, "signal">,
+  ) {
     return postForm<AttachmentItem[]>(
       "/chat/attachments/files/upload",
       buildUploadFormData(files, conversationId),
+      { timeout: 180000, signal: config?.signal },
     );
   },
 

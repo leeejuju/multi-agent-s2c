@@ -24,7 +24,13 @@ export async function request<T = unknown>(
   url: string,
   config: RequestConfig = {},
 ): Promise<T> {
-  const { params, timeout = 10000, headers: customHeaders, ...rest } = config;
+  const {
+    params,
+    timeout = 10000,
+    headers: customHeaders,
+    signal: externalSignal,
+    ...rest
+  } = config;
 
   const searchParams = new URLSearchParams();
   if (params) {
@@ -51,7 +57,19 @@ export async function request<T = unknown>(
   }
 
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+  let timedOut = false;
+  const abortFromExternalSignal = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener("abort", abortFromExternalSignal, {
+      once: true,
+    });
+  }
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeout);
 
   try {
     const response = await fetch(fullUrl, {
@@ -91,11 +109,12 @@ export async function request<T = unknown>(
     return (await response.text()) as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("Request timed out");
+      throw new Error(timedOut ? "Request timed out" : "Request aborted");
     }
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal);
   }
 }
 
@@ -166,12 +185,19 @@ export const del = <T>(url: string, config?: RequestConfig) =>
   request<T>(url, { ...config, method: "DELETE" });
 
 export type ToolStreamStatus =
+  | "analyzed"
+  | "analyzing"
   | "started"
   | "updated"
   | "completed"
   | "failed"
+  | "parsed"
+  | "parsing"
+  | "processing"
   | "searching"
-  | "searched";
+  | "searched"
+  | "uploaded"
+  | "uploading";
 
 export type ToolStreamEvent = {
   type: "tool";
@@ -196,12 +222,19 @@ type StreamCallbacks = {
 };
 
 const toolStatuses: ToolStreamStatus[] = [
+  "analyzed",
+  "analyzing",
   "started",
   "updated",
   "completed",
   "failed",
+  "parsed",
+  "parsing",
+  "processing",
   "searching",
   "searched",
+  "uploaded",
+  "uploading",
 ];
 
 function toStringArray(value: unknown): string[] | undefined {
@@ -248,7 +281,12 @@ export function requestStream(
   timeout = 60000,
 ): { abort: () => void } {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+  let abortedByCaller = false;
+  let timedOut = false;
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeout);
 
   const headers = new Headers();
   headers.set("Content-Type", "application/json");
@@ -350,8 +388,11 @@ export function requestStream(
     })
     .catch((error: unknown) => {
       window.clearTimeout(timeoutId);
+      if (abortedByCaller) {
+        return;
+      }
       if (error instanceof DOMException && error.name === "AbortError") {
-        callbacks.onError(new Error("Request timed out"));
+        callbacks.onError(new Error(timedOut ? "Request timed out" : "Request aborted"));
       } else if (error instanceof Error) {
         callbacks.onError(error);
       } else {
@@ -361,6 +402,7 @@ export function requestStream(
 
   return {
     abort: () => {
+      abortedByCaller = true;
       window.clearTimeout(timeoutId);
       controller.abort();
     },
