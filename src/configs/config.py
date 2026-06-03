@@ -38,6 +38,14 @@ class Config(BaseSettings):
 
     # ---------- 数据库 ----------
     database_url: str = Field(default="", description="PostgreSQL 数据库连接地址")
+    redis_url: str = Field(default="redis://localhost:6379/0", description="Redis 连接地址")
+    arq_queue_name: str = Field(default="agent-runs", description="ARQ 队列名称")
+    arq_max_jobs: int = Field(default=64, description="ARQ worker 最大并发任务数")
+    redis_pool_max_connections: int = Field(default=20, description="Redis 连接池最大连接数")
+    run_stream_poll_timeout_ms: int = Field(
+        default=15000, description="Redis Stream 阻塞读取超时时间"
+    )
+    run_stream_max_len: int = Field(default=10000, description="单个 run 事件流保留长度")
 
     # ---------- JWT ----------
     jwt_secret: str = Field(default="", description="JWT 签名密钥")

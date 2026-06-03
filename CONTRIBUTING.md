@@ -25,6 +25,8 @@ Rules:
 - `type` should be one of: `feat`, `fix`, `refactor`, `doc`, `test`, `chore`, `build`, `ci`.
 - `scope` is recommended and should describe the changed module, such as `agent`, `chat`, `web`, `deps`.
 - `subject` uses lowercase imperative form and should be concise (recommended <= 72 characters).
+- Commit messages must be written in English.
+- Do not wrap commit messages, subjects, or scopes with `@` characters.
 - Keep one commit focused on one change.
 
 ## Pull Request Checklist

@@ -1,6 +1,6 @@
 # Repository Agent Guide
 
-This file is kept in sync with `AGENTS.md` and `CLAUDE.md` for Claude/Codex-style coding agents. Update both files whenever architecture or workflow guidance changes.
+This file is the single source of repository guidance for Claude/Codex-style coding agents. `CLAUDE.md` imports this file directly, so update `AGENTS.md` whenever architecture or workflow guidance changes.
 
 ## Current Project Shape
 
@@ -124,5 +124,6 @@ uv run --no-sync python -m compileall server/router server/service src/agents sr
 - Keep API/service orchestration outside agents.
 - Keep database reads and writes in repositories.
 - Preserve user changes in the working tree; never revert unrelated modifications.
+- Git commit messages must be written in English and must not be wrapped with `@` characters.
 - Add tests or compile checks for behavior changes with non-trivial blast radius.
 - If implementing `SearchAgent`, keep it opt-in from `DesignAgent`; do not add automatic pre-retrieval middleware.
