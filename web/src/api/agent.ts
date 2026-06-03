@@ -1,7 +1,9 @@
 import {
   del,
   get,
+  post,
   postForm,
+  requestRunStream,
   requestStream,
   type RequestConfig,
   type ToolStreamEvent,
@@ -52,6 +54,19 @@ export interface MessageResponse {
   id: string;
   role: string;
   content: string;
+  status?: "pending" | "streaming" | "completed" | "failed" | "canceled";
+  created_at: string;
+}
+
+export interface AgentRunResponse {
+  id: string;
+  conversation_id: string;
+  user_message_id: string;
+  assistant_message_id: string;
+  agent_id: string;
+  status: "queued" | "running" | "canceling" | "completed" | "failed" | "canceled";
+  error?: string | null;
+  latest_sequence?: number;
   created_at: string;
 }
 
@@ -111,6 +126,30 @@ export const agentApi = {
     );
   },
 
+  createAgentRun(agentId: string, payload: Send2AgentPayload, config: AgentConfig) {
+    return post<AgentRunResponse>(`/chat/agent/${agentId}/runs`, {
+      ...payload,
+      config,
+    });
+  },
+
+  streamRun(
+    runId: string,
+    afterSequence: number,
+    callbacks: {
+      onToken: (token: string) => void;
+      onDone: (data: Record<string, unknown>) => void;
+      onError: (err: Error) => void;
+      onToolEvent?: (event: ToolStreamEvent) => void;
+    },
+  ) {
+    return requestRunStream(
+      `/chat/runs/${runId}/stream`,
+      { after_sequence: afterSequence },
+      callbacks,
+    );
+  },
+
   getConversations() {
     return get<ConversationSummary[]>("/chat/conversations");
   },
@@ -119,6 +158,16 @@ export const agentApi = {
     return get<MessageResponse[]>(
       `/chat/conversations/${conversationId}/messages`,
     );
+  },
+
+  getActiveRun(conversationId: string) {
+    return get<AgentRunResponse | null>(
+      `/chat/conversations/${conversationId}/runs/active`,
+    );
+  },
+
+  cancelRun(runId: string) {
+    return post<AgentRunResponse>(`/chat/runs/${runId}/cancel`);
   },
 
   deleteConversation(conversationId: string) {

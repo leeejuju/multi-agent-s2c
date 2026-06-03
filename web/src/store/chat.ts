@@ -23,8 +23,11 @@ export type ChatMessageAttachment = {
 };
 
 export type ChatMessage = {
+  id?: string;
   role: "user" | "assistant";
   content: string;
+  status?: "pending" | "streaming" | "completed" | "failed" | "canceled";
+  runId?: string;
   attachments?: ChatMessageAttachment[];
   streaming?: boolean;
   toolActivities?: ToolActivity[];

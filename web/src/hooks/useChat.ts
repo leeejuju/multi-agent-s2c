@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   agentApi,
+  type AgentRunResponse,
   type AgentSummary,
   type AttachmentItem,
   type ConversationSummary,
@@ -106,6 +107,22 @@ function applyAttachmentsToLastUserMessage(
   return next;
 }
 
+function mapHistoryMessage(message: {
+  id: string;
+  role: string;
+  content: string;
+  status?: ChatMessage["status"];
+}): ChatMessage {
+  const status = message.status || "completed";
+  return {
+    id: message.id,
+    role: message.role === "assistant" ? "assistant" : "user",
+    content: message.content,
+    status,
+    streaming: status === "streaming" || status === "pending",
+  };
+}
+
 async function uploadSelectedAttachments(
   files: File[],
   conversationId?: string,
@@ -157,6 +174,8 @@ async function uploadSelectedAttachments(
 export function useChat() {
   const streamRef = useRef<{ abort: () => void } | null>(null);
   const uploadAbortControllerRef = useRef<AbortController | null>(null);
+  const activeRunRef = useRef<AgentRunResponse | null>(null);
+  const lastSequenceRef = useRef(0);
   const tokenBufferRef = useRef("");
   const tokenFrameRef = useRef<number | null>(null);
   const scrollToBottomRef = useRef<(() => void) | null>(null);
@@ -210,6 +229,131 @@ export function useChat() {
     });
   }, [flushTokenBuffer]);
 
+  const applyToolEvent = useCallback((event: ToolActivity & { type?: "tool" }) => {
+    setMessages((current) => {
+      const next = [...current];
+      let last = next[next.length - 1];
+      if (last?.role !== "assistant") {
+        last = {
+          role: "assistant",
+          content: "",
+          streaming: true,
+          status: "streaming",
+          toolActivities: [],
+        };
+        next.push(last);
+      }
+
+      const activities = [...(last.toolActivities ?? [])];
+      const index = activities.findIndex((activity) => activity.id === event.id);
+      const existing = index >= 0 ? activities[index] : undefined;
+      const activity: ToolActivity = {
+        id: event.id,
+        name: event.name,
+        query: event.query ?? existing?.query,
+        resultCount:
+          event.resultCount ?? event.resultItems?.length ?? existing?.resultCount,
+        resultItems: event.resultItems ?? existing?.resultItems,
+        searchScope: event.searchScope ?? existing?.searchScope,
+        source: event.source ?? existing?.source,
+        status: event.status,
+        title: event.title ?? existing?.title,
+      };
+
+      if (index >= 0) {
+        activities[index] = activity;
+      } else {
+        activities.push(activity);
+      }
+      next[next.length - 1] = { ...last, toolActivities: activities };
+      return next;
+    });
+  }, [setMessages]);
+
+  const subscribeToRun = useCallback(
+    (run: AgentRunResponse, afterSequence = 0, onScrollToBottom?: () => void) => {
+      streamRef.current?.abort();
+      activeRunRef.current = run;
+      lastSequenceRef.current = afterSequence;
+      setIsSending(run.status === "queued" || run.status === "running");
+
+      streamRef.current = agentApi.streamRun(run.id, afterSequence, {
+        onToken(token) {
+          tokenBufferRef.current += token;
+          scheduleTokenFlush();
+        },
+        onToolEvent(event) {
+          flushTokenBuffer();
+          applyToolEvent({
+            id: event.tool_call_id,
+            name: event.tool_name,
+            query: event.query,
+            resultCount:
+              event.result_count ?? event.result_items?.length,
+            resultItems: event.result_items,
+            searchScope:
+              event.search_scopes ??
+              event.search_scope ??
+              event.source,
+            source: event.source,
+            status: event.status,
+            title: event.title,
+          });
+          onScrollToBottom?.();
+        },
+        onDone(data) {
+          if (typeof data.sequence === "number") {
+            lastSequenceRef.current = data.sequence;
+          }
+          if (data.conversation_id) setConversationId(data.conversation_id as string);
+          if (data.status === "init" || data.type === "metadata") {
+            const initAttachments = getInitAttachments(data);
+            if (initAttachments.length > 0) {
+              setMessages((current) =>
+                applyAttachmentsToLastUserMessage(current, initAttachments),
+              );
+              onScrollToBottom?.();
+            }
+            return;
+          }
+          flushTokenBuffer();
+          setMessages((current) => {
+            const next = [...current];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant") {
+              next[next.length - 1] = {
+                ...last,
+                streaming: false,
+                status: data.status === "canceled" ? "canceled" : "completed",
+              };
+            }
+            return next;
+          });
+          setIsSending(false);
+          streamRef.current = null;
+          activeRunRef.current = null;
+          scrollToBottomRef.current = null;
+          void loadConversations();
+        },
+        onError() {
+          flushTokenBuffer();
+          setIsSending(false);
+          streamRef.current = null;
+          activeRunRef.current = null;
+          scrollToBottomRef.current = null;
+        },
+      });
+    },
+    [
+      applyToolEvent,
+      flushTokenBuffer,
+      loadConversations,
+      scheduleTokenFlush,
+      setConversationId,
+      setMessages,
+    ],
+  );
+
   useEffect(() => {
     void loadConversations();
     void agentApi.getAgents().then(setAgents).catch(() => {
@@ -233,28 +377,57 @@ export function useChat() {
   }, [loadConversations]);
 
   const switchConversation = async (convId: string) => {
+    streamRef.current?.abort();
+    streamRef.current = null;
+    activeRunRef.current = null;
+    setIsSending(false);
     setConversationId(convId);
     setShowConversations(false);
     setMessages([]);
 
     try {
       const history = await agentApi.getConversationMessages(convId);
-      setMessages(
-        history.map((message) => ({
-          role: message.role === "assistant" ? "assistant" : "user",
-          content: message.content,
-        })),
-      );
+      setMessages(history.map(mapHistoryMessage));
+      const activeRun = await agentApi.getActiveRun(convId);
+      if (activeRun) {
+        setMessages((current) => {
+          const next = [...current];
+          for (let index = next.length - 1; index >= 0; index -= 1) {
+            if (next[index].id === activeRun.assistant_message_id) {
+              next[index] = {
+                ...next[index],
+                runId: activeRun.id,
+                streaming: true,
+                status: "streaming",
+              };
+              break;
+            }
+          }
+          return next;
+        });
+        subscribeToRun(activeRun, activeRun.latest_sequence ?? 0);
+      }
     } catch {
       // Handle error
     }
   };
 
   const newConversation = () => {
+    streamRef.current?.abort();
+    streamRef.current = null;
+    activeRunRef.current = null;
+    setIsSending(false);
     setConversationId(null);
     setMessages([]);
     setShowConversations(false);
   };
+
+  useEffect(() => {
+    if (!conversationId) return;
+    void switchConversation(conversationId);
+    // Run once on mount to replace persisted UI state with authoritative backend state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSend = async (onScrollToBottom: () => void) => {
     const trimmedText = draftText.trim();
@@ -326,108 +499,74 @@ export function useChat() {
       }
     }
 
-    streamRef.current = agentApi.send2AgentStream(
-      selectedAgentId,
-      {
-        input: trimmedText,
-        conversation_id: conversationId || undefined,
-        attachments: uploadedAttachments,
-      },
-      { model: selectedModelId, stream: true },
-      {
-        onToken(token) {
-          tokenBufferRef.current += token;
-          scheduleTokenFlush();
+    try {
+      const run = await agentApi.createAgentRun(
+        selectedAgentId,
+        {
+          input: trimmedText,
+          conversation_id: conversationId || undefined,
+          attachments: uploadedAttachments,
         },
-        onToolEvent(event) {
-          flushTokenBuffer();
-          setMessages((current) => {
-            const next = [...current];
-            let last = next[next.length - 1];
-            if (last?.role !== "assistant") {
-              last = {
-                role: "assistant",
-                content: "",
-                streaming: true,
-                toolActivities: [],
-              };
-              next.push(last);
-            }
-
-            const activities = [...(last.toolActivities ?? [])];
-            const index = activities.findIndex(
-              (activity) => activity.id === event.tool_call_id,
-            );
-            const existing = index >= 0 ? activities[index] : undefined;
-            const resultItems = event.result_items ?? existing?.resultItems;
-            const searchScope =
-              event.search_scopes ??
-              event.search_scope ??
-              event.source ??
-              existing?.searchScope;
-
-            const activity: ToolActivity = {
-              id: event.tool_call_id,
-              name: event.tool_name,
-              query: event.query ?? existing?.query,
-              resultCount:
-                event.result_count ?? resultItems?.length ?? existing?.resultCount,
-              resultItems,
-              searchScope,
-              source: event.source ?? existing?.source,
-              status: event.status,
-              title: event.title ?? existing?.title,
-            };
-
-            if (index >= 0) {
-              activities[index] = activity;
-            } else {
-              activities.push(activity);
-            }
-            next[next.length - 1] = { ...last, toolActivities: activities };
-            return next;
-          });
-          onScrollToBottom();
-        },
-        onDone(data) {
-          if (data.conversation_id) setConversationId(data.conversation_id as string);
-          if (data.status === "init" || data.type === "metadata") {
-            const initAttachments = getInitAttachments(data);
-            if (initAttachments.length > 0) {
-              setMessages((current) =>
-                applyAttachmentsToLastUserMessage(current, initAttachments),
-              );
-              onScrollToBottom();
-            }
-            return;
-          }
-          flushTokenBuffer();
-          setMessages((current) => {
-            const next = [...current];
-            const last = next[next.length - 1];
-            if (last?.role === "assistant") next[next.length - 1] = { ...last, streaming: false };
-            return next;
-          });
-          setIsSending(false);
-          streamRef.current = null;
-          scrollToBottomRef.current = null;
-          void loadConversations();
-        },
-        onError() {
-          flushTokenBuffer();
-          setIsSending(false);
-          streamRef.current = null;
-          scrollToBottomRef.current = null;
-        },
-      }
-    );
+        { model: selectedModelId, stream: true },
+      );
+      setConversationId(run.conversation_id);
+      setMessages((current) => {
+        const next = [...current];
+        const assistant = next[next.length - 1];
+        const user = next[next.length - 2];
+        if (user?.role === "user") {
+          next[next.length - 2] = {
+            ...user,
+            id: run.user_message_id,
+            status: "completed",
+          };
+        }
+        if (assistant?.role === "assistant") {
+          next[next.length - 1] = {
+            ...assistant,
+            id: run.assistant_message_id,
+            runId: run.id,
+            status: "streaming",
+            streaming: true,
+          };
+        }
+        return next;
+      });
+      subscribeToRun(run, 0, onScrollToBottom);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Request failed";
+      flushTokenBuffer();
+      setMessages((current) => {
+        const next = [...current];
+        const last = next[next.length - 1];
+        if (last?.role === "assistant") {
+          next[next.length - 1] = {
+            ...last,
+            content: errorMessage,
+            status: "failed",
+            streaming: false,
+          };
+        }
+        return next;
+      });
+      setIsSending(false);
+      streamRef.current = null;
+      scrollToBottomRef.current = null;
+    }
   };
 
   const stopSending = () => {
+    const run = activeRunRef.current;
+    if (run) {
+      void agentApi.cancelRun(run.id).catch(() => {
+        // The local stream is still stopped even if the backend cancel request fails.
+      });
+    }
     uploadAbortControllerRef.current?.abort();
     uploadAbortControllerRef.current = null;
     streamRef.current?.abort();
     streamRef.current = null;
+    activeRunRef.current = null;
     if (tokenFrameRef.current !== null) {
       window.cancelAnimationFrame(tokenFrameRef.current);
       tokenFrameRef.current = null;
@@ -439,7 +578,7 @@ export function useChat() {
       const next = [...current];
       const last = next[next.length - 1];
       if (last?.role === "assistant") {
-        next[next.length - 1] = { ...last, streaming: false };
+        next[next.length - 1] = { ...last, streaming: false, status: "canceled" };
       }
       for (let index = next.length - 1; index >= 0; index -= 1) {
         const message = next[index];

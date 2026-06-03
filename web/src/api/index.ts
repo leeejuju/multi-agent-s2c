@@ -409,4 +409,130 @@ export function requestStream(
   };
 }
 
+export function requestRunStream(
+  url: string,
+  params: Record<string, string | number>,
+  callbacks: StreamCallbacks,
+): { abort: () => void } {
+  const controller = new AbortController();
+  let abortedByCaller = false;
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+
+  if (typeof window !== "undefined") {
+    const token = useAuthStore.getState().token;
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    searchParams.append(key, String(value));
+  });
+  const fullUrl = `${BASE_URL}${url}${searchParams.toString() ? `?${searchParams}` : ""}`;
+
+  void fetch(fullUrl, {
+    method: "GET",
+    headers,
+    signal: controller.signal,
+  })
+    .then(async (response) => {
+      if (response.status === 401) {
+        handleUnauthorized();
+      }
+
+      if (!response.ok) {
+        const errorDetail = await response
+          .json()
+          .catch(() => ({ message: `HTTP ${response.status}` }));
+        throw new Error(errorDetail.message || "Request failed");
+      }
+
+      if (!response.body) {
+        throw new Error("Streaming response is empty");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let doneReading = false;
+
+      while (!doneReading) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const jsonLine = line.trim();
+          if (!jsonLine) {
+            continue;
+          }
+
+          try {
+            const data = JSON.parse(jsonLine) as Record<string, unknown>;
+            const token =
+              typeof data.content === "string"
+                ? data.content
+                : typeof data.response === "string"
+                  ? data.response
+                  : "";
+            if (
+              (data.type === "token" || data.status === "stream") &&
+              token
+            ) {
+              callbacks.onToken(token);
+            } else {
+              const toolEvent = normalizeToolEvent(data);
+              if (toolEvent) {
+                callbacks.onToolEvent?.(toolEvent);
+                continue;
+              }
+
+              if (data.type === "done" || data.status === "done") {
+                callbacks.onDone(data);
+                doneReading = true;
+              } else if (data.type === "error" || data.status === "error") {
+                callbacks.onError(
+                  new Error(
+                    typeof data.message === "string"
+                      ? data.message
+                      : "Streaming request failed",
+                  ),
+                );
+                doneReading = true;
+              } else if (data.type === "metadata" || data.status === "init") {
+                callbacks.onDone(data);
+              }
+            }
+          } catch {
+            // Ignore malformed JSON lines so a partial chunk does not stop the stream.
+          }
+        }
+      }
+    })
+    .catch((error: unknown) => {
+      if (abortedByCaller) {
+        return;
+      }
+      if (error instanceof Error) {
+        callbacks.onError(error);
+      } else {
+        callbacks.onError(new Error("Request failed"));
+      }
+    });
+
+  return {
+    abort: () => {
+      abortedByCaller = true;
+      controller.abort();
+    },
+  };
+}
+
 export { request as http };
