@@ -6,12 +6,19 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents import agent_manager
+from src.configs import config
 from src.database import Conversation, Message
-from src.database.repositories import ConversationRepository
+from src.database.models import AgentRun
+from src.database.repositories import ConversationRepository, RunRepository
 from src.utils import logger
 
-from .langfuse_service import (
-    with_langfuse_config,
+from .agent_queue_service import (
+    get_arq_pool,
+    get_redis_client,
+    iter_persisted_run_events,
+    json_line_event,
+    run_stream_key,
+    serialize_attachment_for_chat,
 )
 
 
@@ -38,235 +45,6 @@ async def list_conversations(
     return await repository.list_by_user(user_id)
 
 
-def _attachment_value(attachment: Any, key: str, default: Any = None) -> Any:
-    if isinstance(attachment, Mapping):
-        return attachment.get(key, default)
-    return getattr(attachment, key, default)
-
-
-def _serialize_attachment_for_init(attachment: Any) -> dict[str, Any]:
-    return {
-        "id": _attachment_value(attachment, "id", ""),
-        "file_name": _attachment_value(attachment, "file_name", "Attachment"),
-        "content_type": _attachment_value(
-            attachment,
-            "content_type",
-            "application/octet-stream",
-        ),
-        "file_size": _attachment_value(attachment, "file_size"),
-        "object_key": _attachment_value(attachment, "object_key"),
-        "category": _attachment_value(attachment, "category"),
-        "access_url": _attachment_value(attachment, "access_url", ""),
-        "thumb_url": _attachment_value(attachment, "thumb_url"),
-        "parser": _attachment_value(attachment, "parser"),
-        "parse_status": _attachment_value(attachment, "parse_status"),
-        "parse_error": _attachment_value(attachment, "parse_error"),
-    }
-
-
-def stream_chunk(
-    db: AsyncSession,
-    *,
-    agent_id: str,
-    input_text: str,
-    conversation_id: str | None,
-    user_id: str,
-    attachments: Sequence[Any] | None = None,
-    request_config: Mapping[str, Any] | None = None,
-) -> AsyncIterator[bytes]:
-    meta: dict[str, Any] = {"request_id": None}
-    repository = ConversationRepository(session=db)
-
-    def generator_chunk(content: str | None = None, **kwargs: Any) -> bytes:
-        return (
-            json.dumps(
-                {
-                    "request_id": meta.get("request_id"),
-                    "response": content,
-                    **kwargs,
-                },
-                ensure_ascii=False,
-                default=str,
-            ).encode("utf-8")
-            + b"\n"
-        )
-
-    def iter_tool_activities(value: Any):
-        if isinstance(value, Mapping):
-            activities = value.get("tool_activities")
-            if isinstance(activities, Mapping):
-                for activity in activities.values():
-                    if isinstance(activity, Mapping):
-                        yield activity
-            for nested in value.values():
-                yield from iter_tool_activities(nested)
-        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-            for item in value:
-                yield from iter_tool_activities(item)
-
-    try:
-        agent = agent_manager.get_agent(agent_id)
-    except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agent not found: {agent_id}",
-        ) from exc
-
-    async def chunk_generator() -> AsyncIterator[bytes]:
-        resolved_conversation_id = conversation_id
-        full_content = ""
-        try:
-            resolved_conversation_id, user_message = await repository.save_message(
-                "user",
-                input_text,
-                conversation_id=conversation_id,
-                user_id=user_id,
-            )
-            await repository.commit()
-            meta.update(
-                {
-                    "request_id": resolved_conversation_id,
-                    "conversation_id": resolved_conversation_id,
-                }
-            )
-
-            attachment_payloads = [
-                _serialize_attachment_for_init(attachment)
-                for attachment in attachments or []
-            ]
-            image_urls = [
-                attachment["access_url"]
-                for attachment in attachment_payloads
-                if str(attachment.get("content_type") or "").startswith("image/")
-                and attachment.get("access_url")
-            ]
-            has_documents = any(
-                (attachment.get("category") == "document")
-                or not str(attachment.get("content_type") or "").startswith("image/")
-                for attachment in attachment_payloads
-            )
-            if image_urls and has_documents:
-                message_type = "multimodal_attachment"
-            elif image_urls:
-                message_type = "multimodal_image"
-            elif has_documents:
-                message_type = "document"
-            else:
-                message_type = "text"
-            init_msg: dict[str, Any] = {
-                "role": "user",
-                "content": input_text,
-                "type": "human",
-                "message_type": message_type,
-            }
-            if attachment_payloads:
-                init_msg["attachments"] = attachment_payloads
-            if image_urls:
-                init_msg["image_content"] = image_urls
-                messages: str | list[dict[str, Any]] = [
-                    {"type": "text", "text": input_text},
-                    *[
-                        {"type": "image_url", "image_url": {"url": image_url}}
-                        for image_url in image_urls
-                    ],
-                ]
-            else:
-                messages = input_text
-
-            yield generator_chunk(
-                status="init",
-                type="metadata",
-                meta=meta,
-                msg=init_msg,
-                conversation_id=resolved_conversation_id,
-            )
-
-            attachment_count = len(attachments or [])
-            langfuse_config = with_langfuse_config(
-                user_id=user_id,
-                conversation_id=resolved_conversation_id,
-                agent_id=agent_id,
-                user_message_id=str(user_message.id),
-                message_type=message_type,
-                attachment_count=attachment_count,
-                request_config=dict(request_config or {}),
-            )
-
-            async for mode, chunk in agent.stream_messages(
-                {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": messages,
-                        }
-                    ]
-                },
-                config={
-                    "configurable": {"thread_id": resolved_conversation_id},
-                    **langfuse_config,
-                },
-            ):
-                if mode in {"updates", "values"}:
-                    for activity in iter_tool_activities(chunk):
-                        yield generator_chunk(
-                            status=activity.get("status", "updated"),
-                            type="tool",
-                            tool_call_id=activity.get("tool_call_id", "tool_call"),
-                            tool_name=activity.get("tool_name", "tool_call"),
-                            title=activity.get("title"),
-                            query=activity.get("query"),
-                            source=activity.get("source"),
-                            search_scope=activity.get("search_scope"),
-                            search_scopes=activity.get("search_scopes"),
-                            result_items=activity.get("result_items"),
-                            result_count=activity.get("result_count"),
-                            conversation_id=resolved_conversation_id,
-                        )
-                    continue
-
-                if mode != "messages":
-                    continue
-
-                token = chunk.content
-                if not token:
-                    continue
-
-                full_content += token
-                yield generator_chunk(
-                    token,
-                    status="stream",
-                    type="token",
-                    conversation_id=resolved_conversation_id,
-                )
-
-            await repository.save_message(
-                "assistant",
-                full_content,
-                conversation_id=resolved_conversation_id,
-            )
-            await repository.commit()
-            yield generator_chunk(
-                status="done",
-                type="done",
-                conversation_id=resolved_conversation_id,
-            )
-        except Exception:
-            await repository.rollback()
-            logger.exception(
-                "Streaming chat failed: user_id=%s, conversation_id=%s.",
-                user_id,
-                resolved_conversation_id,
-            )
-            yield generator_chunk(
-                status="error",
-                type="error",
-                message="Streaming response failed.",
-                conversation_id=resolved_conversation_id,
-            )
-
-    return chunk_generator()
-
-
 async def get_messages(
     db: AsyncSession,
     conversation_id: str,
@@ -288,3 +66,200 @@ async def delete_conversation(
             detail="Conversation not found.",
         )
     await repository.commit()
+
+
+async def create_agent_run(
+    db: AsyncSession,
+    *,
+    agent_id: str,
+    input_text: str,
+    conversation_id: str | None,
+    user_id: str,
+    attachments: Sequence[Any] | None = None,
+    request_config: Mapping[str, Any] | None = None,
+) -> AgentRun:
+    try:
+        agent_manager.get_agent(agent_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent not found: {agent_id}",
+        ) from exc
+
+    conversation_repository = ConversationRepository(session=db)
+    run_repository = RunRepository(session=db)
+    if conversation_id is not None:
+        conversation = await conversation_repository.get_by_id_for_user(
+            conversation_id,
+            user_id,
+        )
+        if conversation is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found.",
+            )
+        active_run = await run_repository.get_active_for_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+        if active_run is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This conversation already has a running agent response.",
+            )
+
+    resolved_conversation_id, user_message = await conversation_repository.save_message(
+        "user",
+        input_text,
+        conversation_id=conversation_id,
+        user_id=user_id,
+        status="completed",
+    )
+    active_run = await run_repository.get_active_for_conversation(
+        conversation_id=resolved_conversation_id,
+        user_id=user_id,
+    )
+    if active_run is not None:
+        await conversation_repository.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This conversation already has a running agent response.",
+        )
+
+    _, assistant_message = await conversation_repository.save_message(
+        "assistant",
+        "",
+        conversation_id=resolved_conversation_id,
+        status="streaming",
+    )
+    run = await run_repository.create_run(
+        conversation_id=resolved_conversation_id,
+        user_id=user_id,
+        user_message_id=str(user_message.id),
+        assistant_message_id=str(assistant_message.id),
+        agent_id=agent_id,
+        input_text=input_text,
+        attachments=[
+            serialize_attachment_for_chat(attachment) for attachment in attachments or []
+        ],
+        request_config=dict(request_config or {}),
+    )
+    await run_repository.commit()
+
+    try:
+        arq = await get_arq_pool()
+        job = await arq.enqueue_job("run_agent", str(run.id), _job_id=str(run.id))
+        if job is None:
+            raise RuntimeError("Agent run job was not enqueued.")
+    except Exception as exc:
+        logger.exception("Failed to enqueue agent run: run_id=%s.", run.id)
+        await run_repository.set_status(run, "failed", error=str(exc))
+        await conversation_repository.set_message_status(
+            str(assistant_message.id),
+            "failed",
+        )
+        await run_repository.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agent worker queue is unavailable.",
+        ) from exc
+    return run
+
+
+async def get_active_run(
+    db: AsyncSession,
+    *,
+    conversation_id: str,
+    user_id: str,
+) -> AgentRun | None:
+    await get_conversation(db, conversation_id, user_id)
+    repository = RunRepository(db)
+    return await repository.get_active_for_conversation(
+        conversation_id=conversation_id,
+        user_id=user_id,
+    )
+
+
+async def cancel_run(
+    db: AsyncSession,
+    *,
+    run_id: str,
+    user_id: str,
+) -> AgentRun:
+    repository = RunRepository(db)
+    run = await repository.get_by_id_for_user(run_id, user_id)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Run not found.",
+        )
+    if run.status in {"completed", "failed", "canceled"}:
+        return run
+    await repository.set_status(run, "canceling")
+    await repository.commit()
+    return run
+
+
+async def stream_run_events(
+    db: AsyncSession,
+    *,
+    run_id: str,
+    user_id: str,
+    after_sequence: int = 0,
+) -> AsyncIterator[bytes]:
+    repository = RunRepository(db)
+    run = await repository.get_by_id_for_user(run_id, user_id)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Run not found.",
+        )
+
+    redis = get_redis_client()
+    stream_key = run_stream_key(run_id)
+    last_sequence = after_sequence
+    last_redis_id = "$"
+    terminal_types = {"done", "error"}
+
+    while True:
+        emitted = False
+        async for payload in iter_persisted_run_events(
+            db,
+            run_id=run_id,
+            after_sequence=last_sequence,
+        ):
+            emitted = True
+            last_sequence = int(payload.get("sequence") or last_sequence)
+            yield json_line_event(payload)
+            if payload.get("type") in terminal_types:
+                return
+
+        if emitted:
+            continue
+
+        response = await redis.xread(
+            {stream_key: last_redis_id},
+            block=config.run_stream_poll_timeout_ms,
+            count=25,
+        )
+        if not response:
+            await db.rollback()
+            continue
+
+        for _, entries in response:
+            for entry_id, fields in entries:
+                last_redis_id = entry_id
+                raw_payload = fields.get("payload")
+                if not isinstance(raw_payload, str):
+                    continue
+                try:
+                    payload = json.loads(raw_payload)
+                except json.JSONDecodeError:
+                    continue
+                sequence = int(payload.get("sequence") or 0)
+                if sequence <= last_sequence:
+                    continue
+                last_sequence = sequence
+                yield json_line_event(payload)
+                if payload.get("type") in terminal_types:
+                    return
