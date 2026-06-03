@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import Conversation, Message
+from src.database.models import AgentRun, Conversation, Message
 
 
 def _make_title(text: str, max_length: int = 80) -> str:
@@ -42,6 +42,7 @@ class ConversationRepository:
         content: str,
         conversation_id: str | None = None,
         user_id: str | None = None,
+        status: str = "completed",
     ) -> tuple[str, Message]:
         if conversation_id:
             conv_id = conversation_id
@@ -60,10 +61,68 @@ class ConversationRepository:
             conversation_id=UUID(conv_id),
             role=role,
             content=content,
+            status=status,
         )
         self.session.add(message)
         await self.session.flush()
         return conv_id, message
+
+    async def update_message_content(
+        self,
+        message_id: str,
+        content: str,
+        *,
+        status: str | None = None,
+    ) -> Message | None:
+        message = await self.session.get(Message, UUID(message_id))
+        if message is None:
+            return None
+        message.content = content
+        if status is not None:
+            message.status = status
+        await self.session.flush()
+        return message
+
+    async def append_message_content(
+        self,
+        message_id: str,
+        delta: str,
+        *,
+        status: str | None = None,
+    ) -> Message | None:
+        message = await self.session.get(Message, UUID(message_id))
+        if message is None:
+            return None
+        message.content = f"{message.content}{delta}"
+        if status is not None:
+            message.status = status
+        await self.session.flush()
+        return message
+
+    async def set_message_status(self, message_id: str, status: str) -> Message | None:
+        message = await self.session.get(Message, UUID(message_id))
+        if message is None:
+            return None
+        message.status = status
+        await self.session.flush()
+        return message
+
+    async def get_active_run_for_conversation(
+        self,
+        conversation_id: str,
+        user_id: str,
+    ) -> AgentRun | None:
+        result = await self.session.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.conversation_id == UUID(conversation_id),
+                AgentRun.user_id == UUID(user_id),
+                AgentRun.status.in_(("queued", "running", "canceling")),
+            )
+            .order_by(AgentRun.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
 
     async def get_messages(self, conversation_id: str) -> list[Message]:
         result = await self.session.execute(
