@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python '/mnt/e/1_LLM_PROJECT/multi-agent-s2c/.codex/hooks/check-commit-related.py'"
+          }
+        ]
+      }
+    ]
+  }
+}
