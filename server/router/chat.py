@@ -8,15 +8,19 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.service import (
+    cancel_run,
+    create_agent_run,
     delete_conversation,
+    get_active_run,
     get_conversation,
     get_messages,
     list_conversations,
-    stream_chunk,
+    stream_run_events,
 )
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.database import get_db
+from src.database.repositories import RunRepository
 from src.plugins.document_parser import (
     DocumentParseRequest,
     DocumentParseResult,
@@ -134,6 +138,19 @@ class MessageResponse(BaseModel):
     id: str
     role: str
     content: str
+    status: str = "completed"
+    created_at: str
+
+
+class AgentRunResponse(BaseModel):
+    id: str
+    conversation_id: str
+    user_message_id: str
+    assistant_message_id: str
+    agent_id: str
+    status: str
+    error: str | None = None
+    latest_sequence: int = 0
     created_at: str
 
 
@@ -397,29 +414,70 @@ async def upload_files(
     )
 
 
-@router.post("/agent/{agent_id}/run/stream")
-async def chat_stream(
+def _run_response(run, latest_sequence: int = 0) -> AgentRunResponse:
+    return AgentRunResponse(
+        id=str(run.id),
+        conversation_id=str(run.conversation_id),
+        user_message_id=str(run.user_message_id),
+        assistant_message_id=str(run.assistant_message_id),
+        agent_id=run.agent_id,
+        status=run.status,
+        error=run.error,
+        latest_sequence=latest_sequence,
+        created_at=run.created_at.isoformat(),
+    )
+
+
+@router.post("/agent/{agent_id}/runs", response_model=AgentRunResponse)
+async def create_chat_run(
     agent_id: str,
     payload: ChatRequest,
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
 ):
-    """调用智能体执行对话（SSE流式输出）"""
+    """创建后台 agent run。"""
     logger.info(
-        f"收到流式对话请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
+        f"收到 agent run 请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
     )
+    run = await create_agent_run(
+        db,
+        agent_id=agent_id,
+        input_text=payload.input,
+        conversation_id=payload.conversation_id,
+        user_id=current_user.user_id,
+        attachments=payload.attachments,
+        request_config=payload.config,
+    )
+    return _run_response(run)
+
+
+@router.get("/runs/{run_id}/stream")
+async def chat_run_stream(
+    run_id: str,
+    current_user: AuthenticatedUser,
+    after_sequence: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    """可恢复的 run 事件流。"""
     return StreamingResponse(
-        stream_chunk(
+        stream_run_events(
             db,
-            agent_id=agent_id,
-            input_text=payload.input,
-            conversation_id=payload.conversation_id,
             user_id=current_user.user_id,
-            attachments=payload.attachments,
-            request_config=payload.config,
+            run_id=run_id,
+            after_sequence=after_sequence,
         ),
-        media_type="application/json",
+        media_type="text/event-stream",
     )
+
+
+@router.post("/runs/{run_id}/cancel", response_model=AgentRunResponse)
+async def cancel_chat_run(
+    run_id: str,
+    current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
+):
+    run = await cancel_run(db, run_id=run_id, user_id=current_user.user_id)
+    return _run_response(run)
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])
@@ -440,6 +498,26 @@ async def list_conversation_summaries(
 
 
 @router.get(
+    "/conversations/{conversation_id}/runs/active",
+    response_model=AgentRunResponse | None,
+)
+async def get_active_conversation_run(
+    conversation_id: str,
+    current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
+):
+    run = await get_active_run(
+        db,
+        conversation_id=conversation_id,
+        user_id=current_user.user_id,
+    )
+    if run is None:
+        return None
+    latest_sequence = await RunRepository(db).latest_sequence(str(run.id))
+    return _run_response(run, latest_sequence=latest_sequence)
+
+
+@router.get(
     "/conversations/{conversation_id}/messages",
     response_model=list[MessageResponse],
 )
@@ -455,6 +533,7 @@ async def get_conversation_messages(
             id=str(m.id),
             role=m.role,
             content=m.content,
+            status=m.status,
             created_at=m.created_at.isoformat(),
         )
         for m in messages

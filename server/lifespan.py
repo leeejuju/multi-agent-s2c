@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from server.service.agent_queue_service import close_queue_connections
 from server.utils.auth import verify_required_auth_settings
 from src.database import PostgreSQLInitializer, get_engine
 from src.storage import ensure_storage_ready, verify_required_storage_settings
@@ -23,4 +24,5 @@ async def lifespan(app: FastAPI):
 
 
     await engine.dispose()
+    await close_queue_connections()
     logger.info("FastAPI 服务已关闭。")
