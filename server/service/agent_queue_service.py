@@ -20,6 +20,53 @@ def redis_settings() -> RedisSettings:
     return RedisSettings.from_dsn(config.redis_url)
 
 
+def _request_config_bool(
+    request_config: Mapping[str, Any] | None,
+    key: str,
+    default: bool,
+) -> bool:
+    if request_config is None:
+        return default
+    value = request_config.get(key, request_config.get(f"agent_{key}", default))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, int):
+        return bool(value)
+    return default
+
+
+def agent_queue_enabled(request_config: Mapping[str, Any] | None = None) -> bool:
+    return _request_config_bool(
+        request_config,
+        "queue_enabled",
+        config.agent_queue_enabled,
+    )
+
+
+def agent_stream_enabled(request_config: Mapping[str, Any] | None = None) -> bool:
+    return _request_config_bool(
+        request_config,
+        "stream_enabled",
+        config.agent_stream_enabled,
+    )
+
+
+def agent_event_persist_enabled(
+    request_config: Mapping[str, Any] | None = None,
+) -> bool:
+    return _request_config_bool(
+        request_config,
+        "event_persist_enabled",
+        config.agent_event_persist_enabled,
+    )
+
+
 async def get_arq_pool() -> ArqRedis:
     global _arq_pool
     if _arq_pool is None:
@@ -85,6 +132,10 @@ def _run_stream_key(run_id: str) -> str:
     return f"run:{run_id}:events"
 
 
+def _run_sequence_key(run_id: str) -> str:
+    return f"run:{run_id}:sequence"
+
+
 def serialize_run_event(event: RunEvent) -> dict[str, Any]:
     return {
         **event.payload,
@@ -105,21 +156,39 @@ async def publish_run_event(
     run_id: str,
     event_type: str,
     payload: dict[str, Any],
-) -> RunEvent:
-    repository = RunRepository(session)
-    event = await repository.add_event(
-        run_id=run_id,
-        event_type=event_type,
-        payload=payload,
-    )
-    await repository.commit()
-    await redis.xadd(
-        _run_stream_key(run_id),
-        {"payload": json.dumps(serialize_run_event(event), ensure_ascii=False, default=str)},
-        maxlen=config.run_stream_max_len,
-        approximate=True,
-    )
-    return event
+    request_config: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    persist_event = agent_event_persist_enabled(request_config)
+    publish_stream = agent_stream_enabled(request_config)
+    if not persist_event and not publish_stream:
+        return None
+
+    if persist_event:
+        repository = RunRepository(session)
+        event = await repository.add_event(
+            run_id=run_id,
+            event_type=event_type,
+            payload=payload,
+        )
+        await repository.commit()
+        event_payload = serialize_run_event(event)
+    else:
+        sequence = int(await redis.incr(_run_sequence_key(run_id)))
+        event_payload = {
+            **payload,
+            "sequence": sequence,
+            "run_id": run_id,
+            "type": event_type,
+        }
+
+    if publish_stream:
+        await redis.xadd(
+            _run_stream_key(run_id),
+            {"payload": json.dumps(event_payload, ensure_ascii=False, default=str)},
+            maxlen=config.run_stream_max_len,
+            approximate=True,
+        )
+    return event_payload
 
 
 async def iter_persisted_run_events(

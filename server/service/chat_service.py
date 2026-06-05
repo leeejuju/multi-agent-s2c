@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
@@ -13,6 +14,9 @@ from src.database.repositories import ConversationRepository, RunRepository
 from src.utils import logger
 
 from .agent_queue_service import (
+    agent_event_persist_enabled,
+    agent_queue_enabled,
+    agent_stream_enabled,
     get_arq_pool,
     get_redis_client,
     iter_persisted_run_events,
@@ -20,6 +24,14 @@ from .agent_queue_service import (
     run_stream_key,
     serialize_attachment_for_chat,
 )
+from .agent_consumer_service import execute_agent_run
+
+
+async def _execute_agent_run_locally(run_id: str) -> None:
+    try:
+        await execute_agent_run(run_id)
+    except Exception:
+        logger.exception("Local agent run task failed: run_id=%s.", run_id)
 
 
 async def get_conversation(
@@ -146,23 +158,26 @@ async def create_agent_run(
     )
     await run_repository.commit()
 
-    try:
-        arq = await get_arq_pool()
-        job = await arq.enqueue_job("run_agent", str(run.id), _job_id=str(run.id))
-        if job is None:
-            raise RuntimeError("Agent run job was not enqueued.")
-    except Exception as exc:
-        logger.exception("Failed to enqueue agent run: run_id=%s.", run.id)
-        await run_repository.set_status(run, "failed", error=str(exc))
-        await conversation_repository.set_message_status(
-            str(assistant_message.id),
-            "failed",
-        )
-        await run_repository.commit()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Agent worker queue is unavailable.",
-        ) from exc
+    if agent_queue_enabled(request_config):
+        try:
+            arq = await get_arq_pool()
+            job = await arq.enqueue_job("run_agent", str(run.id), _job_id=str(run.id))
+            if job is None:
+                raise RuntimeError("Agent run job was not enqueued.")
+        except Exception as exc:
+            logger.exception("Failed to enqueue agent run: run_id=%s.", run.id)
+            await run_repository.set_status(run, "failed", error=str(exc))
+            await conversation_repository.set_message_status(
+                str(assistant_message.id),
+                "failed",
+            )
+            await run_repository.commit()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Agent worker queue is unavailable.",
+            ) from exc
+    else:
+        asyncio.create_task(_execute_agent_run_locally(str(run.id)))
     return run
 
 
@@ -215,26 +230,49 @@ async def stream_run_events(
             detail="Run not found.",
         )
 
-    redis = get_redis_client()
+    persist_events = agent_event_persist_enabled(run.request_config)
+    stream_events = agent_stream_enabled(run.request_config)
+    redis = get_redis_client() if stream_events else None
     stream_key = run_stream_key(run_id)
     last_sequence = after_sequence
-    last_redis_id = "$"
+    last_redis_id = "$" if persist_events else "0-0"
     terminal_types = {"done", "error"}
 
     while True:
         emitted = False
-        async for payload in iter_persisted_run_events(
-            db,
-            run_id=run_id,
-            after_sequence=last_sequence,
-        ):
-            emitted = True
-            last_sequence = int(payload.get("sequence") or last_sequence)
-            yield json_line_event(payload)
-            if payload.get("type") in terminal_types:
-                return
+        if persist_events:
+            async for payload in iter_persisted_run_events(
+                db,
+                run_id=run_id,
+                after_sequence=last_sequence,
+            ):
+                emitted = True
+                last_sequence = int(payload.get("sequence") or last_sequence)
+                yield json_line_event(payload)
+                if payload.get("type") in terminal_types:
+                    return
 
         if emitted:
+            continue
+
+        if not stream_events:
+            await db.refresh(run)
+            if not persist_events and run.status in {"completed", "failed", "canceled"}:
+                event_type = "error" if run.status == "failed" else "done"
+                yield json_line_event(
+                    {
+                        "sequence": last_sequence + 1,
+                        "run_id": run_id,
+                        "status": run.status,
+                        "type": event_type,
+                        "message": run.error,
+                        "conversation_id": str(run.conversation_id),
+                        "message_id": str(run.assistant_message_id),
+                    }
+                )
+                return
+            await asyncio.sleep(0.25)
+            await db.rollback()
             continue
 
         response = await redis.xread(

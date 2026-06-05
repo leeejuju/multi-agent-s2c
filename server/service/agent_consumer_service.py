@@ -129,6 +129,7 @@ async def execute_agent_run(run_id: str) -> None:
                 "conversation_id": str(run.conversation_id),
                 "message_id": str(run.assistant_message_id),
             },
+            request_config=run.request_config,
         )
 
         langfuse_config = with_langfuse_config(
@@ -174,6 +175,7 @@ async def execute_agent_run(run_id: str) -> None:
                             "type": "done",
                             "conversation_id": str(run.conversation_id),
                         },
+                        request_config=run.request_config,
                     )
                     return
 
@@ -205,6 +207,7 @@ async def execute_agent_run(run_id: str) -> None:
                         "conversation_id": str(run.conversation_id),
                         "message_id": str(run.assistant_message_id),
                     },
+                    request_config=run.request_config,
                 )
 
             await run_repository.set_status(run, "completed")
@@ -224,6 +227,7 @@ async def execute_agent_run(run_id: str) -> None:
                     "conversation_id": str(run.conversation_id),
                     "message_id": str(run.assistant_message_id),
                 },
+                request_config=run.request_config,
             )
         except Exception as exc:
             logger.exception("Agent run failed: run_id=%s.", run_id)
@@ -245,6 +249,7 @@ async def execute_agent_run(run_id: str) -> None:
                     "conversation_id": str(run.conversation_id),
                     "message_id": str(run.assistant_message_id),
                 },
+                request_config=run.request_config,
             )
             raise
 
@@ -277,6 +282,7 @@ async def _publish_tool_events(
                 "conversation_id": str(run.conversation_id),
                 "message_id": str(run.assistant_message_id),
             },
+            request_config=run.request_config,
         )
 
 
@@ -307,4 +313,5 @@ async def _fail_run(run_id: str, message: str) -> None:
                 "conversation_id": str(run.conversation_id),
                 "message_id": str(run.assistant_message_id),
             },
+            request_config=run.request_config,
         )
