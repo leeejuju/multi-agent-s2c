@@ -31,9 +31,16 @@ export default function App() {
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: "#1a1a1a",
-          colorText: "#1a1a1a",
-          colorTextSecondary: "#666666",
+          colorPrimary: "#1A1A1A",
+          colorPrimaryActive: "#333333",
+          colorPrimaryHover: "#333333",
+          colorBgBase: "#FAF9F6",
+          colorBgContainer: "#FFFFFF",
+          colorBgLayout: "#FAF9F6",
+          colorBorder: "#D6D3C9",
+          colorBorderSecondary: "#E5E2DA",
+          colorText: "#2C2C2C",
+          colorTextSecondary: "#707070",
           borderRadius: 8,
           fontFamily:
             'sans-serif, "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui',
