@@ -112,7 +112,7 @@ export default function MessageInput({
   );
 
   return (
-    <div className="message-input flex flex-col rounded-3xl overflow-hidden glass-effect-sm bg-white">
+    <div className="message-input glass-effect-sm flex flex-col overflow-hidden rounded-[26px] bg-card-background">
       <input
         type="file"
         ref={fileInputRef}
@@ -122,7 +122,7 @@ export default function MessageInput({
       />
 
       {(images.length > 0 || attachments.length > 0) && (
-        <div className="bg-black/5 px-3 pt-3 pb-1 border-b border-black/5">
+        <div className="border-b border-border bg-surface-variant px-2.5 pt-2.5 pb-0.5">
           <AttachmentCapsules
             attachments={attachments}
             images={images}
@@ -132,9 +132,9 @@ export default function MessageInput({
         </div>
       )}
 
-      <div className="py-3 px-3 pb-1">
+      <div className="px-2.5 py-2.5 pb-1">
         <textarea
-          className="message-input-textarea w-full min-h-[96px] max-h-[220px] border-0 bg-transparent outline-none text-sm resize-none py-1"
+          className="message-input-textarea w-full min-h-[84px] max-h-[200px] resize-none border-0 bg-transparent py-1 text-[13px] outline-none"
           disabled={disabled}
           onChange={(event) => onTextChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -143,18 +143,18 @@ export default function MessageInput({
         />
       </div>
 
-      <div className="flex items-center justify-between py-1.5 px-2 pb-2">
+      <div className="flex items-center justify-between px-2 pb-1.5 pt-1">
         <div className="flex items-center gap-1">
           <Button
-            className="flex h-8 items-center rounded-xl text-xs font-semibold"
-            icon={<Paperclip size={16} />}
+            className="flex h-7 items-center rounded-lg text-[11px] font-medium"
+            icon={<Paperclip size={15} />}
             onClick={handleAttachmentClick}
             disabled={disabled}
             title="Add Attachment"
             type="text"
           />
 
-          <div className="flex h-8 items-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-on-surface-variant">
+          <div className="flex h-7 items-center gap-1 rounded-lg px-1.5 text-[11px] font-medium text-on-surface-variant">
             <Switch
               checked={agentEnabled}
               disabled={disabled}
@@ -175,7 +175,7 @@ export default function MessageInput({
             <Button
               className="message-model-button"
               disabled={disabled}
-              icon={<Cpu size={14} />}
+              icon={<Cpu size={13} />}
               type="text"
             >
               {selectedModel.name}
@@ -187,7 +187,7 @@ export default function MessageInput({
           className={`message-send-button ${sending ? "bg-red-500 hover:!bg-red-600" : ""}`}
           danger={sending}
           disabled={sending ? false : !canSend}
-          icon={sending ? <Square size={14} fill="currentColor" /> : <ArrowUp size={18} />}
+          icon={sending ? <Square size={13} fill="currentColor" /> : <ArrowUp size={16} />}
           onClick={sending ? onStop : onSend}
           shape="default"
           title={sending ? "Stop" : "Send"}

@@ -43,10 +43,10 @@ export default function LoginView() {
   };
 
   return (
-    <main className="grid min-h-screen place-items-center bg-gradient-to-b from-[#fbfbfd] to-[#f5f5f7] p-6">
+    <main className="grid min-h-screen place-items-center bg-main-background p-6">
       <motion.section
         aria-labelledby="login-title"
-        className="w-full max-w-[460px] rounded-[42px] border border-white/40 bg-white/65 p-10 py-12 shadow-[0_20px_60px_rgba(0,0,0,0.08)] backdrop-blur-[40px] saturate-[200%]"
+        className="w-full max-w-[460px] rounded-[42px] border border-border bg-card-background p-10 py-12 shadow-[0_20px_60px_rgba(44,44,44,0.08)]"
         initial={{ opacity: 0, y: 40, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 100, damping: 20, mass: 1 }}
@@ -56,11 +56,11 @@ export default function LoginView() {
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="mb-5 inline-flex h-16 w-16 items-center justify-center rounded-[18px] bg-black text-white shadow-[0_10px_30px_rgba(0,0,0,0.15)]"
+            className="mb-5 inline-flex h-16 w-16 items-center justify-center rounded-[18px] bg-accent text-primary-button-text shadow-[0_10px_30px_rgba(44,44,44,0.14)]"
           >
             <Layers3 size={32} strokeWidth={2.2} />
           </motion.div>
-          <p className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[#86868b]">
+          <p className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">
             multi-agent-s2c
           </p>
           <h1
@@ -115,7 +115,7 @@ export default function LoginView() {
 
         <p className="mt-6 text-center text-sm font-semibold text-on-surface-variant">
           New here?{" "}
-          <Link className="font-bold text-[#007aff] hover:underline" to="/register">
+          <Link className="font-bold text-on-surface hover:text-accent-hover hover:underline" to="/register">
             Create an account
           </Link>
         </p>

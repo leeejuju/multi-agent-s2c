@@ -54,7 +54,7 @@ export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps)
           );
         })}
 
-        <div className="h-px w-6 bg-black/5 my-2" />
+        <div className="h-px w-6 bg-border my-2" />
 
         <button
           aria-label="Library"
@@ -78,7 +78,7 @@ export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps)
           <span className="tooltip-text">Settings</span>
         </button>
 
-        <div className="h-px w-6 bg-black/5 my-2" />
+        <div className="h-px w-6 bg-border my-2" />
 
         <button
           aria-label="Log out"

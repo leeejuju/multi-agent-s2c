@@ -180,7 +180,7 @@ export default function AgentChat() {
         <motion.button
           key="collapsed"
           aria-label="Expand chat"
-          className="absolute right-5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2 p-3 rounded-[32px] glass-effect border border-[#b8b8b8] ring-1 ring-[#b8b8b8] pointer-events-auto group"
+          className="absolute right-5 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-1.5 rounded-[28px] border border-border-strong p-2.5 ring-1 ring-border-strong glass-effect pointer-events-auto group"
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 100, opacity: 0 }}
@@ -188,7 +188,7 @@ export default function AgentChat() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           <div className="relative">
-            <Bot size={24} className="text-on-surface" />
+            <Bot size={22} className="text-on-surface" />
             {isSending && (
               <span className="absolute -top-1 -right-1 flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-on-surface opacity-75" />
@@ -196,23 +196,23 @@ export default function AgentChat() {
               </span>
             )}
           </div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant [writing-mode:vertical-lr] mt-2 group-hover:text-on-surface transition-colors">
+          <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant transition-colors [writing-mode:vertical-lr] group-hover:text-on-surface">
             {isSending ? "Active" : "Chat"}
           </span>
         </motion.button>
       ) : (
         <motion.aside
           key="expanded"
-          className="absolute right-5 top-2 bottom-2 z-40 w-[500px] flex flex-col pointer-events-auto"
+          className="absolute right-5 top-2 bottom-2 z-40 flex w-[468px] flex-col pointer-events-auto"
           initial={{ x: 500, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 500, opacity: 0 }}
           transition={{ type: "spring", stiffness: 200, damping: 24 }}
         >
-          <div className="flex flex-col h-full w-full overflow-hidden rounded-[32px] glass-effect border border-[#b8b8b8] ring-1 ring-[#b8b8b8]">
-            <header className="flex items-center justify-between py-5 px-6 border-b border-black/5">
+          <div className="glass-effect flex h-full w-full flex-col overflow-hidden rounded-[28px] border border-border-strong ring-1 ring-border-strong">
+            <header className="flex items-center justify-between border-b border-border px-5 py-4">
               <div className="flex flex-col">
-                <h1 className="m-0 font-display text-xl font-extrabold tracking-tight">
+                <h1 className="m-0 font-display text-[18px] font-semibold tracking-tight">
                   {conversationId ? "Conversation" : "New Chat"}
                 </h1>
               </div>
@@ -224,7 +224,7 @@ export default function AgentChat() {
                       <Button
                         block
                         className="mb-2 justify-start"
-                        icon={<Plus size={14} />}
+                        icon={<Plus size={13} />}
                         onClick={newConversation}
                         type="text"
                       >
@@ -257,13 +257,13 @@ export default function AgentChat() {
                   trigger="click"
                 >
                   <Button
-                    icon={<History size={16} />}
+                    icon={<History size={15} />}
                     title="History"
                     type="text"
                   />
                 </Popover>
                 <Button
-                  icon={<PanelRightClose size={16} />}
+                  icon={<PanelRightClose size={15} />}
                   onClick={toggleCollapse}
                   title="Collapse"
                   type="text"
@@ -272,15 +272,15 @@ export default function AgentChat() {
             </header>
 
             <div
-              className="flex-1 overflow-y-auto p-6 scrollbar-hide"
+              className="scrollbar-hide flex-1 overflow-y-auto p-5"
               ref={bodyRef}
             >
               {messages.length === 0 ? (
-                <div className="grid h-full place-items-center p-6 text-center text-sm leading-relaxed text-on-surface-variant opacity-60">
+                <div className="grid h-full place-items-center p-5 text-center text-[13px] leading-relaxed text-on-surface-variant opacity-60">
                   Start a conversation with the agent.
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2.5">
                   {messages.map((m, i) => {
                     const isCompactUserMessage =
                       m.role === "user" &&
@@ -335,7 +335,7 @@ export default function AgentChat() {
               )}
             </div>
 
-            <footer className="px-[5px] pb-[5px] pt-2">
+            <footer className="px-[5px] pb-[5px] pt-1.5">
               <MessageInput
                 selectedModelId={selectedModelId}
                 onSelectedModelChange={setSelectedModelId}

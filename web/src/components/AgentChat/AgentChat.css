@@ -2,7 +2,7 @@
 @reference "../../assets/css/Global.css";
 
 .message-bubble {
-  @apply rounded-[24px] px-4 py-2.5 text-[14px] font-medium leading-[1.55];
+  @apply rounded-[20px] px-3.5 py-2 text-[13px] font-normal leading-[1.55];
 }
 
 .message-row {
@@ -18,7 +18,7 @@
 }
 
 .message-stack {
-  @apply flex max-w-[88%] flex-col gap-2;
+  @apply flex max-w-[88%] flex-col gap-1.5;
 }
 
 .message-stack.is-user {
@@ -32,11 +32,11 @@
 /* ——— Directional Shapes ——— */
 .is-user .message-bubble,
 .message-bubble.is-user {
-  @apply rounded-[22px] bg-on-surface px-4 py-2.5 text-white;
+  @apply rounded-[18px] bg-accent px-3.5 py-2 text-primary-button-text;
 }
 
 .message-bubble.is-user.is-compact {
-  @apply rounded-full px-4 py-2;
+  @apply rounded-full px-3.5 py-1.5;
 }
 
 .is-assistant .message-bubble,
@@ -69,7 +69,7 @@
 }
 
 .markdown-body {
-  @apply text-[14px] font-medium leading-[1.55] text-[#2f3640];
+  @apply text-[13px] font-normal leading-[1.55] text-on-surface;
 }
 
 .markdown-body > :first-child {
@@ -81,15 +81,15 @@
 }
 
 .markdown-body h1 {
-  @apply mb-2 mt-4 text-[14px] font-medium leading-tight text-[#2f3640];
+  @apply mb-2 mt-3.5 text-[14px] font-medium leading-tight text-on-surface;
 }
 
 .markdown-body h2 {
-  @apply mb-2 mt-4 text-[14px] font-medium leading-tight text-[#2f3640];
+  @apply mb-2 mt-3.5 text-[14px] font-medium leading-tight text-on-surface;
 }
 
 .markdown-body h3 {
-  @apply mb-1.5 mt-3 text-[14px] font-medium leading-tight text-[#2f3640];
+  @apply mb-1.5 mt-2.5 text-[13px] font-medium leading-tight text-on-surface;
 }
 
 .markdown-body p {
@@ -114,23 +114,23 @@
 }
 
 .markdown-body strong {
-  @apply font-medium;
+  @apply font-semibold;
 }
 
 .markdown-body code {
-  @apply whitespace-pre-wrap break-words rounded-md bg-black/5 px-1.5 py-0.5 text-[14px] font-medium text-[#2f3640];
+  @apply whitespace-pre-wrap break-words rounded-md bg-surface-variant px-1.5 py-0.5 text-[13px] font-normal text-on-surface;
 }
 
 .markdown-body pre {
-  @apply my-2 whitespace-pre-wrap break-words rounded-xl bg-black/5 p-3 text-[14px] font-medium leading-[1.5] text-[#2f3640];
+  @apply my-2 whitespace-pre-wrap break-words rounded-lg bg-surface-variant p-2.5 text-[13px] font-normal leading-[1.5] text-on-surface;
 }
 
 .markdown-body pre code {
-  @apply whitespace-pre-wrap break-words bg-transparent p-0 text-[14px] font-medium text-[#2f3640];
+  @apply whitespace-pre-wrap break-words bg-transparent p-0 text-[13px] font-normal text-on-surface;
 }
 
 .markdown-body blockquote {
-  @apply my-2 border-l-4 border-black/15 pl-3 text-on-surface-variant;
+  @apply my-2 border-l-4 border-border-strong pl-3 text-on-surface-variant;
 }
 
 .markdown-body table {
@@ -139,11 +139,11 @@
 
 .markdown-body th,
 .markdown-body td {
-  @apply border border-black/10 px-2 py-1.5;
+  @apply border border-border px-2 py-1.5;
 }
 
 .markdown-body th {
-  @apply bg-black/5 font-bold;
+  @apply bg-surface-variant font-semibold;
 }
 
 @keyframes cursor-pulse {
@@ -152,11 +152,11 @@
 }
 
 .tool-call-stack {
-  @apply mb-3 flex flex-col gap-2;
+  @apply mb-2.5 flex flex-col gap-2;
 }
 
 .tool-call-card {
-  @apply relative overflow-hidden rounded-2xl border border-black/10 bg-[#101114] text-white shadow-sm;
+  @apply relative overflow-hidden rounded-[18px] border border-border bg-accent text-primary-button-text shadow-sm;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.045)),
     repeating-linear-gradient(0deg, transparent 0 5px, rgba(255,255,255,0.045) 5px 6px),
@@ -174,7 +174,7 @@
 }
 
 .tool-call-card-header {
-  @apply relative z-[1] flex min-h-12 w-full items-center gap-2 px-3 py-2 text-left;
+  @apply relative z-[1] flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left;
 }
 
 .tool-call-status {
@@ -182,16 +182,16 @@
 }
 
 .tool-call-status-icon {
-  @apply relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-white;
+  @apply relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary-button-text/10 text-primary-button-text;
 }
 
 .tool-call-status-spinner {
-  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-[#101114] p-0.5 text-white/80;
+  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-accent p-0.5 text-primary-button-text/80;
   animation: tool-call-spin 0.9s linear infinite;
 }
 
 .tool-call-status-check {
-  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-[#101114] p-0.5 text-[#67d391];
+  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-accent p-0.5 text-[#67d391];
 }
 
 .tool-call-status.is-completed .tool-call-status-icon,
@@ -231,19 +231,19 @@
 }
 
 .tool-call-status-title {
-  @apply truncate text-xs font-bold leading-tight text-white;
+  @apply truncate text-[11px] font-semibold leading-tight text-primary-button-text;
 }
 
 .tool-call-status-detail {
-  @apply truncate text-[11px] font-semibold leading-tight text-white/55;
+  @apply truncate text-[10px] font-medium leading-tight text-primary-button-text/55;
 }
 
 .tool-call-status-count {
-  @apply shrink-0 rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-bold uppercase text-white/65;
+  @apply shrink-0 rounded-full border border-primary-button-text/10 bg-primary-button-text/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-primary-button-text/65;
 }
 
 .tool-call-chevron {
-  @apply shrink-0 text-white/65 transition-transform duration-200;
+  @apply shrink-0 text-primary-button-text/65 transition-transform duration-200;
 }
 
 .tool-call-chevron.is-open {
@@ -251,19 +251,19 @@
 }
 
 .tool-call-card-body {
-  @apply relative z-[1] flex flex-col gap-2 overflow-hidden px-3 pb-3;
+  @apply relative z-[1] flex flex-col gap-2 overflow-hidden px-3 pb-2.5;
 }
 
 .tool-call-meta {
-  @apply grid grid-cols-[88px_1fr] gap-2 text-[11px] font-bold uppercase text-white/55;
+  @apply grid grid-cols-[80px_1fr] gap-2 text-[10px] font-semibold uppercase text-primary-button-text/55;
 }
 
 .tool-call-meta span {
-  @apply truncate rounded-md border border-white/10 bg-white/5 px-2 py-1;
+  @apply truncate rounded-md border border-primary-button-text/10 bg-primary-button-text/5 px-2 py-1;
 }
 
 .tool-call-reel {
-  @apply relative h-[86px] overflow-hidden rounded-xl border border-white/10 bg-black/35;
+  @apply relative h-[78px] overflow-hidden rounded-lg border border-white/10 bg-black/35;
   image-rendering: pixelated;
   mask-image: linear-gradient(180deg, transparent 0%, black 16%, black 84%, transparent 100%);
 }
@@ -297,7 +297,7 @@
 }
 
 .tool-call-reel-row {
-  @apply flex h-[43px] items-center px-3 text-[12px] font-bold leading-tight text-white;
+  @apply flex h-[39px] items-center px-3 text-[11px] font-semibold leading-tight text-primary-button-text;
   text-shadow: 1px 1px 0 rgba(0,0,0,0.8);
 }
 
@@ -310,11 +310,11 @@
 
 @keyframes tool-call-roll {
   0%, 13% { transform: translateY(0); }
-  20%, 33% { transform: translateY(-43px); }
-  40%, 53% { transform: translateY(-86px); }
-  60%, 73% { transform: translateY(-129px); }
-  80%, 93% { transform: translateY(-172px); }
-  100% { transform: translateY(-215px); }
+  20%, 33% { transform: translateY(-39px); }
+  40%, 53% { transform: translateY(-78px); }
+  60%, 73% { transform: translateY(-117px); }
+  80%, 93% { transform: translateY(-156px); }
+  100% { transform: translateY(-195px); }
 }
 
 @keyframes tool-call-wipe {
@@ -335,23 +335,23 @@
 }
 
 .message-attachments {
-  @apply flex max-w-[320px] flex-col gap-2 rounded-[20px] border border-black/10 bg-white/90 p-2 shadow-sm;
+  @apply flex max-w-[300px] flex-col gap-1.5 rounded-[16px] border border-border bg-card-background p-1.5 shadow-sm;
 }
 
 .message-attachments.is-single {
-  @apply w-fit min-w-[220px];
+  @apply w-fit min-w-[200px];
 }
 
 .message-attachment {
-  @apply flex min-w-0 items-center gap-2 rounded-2xl border px-2 py-2 text-left no-underline transition-colors;
+  @apply flex min-w-0 items-center gap-2 rounded-[14px] border px-2 py-1.5 text-left no-underline transition-colors;
 }
 
 .is-user .message-attachment {
-  @apply border-black/10 bg-black/5 text-on-surface hover:bg-black/10;
+  @apply border-border bg-surface-variant text-on-surface hover:bg-main-background;
 }
 
 .is-assistant .message-attachment {
-  @apply border-black/10 bg-black/5 text-on-surface hover:bg-black/10;
+  @apply border-border bg-surface-variant text-on-surface hover:bg-main-background;
 }
 
 .message-attachment.is-uploading {
@@ -363,11 +363,11 @@
 }
 
 .message-attachment-thumb {
-  @apply relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/15;
+  @apply relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary-button-text/15;
 }
 
 .is-assistant .message-attachment-thumb {
-  @apply bg-white;
+  @apply bg-card-background;
 }
 
 .message-attachment-thumb img {
@@ -375,7 +375,7 @@
 }
 
 .message-attachment-spinner {
-  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-black/50 p-0.5 text-white;
+  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-accent p-0.5 text-primary-button-text;
   animation: tool-call-spin 0.9s linear infinite;
 }
 
@@ -384,11 +384,11 @@
 }
 
 .message-attachment-name {
-  @apply truncate text-[12px] font-bold leading-tight;
+  @apply truncate text-[11px] font-medium leading-tight;
 }
 
 .message-attachment-meta {
-  @apply truncate text-[11px] font-semibold leading-tight opacity-65;
+  @apply truncate text-[10px] font-medium leading-tight opacity-65;
 }
 
 .message-attachment-download {

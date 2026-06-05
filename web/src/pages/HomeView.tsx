@@ -12,7 +12,7 @@ export default function HomeView() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <main className="flex h-screen w-screen relative overflow-hidden bg-surface">
+    <main className="flex h-screen w-screen relative overflow-hidden bg-main-background">
       {/* Interactive Infinite Canvas */}
       <GridCanvas />
 

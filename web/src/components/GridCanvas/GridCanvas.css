@@ -2,7 +2,7 @@
 @reference "../../assets/css/Global.css";
 
 .grid-canvas {
-  @apply absolute inset-0 z-0 overflow-hidden touch-none bg-[#f4f4f7] cursor-default;
+  @apply absolute inset-0 z-0 overflow-hidden touch-none bg-main-background cursor-default;
 }
 
 .grid-canvas.is-panning {
@@ -11,7 +11,7 @@
 
 .canvas-grid {
   @apply absolute inset-0 pointer-events-none;
-  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.12) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(44, 44, 44, 0.12) 1px, transparent 1px);
 }
 
 .canvas-workspace {
@@ -20,7 +20,7 @@
 
 /* ——— Grid Nodes ——— */
 .grid-node {
-  @apply absolute pointer-events-auto rounded-[20px] bg-white border border-black/5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] p-5 flex flex-col select-none transition-shadow duration-200;
+  @apply absolute pointer-events-auto rounded-[20px] bg-card-background border border-border shadow-[0_4px_20px_rgba(44,44,44,0.04)] p-5 flex flex-col select-none transition-shadow duration-200;
 }
 
 .grid-node.is-attachment {
@@ -48,20 +48,20 @@
 }
 
 .remove-node-btn {
-  @apply absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center rounded-full bg-white border border-black/5 shadow-sm text-on-surface-variant opacity-0 group-hover:opacity-100 transition-all duration-200 hover:text-[#ff3b30] z-10;
+  @apply absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center rounded-full bg-card-background border border-border shadow-sm text-on-surface-variant opacity-0 group-hover:opacity-100 transition-all duration-200 hover:text-[#ff3b30] z-10;
 }
 
 /* ——— Context Menu ——— */
 .canvas-context-menu {
-  @apply fixed z-[100] w-[180px] p-1.5 rounded-2xl glass-effect shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-white/40 flex flex-col gap-0.5;
+  @apply fixed z-[100] w-[180px] p-1.5 rounded-2xl glass-effect shadow-[0_12px_40px_rgba(44,44,44,0.12)] border border-border flex flex-col gap-0.5;
 }
 
 .menu-item {
-  @apply flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-semibold text-on-surface-variant transition-colors hover:bg-black/5 hover:text-on-surface cursor-pointer text-left;
+  @apply flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface cursor-pointer text-left;
 }
 
 .menu-item.is-primary {
-  @apply text-[#007aff];
+  @apply text-on-surface;
 }
 
 .menu-item svg {
@@ -69,15 +69,15 @@
 }
 
 .menu-divider {
-  @apply h-px w-full bg-black/5 my-1;
+  @apply h-px w-full bg-border my-1;
 }
 
 .grid-node.is-selected {
-  @apply ring-2 ring-[#007aff] ring-offset-2;
+  @apply ring-2 ring-accent ring-offset-2;
 }
 
 .grid-node.is-image.is-selected img {
-  @apply ring-2 ring-[#007aff] ring-offset-2;
+  @apply ring-2 ring-accent ring-offset-2;
 }
 
 .grid-node h3 {

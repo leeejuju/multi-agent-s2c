@@ -63,7 +63,7 @@ export default function LibraryDrawer({
       key: "drawing-scripts",
       label: (
         <span className="inline-flex items-center gap-2">
-          <Clapperboard size={16} />
+          <Clapperboard size={15} />
           Drawing Scripts
         </span>
       ),
@@ -72,7 +72,7 @@ export default function LibraryDrawer({
       key: "screenplays",
       label: (
         <span className="inline-flex items-center gap-2">
-          <BookOpen size={16} />
+          <BookOpen size={15} />
           Screenplays
         </span>
       ),
@@ -191,7 +191,7 @@ export default function LibraryDrawer({
                   title="Close"
                   type="button"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </header>
 
@@ -255,7 +255,7 @@ function DrawingScriptLibrary({
             {item.cover_url ? (
               <img alt="" src={item.cover_url} />
             ) : (
-              <Film size={26} />
+              <Film size={22} />
             )}
           </div>
           <div className="library-item-body">
