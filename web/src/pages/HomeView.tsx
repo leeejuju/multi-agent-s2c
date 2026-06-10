@@ -6,10 +6,12 @@ import GridCanvas from "@/components/GridCanvas";
 import LibraryDrawer from "@/components/LibraryDrawer";
 import SettingsPanel from "@/components/SettingsPanel";
 import Sidebar from "@/components/Sidebar";
+import WorkStudioPanel from "@/components/WorkStudioPanel";
 
 export default function HomeView() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [workStudioOpen, setWorkStudioOpen] = useState(false);
 
   return (
     <main className="flex h-screen w-screen relative overflow-hidden bg-main-background">
@@ -17,8 +19,21 @@ export default function HomeView() {
       <GridCanvas />
 
       <Sidebar
-        onOpenLibrary={() => setLibraryOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenLibrary={() => {
+          setLibraryOpen(true);
+          setSettingsOpen(false);
+          setWorkStudioOpen(false);
+        }}
+        onOpenSettings={() => {
+          setSettingsOpen(true);
+          setLibraryOpen(false);
+          setWorkStudioOpen(false);
+        }}
+        onOpenWorkStudio={() => {
+          setWorkStudioOpen(true);
+          setLibraryOpen(false);
+          setSettingsOpen(false);
+        }}
       />
 
       {/* Center hint */}
@@ -33,6 +48,11 @@ export default function HomeView() {
       </section>
 
       <AgentChat />
+
+      <WorkStudioPanel
+        open={workStudioOpen}
+        onClose={() => setWorkStudioOpen(false)}
+      />
 
       <LibraryDrawer
         open={libraryOpen}

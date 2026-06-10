@@ -9,11 +9,15 @@
 }
 
 .settings-floating-panel {
-  @apply flex h-[min(600px,calc(100vh-40px))] w-[calc(100vw-56px)] max-w-[1120px] min-w-0 flex-col overflow-hidden rounded-[18px] border border-border bg-card-background shadow-[0_16px_40px_rgba(44,44,44,0.1)];
+  @apply flex h-[min(540px,calc(100vh-48px))] w-[calc(100vw-80px)] max-w-[900px] min-w-0 flex-col overflow-hidden rounded-[14px] border border-border bg-card-background shadow-[0_16px_38px_rgba(44,44,44,0.08)];
 }
 
 .settings-header {
-  @apply flex items-center justify-between px-4 py-2.5;
+  @apply flex cursor-grab touch-none select-none items-center justify-between border-b border-border px-5 py-3;
+}
+
+.settings-header:active {
+  @apply cursor-grabbing;
 }
 
 .settings-header h2 {
@@ -21,15 +25,15 @@
 }
 
 .settings-icon-btn {
-  @apply flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-[7px] border border-border-strong bg-card-background text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface;
+  @apply flex h-7 w-7 cursor-pointer items-center justify-center rounded-[7px] border border-transparent bg-transparent text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface;
 }
 
 .settings-body {
-  @apply flex w-full flex-1 overflow-hidden p-3.5;
+  @apply flex min-h-0 w-full flex-1 overflow-hidden;
 }
 
 .settings-row {
-  @apply flex items-center justify-between gap-4 px-4 py-3;
+  @apply flex items-center justify-between gap-3 px-3 py-2.5;
 }
 
 .settings-row-text {
@@ -37,7 +41,7 @@
 }
 
 .settings-row-label {
-  @apply min-w-0 text-sm font-medium text-on-surface;
+  @apply min-w-0 text-[13px] font-medium text-on-surface;
 }
 
 .settings-row-description {
@@ -45,24 +49,26 @@
 }
 
 .settings-row-value {
-  @apply shrink-0 text-sm font-medium text-on-surface-variant;
+  @apply shrink-0 text-[13px] font-medium text-on-surface-variant;
 }
 
 .settings-layout {
-  @apply grid h-full w-full gap-[10px];
-  grid-template-columns: 176px 152px 1fr;
+  @apply grid h-full min-h-0 w-full gap-0;
+  grid-template-columns: 120px 140px minmax(0, 1fr);
 }
 
 .settings-sidebar {
-  @apply h-full w-full overflow-y-auto rounded-[9px] border border-border bg-surface-variant;
+  @apply h-full min-h-0 w-full overflow-y-auto bg-transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .settings-sidebar-primary {
-  @apply bg-card-background p-2.5;
+  @apply border-r border-border px-2.5 py-4;
 }
 
 .settings-sidebar-secondary {
-  @apply bg-card-background p-2.5;
+  @apply border-r border-border px-2.5 py-4;
 }
 
 .settings-sidebar-nav {
@@ -74,15 +80,15 @@
 }
 
 .settings-sidebar .settings-nav-button {
-  @apply flex h-10 min-h-10 w-full items-center justify-start gap-2.5 rounded-[6px] border border-transparent px-2.5 text-[13px] font-normal text-on-surface transition-colors duration-150;
+  @apply flex h-8 min-h-8 w-full items-center justify-start gap-2 rounded-[7px] border border-transparent bg-transparent px-2 text-[12px] font-normal text-on-surface transition-colors duration-150;
 }
 
 .settings-sidebar .settings-nav-button svg {
-  @apply h-[18px] w-[18px] shrink-0;
+  @apply h-4 w-4 shrink-0;
 }
 
 .settings-sidebar .settings-provider-icon {
-  @apply h-[18px] w-[18px] shrink-0 object-contain;
+  @apply h-4 w-4 shrink-0 object-contain;
 }
 
 .settings-sidebar .settings-nav-button span {
@@ -90,12 +96,12 @@
 }
 
 .settings-sidebar .settings-nav-button.is-active {
-  @apply border-border-strong bg-surface-variant text-on-surface hover:bg-surface-variant;
+  @apply border-border bg-surface-variant text-on-surface hover:bg-surface-variant;
   font-weight: 500;
 }
 
 .settings-sidebar .settings-nav-button.is-inactive {
-  @apply bg-card-background text-on-surface-variant hover:bg-main-background;
+  @apply text-on-surface-variant hover:bg-surface-variant hover:text-on-surface;
 }
 
 .settings-sidebar .settings-nav-button.is-active:hover {
@@ -107,16 +113,18 @@
 }
 
 .settings-detail {
-  @apply flex h-full w-full flex-1 min-h-0 flex-col overflow-y-auto rounded-[10px] border border-border bg-card-background p-5;
-  gap: 16px;
+  @apply flex h-full w-full flex-1 min-h-0 flex-col overflow-y-auto bg-transparent px-4 py-4;
+  gap: 18px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .settings-detail-title {
-  @apply px-1 pt-1 pb-1 text-[13px] font-medium text-on-surface;
+  @apply px-1 pb-0 text-[13px] font-medium text-on-surface;
 }
 
 .settings-row-group {
-  @apply w-full rounded-[10px] overflow-hidden border border-border bg-card-background;
+  @apply w-full overflow-visible border-b border-border bg-transparent;
 }
 
 .settings-row-divider {
@@ -124,11 +132,11 @@
 }
 
 .settings-provider-config .settings-row {
-  @apply min-h-[58px];
+  @apply min-h-[54px];
 }
 
 .settings-provider-config-section {
-  @apply flex w-full flex-col gap-4 transition-all duration-200;
+  @apply flex w-full flex-col gap-5 transition-all duration-200;
 }
 
 .settings-provider-config-section.is-disabled {
@@ -142,8 +150,8 @@
 }
 
 .settings-provider-card {
-  @apply flex w-full items-center justify-between gap-4 rounded-[10px] border border-border bg-card-background px-5 py-3.5;
-  min-height: 60px;
+  @apply flex w-full items-center justify-between gap-4 border-b border-border px-1 pb-3.5;
+  min-height: 42px;
 }
 
 .settings-provider-summary-main {
@@ -151,11 +159,11 @@
 }
 
 .settings-provider-summary-title {
-  @apply min-w-0 truncate text-[14px] font-medium leading-none text-on-surface;
+  @apply min-w-0 truncate text-[16px] font-medium leading-none text-on-surface;
 }
 
 .settings-provider-summary-action {
-  @apply flex min-h-8 shrink-0 items-center gap-3;
+  @apply flex min-h-7 shrink-0 items-center gap-2.5;
 }
 
 .settings-provider-summary-action-label {
@@ -163,11 +171,11 @@
 }
 
 .settings-provider-detail-icon {
-  @apply h-5 w-5 shrink-0 object-contain;
+  @apply h-[18px] w-[18px] shrink-0 object-contain;
 }
 
 .settings-api-key-card {
-  @apply flex flex-col gap-4 px-4 py-4;
+  @apply flex flex-col gap-4 pb-5;
 }
 
 .settings-field-block {
@@ -199,11 +207,11 @@
 }
 
 .settings-base-url-shell {
-  @apply flex w-full items-center overflow-hidden rounded-[8px] border border-border-strong bg-main-background;
+  @apply flex w-full items-center overflow-hidden rounded-[8px] border border-border bg-main-background;
 }
 
 .settings-base-url-input {
-  @apply h-10 border-0 bg-transparent px-3 text-[13px] font-normal text-on-surface shadow-none;
+  @apply h-9 border-0 bg-transparent px-3 text-[12px] font-normal text-on-surface shadow-none;
 }
 
 .settings-base-url-input::placeholder {
@@ -217,7 +225,7 @@
 }
 
 .settings-api-key-shell {
-  @apply flex w-full items-center overflow-hidden rounded-[8px] border border-border-strong bg-main-background;
+  @apply flex w-full items-center overflow-hidden rounded-[8px] border border-border bg-main-background;
 }
 
 .settings-api-key-field {
@@ -242,7 +250,7 @@
 }
 
 .settings-api-key-test-button {
-  @apply h-10 shrink-0 rounded-none border-0 border-l border-border-strong bg-transparent px-4 text-[13px] font-medium text-on-surface shadow-none hover:bg-surface-variant hover:text-on-surface;
+  @apply h-9 shrink-0 rounded-none border-0 border-l border-border bg-transparent px-3 text-[12px] font-medium text-on-surface shadow-none hover:bg-surface-variant hover:text-on-surface;
 }
 
 .settings-api-key-status-row {
@@ -262,11 +270,11 @@
 }
 
 .settings-model-series-panel {
-  @apply flex w-full flex-col gap-3 px-4 py-4;
+  @apply flex w-full flex-col gap-3 border-b-0 pb-1;
 }
 
 .settings-model-series-header {
-  @apply flex items-center justify-between gap-3 text-[10px] font-medium uppercase tracking-normal text-on-surface-variant;
+  @apply flex items-center justify-between gap-3 px-1 text-[10px] font-medium uppercase tracking-normal text-on-surface-variant;
 }
 
 .settings-model-series-header span:first-child {
@@ -274,16 +282,16 @@
 }
 
 .settings-model-series-grid {
-  @apply grid gap-3;
+  @apply grid gap-0;
   grid-template-columns: 1fr;
 }
 
 .settings-model-card {
-  @apply flex flex-col gap-2.5 rounded-[8px] border border-border bg-main-background p-3;
+  @apply flex flex-col gap-2.5 border-t border-border py-3;
 }
 
 .settings-model-card-header {
-  @apply flex items-center justify-between gap-2;
+  @apply flex items-center justify-between gap-3 px-1;
 }
 
 .settings-model-card-header span:first-child {
@@ -291,23 +299,23 @@
 }
 
 .settings-model-card-header span:last-child {
-  @apply shrink-0 rounded-[6px] bg-surface-variant px-2 py-0.5 text-[10px] font-medium text-on-surface-variant;
+  @apply shrink-0 text-[10px] font-medium text-on-surface-variant;
 }
 
 .settings-model-chip-list {
-  @apply flex flex-wrap gap-2;
+  @apply flex flex-wrap gap-1.5 px-1;
 }
 
 .settings-model-chip {
-  @apply flex max-w-full cursor-pointer items-center gap-1 rounded-[6px] border border-border bg-main-background px-2 py-1 text-[11px] font-medium text-on-surface transition-colors hover:border-border-strong hover:bg-surface-variant;
+  @apply flex max-w-full cursor-pointer items-center gap-1 rounded-[6px] border border-border bg-main-background px-2 py-0.5 text-[10px] font-medium text-on-surface transition-colors hover:border-border-strong hover:bg-surface-variant;
 }
 
 .settings-model-chip.is-selected {
-  @apply border-accent bg-accent/5 font-semibold text-accent;
+  @apply border-border-strong bg-accent font-semibold text-on-surface;
 }
 
 .settings-model-chip-icon {
-  @apply text-accent shrink-0;
+  @apply shrink-0 text-on-surface;
 }
 
 .settings-model-chip span {
@@ -323,22 +331,32 @@
     @apply h-[calc(100vh-24px)] w-[calc(100vw-24px)] min-w-0 rounded-[16px];
   }
 
+  .settings-header {
+    @apply px-5 py-3.5;
+  }
+
   .settings-layout {
-    @apply h-full overflow-y-auto;
-    grid-template-columns: 1fr;
+    @apply flex h-full min-h-0 flex-col overflow-hidden;
   }
 
-  .settings-sidebar,
+  .settings-sidebar {
+    @apply h-auto max-h-none overflow-x-auto overflow-y-hidden border-r-0 border-b border-border px-4 py-3;
+  }
+
+  .settings-sidebar-nav {
+    @apply min-w-max flex-row;
+  }
+
+  .settings-sidebar .settings-nav-button {
+    @apply w-auto min-w-max;
+  }
+
   .settings-detail {
-    @apply max-h-[220px];
-  }
-
-  .settings-sidebar-primary {
-    @apply w-full;
+    @apply min-h-0 flex-1 px-5 py-5;
   }
 
   .settings-provider-card {
-    @apply items-start gap-3 px-4 py-3;
+    @apply items-start gap-3 px-1 pb-4;
   }
 
   .settings-provider-summary-action {
@@ -346,10 +364,10 @@
   }
 
   .settings-api-key-card {
-    @apply gap-3.5 p-3.5;
+    @apply gap-5 pb-6;
   }
 
   .settings-model-series-panel {
-    @apply gap-3 p-3.5;
+    @apply gap-3 pb-1;
   }
 }

@@ -20,11 +20,11 @@
 
 /* ——— Grid Nodes ——— */
 .grid-node {
-  @apply absolute pointer-events-auto rounded-[20px] bg-card-background border border-border shadow-[0_4px_20px_rgba(44,44,44,0.04)] p-5 flex flex-col select-none transition-shadow duration-200;
+  @apply absolute pointer-events-auto rounded-[14px] bg-card-background border border-border shadow-[0_4px_18px_rgba(44,44,44,0.04)] p-4 flex flex-col select-none transition-shadow duration-200;
 }
 
 .grid-node.is-attachment {
-  @apply p-3 flex-row items-center gap-4 min-w-[180px];
+  @apply p-2.5 flex-row items-center gap-3 min-w-[160px];
 }
 
 .attachment-node-content {
@@ -32,7 +32,7 @@
 }
 
 .attachment-icon-wrapper {
-  @apply flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface-variant text-on-surface;
+  @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-surface-variant text-on-surface;
 }
 
 .attachment-info {
@@ -40,7 +40,7 @@
 }
 
 .attachment-info h4 {
-  @apply m-0 text-[14px] font-bold text-on-surface truncate;
+  @apply m-0 text-[13px] font-medium text-on-surface truncate;
 }
 
 .attachment-info span {
@@ -53,11 +53,11 @@
 
 /* ——— Context Menu ——— */
 .canvas-context-menu {
-  @apply fixed z-[100] w-[180px] p-1.5 rounded-2xl glass-effect shadow-[0_12px_40px_rgba(44,44,44,0.12)] border border-border flex flex-col gap-0.5;
+  @apply fixed z-[100] w-[168px] p-1.5 rounded-[12px] glass-effect shadow-[0_12px_34px_rgba(44,44,44,0.1)] border border-border flex flex-col gap-0.5;
 }
 
 .menu-item {
-  @apply flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface cursor-pointer text-left;
+  @apply flex items-center gap-2.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface cursor-pointer text-left;
 }
 
 .menu-item.is-primary {
@@ -81,13 +81,13 @@
 }
 
 .grid-node h3 {
-  @apply m-0 font-display text-[15px] font-extrabold text-on-surface;
+  @apply m-0 text-[14px] font-medium text-on-surface;
 }
 
 .grid-node p {
-  @apply mt-1.5 text-[13px] leading-relaxed text-on-surface-variant;
+  @apply mt-1.5 text-[12px] leading-relaxed text-on-surface-variant;
 }
 
 .node-accent {
-  @apply absolute left-0 top-5 bottom-5 w-1 bg-on-surface rounded-r;
+  @apply absolute left-0 top-4 bottom-4 w-1 bg-on-surface rounded-r;
 }

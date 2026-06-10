@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
+import { type PointerEvent, useState } from "react";
 
 import {
   getSettingsPanelMotion,
@@ -75,6 +75,7 @@ function createProviderRecord<T>(value: T) {
 export default function SettingsPanel({ onClose, open }: SettingsPanelProps) {
   const shouldReduceMotion = useReducedMotion();
   const panelMotion = getSettingsPanelMotion(shouldReduceMotion);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
   const [compactMode, setCompactMode] = useState(true);
   const [autoSave, setAutoSave] = useState(true);
   const [theme, setTheme] = useState("system");
@@ -95,6 +96,35 @@ export default function SettingsPanel({ onClose, open }: SettingsPanelProps) {
     secondaryItems.find((item) => item.key === activeSecondary)?.label ??
     secondaryItems[0].label;
 
+  const handleDragStart = (event: PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startPosition = position;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const handleMove = (moveEvent: globalThis.PointerEvent) => {
+      setPosition({
+        x: startPosition.x + moveEvent.clientX - startX,
+        y: startPosition.y + moveEvent.clientY - startY,
+      });
+    };
+
+    const handleUp = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -112,13 +142,15 @@ export default function SettingsPanel({ onClose, open }: SettingsPanelProps) {
               aria-modal="true"
               className="settings-floating-panel"
               role="dialog"
+              style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
             >
-              <header className="settings-header">
+              <header className="settings-header" onPointerDown={handleDragStart}>
                 <h2>Settings</h2>
                 <button
                   aria-label="Close settings"
                   className="settings-icon-btn"
                   onClick={onClose}
+                  onPointerDown={(event) => event.stopPropagation()}
                   title="Close"
                   type="button"
                 >

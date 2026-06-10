@@ -180,7 +180,7 @@ export default function AgentChat() {
         <motion.button
           key="collapsed"
           aria-label="Expand chat"
-          className="absolute right-5 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-1.5 rounded-[28px] border border-border-strong p-2.5 ring-1 ring-border-strong glass-effect pointer-events-auto group"
+          className="absolute right-4 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-1.5 rounded-[18px] border border-border-strong p-2 ring-1 ring-border-strong glass-effect pointer-events-auto group"
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 100, opacity: 0 }}
@@ -188,7 +188,7 @@ export default function AgentChat() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           <div className="relative">
-            <Bot size={22} className="text-on-surface" />
+            <Bot size={20} className="text-on-surface" />
             {isSending && (
               <span className="absolute -top-1 -right-1 flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-on-surface opacity-75" />
@@ -203,16 +203,16 @@ export default function AgentChat() {
       ) : (
         <motion.aside
           key="expanded"
-          className="absolute right-5 top-2 bottom-2 z-40 flex w-[468px] flex-col pointer-events-auto"
+          className="absolute right-4 top-3 bottom-3 z-40 flex w-[420px] flex-col pointer-events-auto"
           initial={{ x: 500, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 500, opacity: 0 }}
           transition={{ type: "spring", stiffness: 200, damping: 24 }}
         >
-          <div className="glass-effect flex h-full w-full flex-col overflow-hidden rounded-[28px] border border-border-strong ring-1 ring-border-strong">
-            <header className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="glass-effect flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border-strong ring-1 ring-border-strong">
+            <header className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex flex-col">
-                <h1 className="m-0 font-display text-[18px] font-semibold tracking-tight">
+                <h1 className="m-0 text-[15px] font-medium tracking-tight">
                   {conversationId ? "Conversation" : "New Chat"}
                 </h1>
               </div>
@@ -220,7 +220,7 @@ export default function AgentChat() {
                 <Popover
                   arrow={false}
                   content={
-                    <div className="w-[360px]">
+                    <div className="w-[320px]">
                       <Button
                         block
                         className="mb-2 justify-start"
@@ -272,11 +272,11 @@ export default function AgentChat() {
             </header>
 
             <div
-              className="scrollbar-hide flex-1 overflow-y-auto p-5"
+              className="scrollbar-hide flex-1 overflow-y-auto p-4"
               ref={bodyRef}
             >
               {messages.length === 0 ? (
-                <div className="grid h-full place-items-center p-5 text-center text-[13px] leading-relaxed text-on-surface-variant opacity-60">
+                <div className="grid h-full place-items-center p-4 text-center text-[12px] leading-relaxed text-on-surface-variant opacity-60">
                   Start a conversation with the agent.
                 </div>
               ) : (
@@ -335,7 +335,7 @@ export default function AgentChat() {
               )}
             </div>
 
-            <footer className="px-[5px] pb-[5px] pt-1.5">
+            <footer className="px-1.5 pb-1.5 pt-1">
               <MessageInput
                 selectedModelId={selectedModelId}
                 onSelectedModelChange={setSelectedModelId}

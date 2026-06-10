@@ -8,9 +8,9 @@
   --color-surface-variant: #f1efea;
   --color-on-surface: #2c2c2c;
   --color-on-surface-variant: #707070;
-  --color-accent: #1a1a1a;
-  --color-accent-hover: #333333;
-  --color-primary-button-text: #faf9f6;
+  --color-accent: #e8e2d5;
+  --color-accent-hover: #ded6c6;
+  --color-primary-button-text: #2c2c2c;
   --color-border: #e5e2da;
   --color-border-strong: #d6d3c9;
   --color-glass: rgba(255, 255, 255, 0.78);
@@ -44,7 +44,7 @@
   }
 
   html {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   body {

@@ -112,7 +112,7 @@ export default function MessageInput({
   );
 
   return (
-    <div className="message-input glass-effect-sm flex flex-col overflow-hidden rounded-[26px] bg-card-background">
+    <div className="message-input glass-effect-sm flex flex-col overflow-hidden rounded-[18px] bg-card-background">
       <input
         type="file"
         ref={fileInputRef}
@@ -122,7 +122,7 @@ export default function MessageInput({
       />
 
       {(images.length > 0 || attachments.length > 0) && (
-        <div className="border-b border-border bg-surface-variant px-2.5 pt-2.5 pb-0.5">
+        <div className="border-b border-border bg-surface-variant px-2 pt-2 pb-0.5">
           <AttachmentCapsules
             attachments={attachments}
             images={images}
@@ -132,9 +132,9 @@ export default function MessageInput({
         </div>
       )}
 
-      <div className="px-2.5 py-2.5 pb-1">
+      <div className="px-2 py-2 pb-1">
         <textarea
-          className="message-input-textarea w-full min-h-[84px] max-h-[200px] resize-none border-0 bg-transparent py-1 text-[13px] outline-none"
+          className="message-input-textarea w-full min-h-[68px] max-h-[160px] resize-none border-0 bg-transparent py-1 text-[13px] outline-none"
           disabled={disabled}
           onChange={(event) => onTextChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -143,7 +143,7 @@ export default function MessageInput({
         />
       </div>
 
-      <div className="flex items-center justify-between px-2 pb-1.5 pt-1">
+      <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
         <div className="flex items-center gap-1">
           <Button
             className="flex h-7 items-center rounded-lg text-[11px] font-medium"
@@ -184,14 +184,13 @@ export default function MessageInput({
         </div>
 
         <Button
-          className={`message-send-button ${sending ? "bg-red-500 hover:!bg-red-600" : ""}`}
-          danger={sending}
+          className={`message-send-button ${sending ? "is-stopping" : ""}`}
           disabled={sending ? false : !canSend}
           icon={sending ? <Square size={13} fill="currentColor" /> : <ArrowUp size={16} />}
           onClick={sending ? onStop : onSend}
           shape="default"
           title={sending ? "Stop" : "Send"}
-          type="primary"
+          type={sending ? "default" : "primary"}
         />
       </div>
     </div>

@@ -2,7 +2,7 @@
 @reference "../../assets/css/Global.css";
 
 .message-bubble {
-  @apply rounded-[20px] px-3.5 py-2 text-[13px] font-normal leading-[1.55];
+  @apply rounded-[16px] px-3 py-1.5 text-[13px] font-normal leading-[1.55];
 }
 
 .message-row {
@@ -32,11 +32,11 @@
 /* ——— Directional Shapes ——— */
 .is-user .message-bubble,
 .message-bubble.is-user {
-  @apply rounded-[18px] bg-accent px-3.5 py-2 text-primary-button-text;
+  @apply rounded-[14px] bg-accent px-3 py-1.5 text-primary-button-text;
 }
 
 .message-bubble.is-user.is-compact {
-  @apply rounded-full px-3.5 py-1.5;
+  @apply rounded-full px-3 py-1.5;
 }
 
 .is-assistant .message-bubble,
@@ -156,7 +156,7 @@
 }
 
 .tool-call-card {
-  @apply relative overflow-hidden rounded-[18px] border border-border bg-accent text-primary-button-text shadow-sm;
+  @apply relative overflow-hidden rounded-[12px] border border-border-strong bg-accent text-primary-button-text shadow-sm;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.045)),
     repeating-linear-gradient(0deg, transparent 0 5px, rgba(255,255,255,0.045) 5px 6px),
@@ -263,7 +263,7 @@
 }
 
 .tool-call-reel {
-  @apply relative h-[78px] overflow-hidden rounded-lg border border-white/10 bg-black/35;
+  @apply relative h-[78px] overflow-hidden rounded-lg border border-border bg-surface-variant;
   image-rendering: pixelated;
   mask-image: linear-gradient(180deg, transparent 0%, black 16%, black 84%, transparent 100%);
 }
@@ -298,7 +298,7 @@
 
 .tool-call-reel-row {
   @apply flex h-[39px] items-center px-3 text-[11px] font-semibold leading-tight text-primary-button-text;
-  text-shadow: 1px 1px 0 rgba(0,0,0,0.8);
+  text-shadow: 1px 1px 0 rgba(250,249,246,0.8);
 }
 
 .tool-call-reel-row span {
@@ -335,7 +335,7 @@
 }
 
 .message-attachments {
-  @apply flex max-w-[300px] flex-col gap-1.5 rounded-[16px] border border-border bg-card-background p-1.5 shadow-sm;
+  @apply flex max-w-[280px] flex-col gap-1.5 rounded-[12px] border border-border bg-card-background p-1.5 shadow-sm;
 }
 
 .message-attachments.is-single {
@@ -343,7 +343,7 @@
 }
 
 .message-attachment {
-  @apply flex min-w-0 items-center gap-2 rounded-[14px] border px-2 py-1.5 text-left no-underline transition-colors;
+  @apply flex min-w-0 items-center gap-2 rounded-[10px] border px-2 py-1.5 text-left no-underline transition-colors;
 }
 
 .is-user .message-attachment {

@@ -31,32 +31,37 @@ export default function App() {
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: "#1A1A1A",
-          colorPrimaryActive: "#333333",
-          colorPrimaryHover: "#333333",
+          colorPrimary: "#E8E2D5",
+          colorPrimaryActive: "#D6CCBA",
+          colorPrimaryHover: "#DED6C6",
           colorBgBase: "#FAF9F6",
           colorBgContainer: "#FFFFFF",
           colorBgLayout: "#FAF9F6",
           colorBorder: "#D6D3C9",
           colorBorderSecondary: "#E5E2DA",
           colorText: "#2C2C2C",
+          colorTextLightSolid: "#2C2C2C",
           colorTextSecondary: "#707070",
           borderRadius: 8,
+          controlHeight: 34,
+          controlHeightLG: 38,
+          controlHeightSM: 28,
           fontFamily:
             'sans-serif, "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui',
         },
         components: {
           Button: {
-            borderRadius: 14,
-            controlHeight: 40,
+            borderRadius: 8,
+            controlHeight: 32,
+            paddingInline: 12,
           },
           Input: {
-            borderRadius: 14,
-            controlHeight: 44,
+            borderRadius: 8,
+            controlHeight: 36,
           },
           Select: {
-            borderRadius: 10,
-            controlHeight: 36,
+            borderRadius: 8,
+            controlHeight: 34,
           },
         },
       }}

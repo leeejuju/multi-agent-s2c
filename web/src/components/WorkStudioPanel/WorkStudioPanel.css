@@ -1,0 +1,341 @@
+@reference "../../assets/css/Global.css";
+
+.work-studio-panel {
+  @apply pointer-events-auto absolute left-[72px] top-4 z-20 flex h-[min(660px,calc(100vh-40px))] w-[min(880px,calc(100vw-592px))] min-w-[640px] flex-col overflow-hidden rounded-[14px] border border-border bg-card-background shadow-[0_16px_38px_rgba(44,44,44,0.08)];
+}
+
+.work-studio-header {
+  @apply flex items-center justify-between border-b border-border px-4 py-2.5;
+}
+
+.work-studio-title {
+  @apply flex min-w-0 flex-col gap-0.5;
+}
+
+.work-studio-title span {
+  @apply text-[10px] font-medium uppercase tracking-[0.12em] text-on-surface-variant;
+}
+
+.work-studio-title h2 {
+  @apply m-0 text-[15px] font-medium text-on-surface;
+}
+
+.work-studio-actions {
+  @apply flex items-center gap-1.5;
+}
+
+.work-studio-icon-btn {
+  @apply flex h-7 w-7 cursor-pointer items-center justify-center rounded-[7px] border border-transparent bg-transparent text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface;
+}
+
+.work-studio-secondary-btn,
+.work-studio-primary-btn {
+  @apply inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[7px] border border-border bg-surface-variant px-3 text-[12px] font-medium text-on-surface transition-colors hover:border-border-strong hover:bg-accent;
+}
+
+.work-studio-layout {
+  @apply grid min-h-0 flex-1 grid-cols-[176px_minmax(0,1fr)];
+}
+
+.work-studio-works {
+  @apply flex min-h-0 flex-col border-r border-border px-3 py-2.5;
+}
+
+.work-studio-section-label,
+.work-studio-pane-title {
+  @apply mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-normal text-on-surface-variant;
+}
+
+.work-studio-work-list,
+.work-studio-section-list,
+.work-studio-character-list {
+  @apply flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.work-studio-work-row,
+.work-studio-section-row,
+.work-studio-character-row {
+  @apply grid cursor-pointer gap-0.5 rounded-[7px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-colors hover:bg-surface-variant;
+}
+
+.work-studio-work-row.is-active,
+.work-studio-section-row.is-active,
+.work-studio-character-row.is-active {
+  @apply border-border bg-surface-variant;
+}
+
+.work-studio-work-row span,
+.work-studio-section-row span {
+  @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant;
+}
+
+.work-studio-work-row strong,
+.work-studio-section-row strong,
+.work-studio-character-row span {
+  @apply truncate text-[12px] font-medium text-on-surface;
+}
+
+.work-studio-work-row small,
+.work-studio-section-row small,
+.work-studio-character-row small {
+  @apply truncate text-[11px] font-medium text-on-surface-variant;
+}
+
+.work-studio-main {
+  @apply flex min-h-0 flex-col overflow-hidden;
+}
+
+.work-studio-overview {
+  @apply flex items-start justify-between gap-3 border-b border-border px-4 py-3;
+}
+
+.work-studio-overview-copy {
+  @apply flex min-w-0 flex-1 flex-col gap-1;
+}
+
+.work-studio-overview-copy span {
+  @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant;
+}
+
+.work-studio-overview-copy h3 {
+  @apply m-0 truncate text-[18px] font-medium leading-tight text-on-surface;
+}
+
+.work-studio-overview-copy p {
+  @apply m-0 line-clamp-2 max-w-[760px] text-[12px] leading-[1.6] text-on-surface-variant;
+}
+
+.work-studio-metrics {
+  @apply flex shrink-0 flex-wrap justify-end gap-1.5;
+}
+
+.work-studio-metrics span {
+  @apply rounded-[6px] bg-surface-variant px-2 py-0.5 text-[11px] font-medium text-on-surface-variant;
+}
+
+.work-studio-grid {
+  @apply grid min-h-0 flex-1 gap-0;
+  grid-template-columns: minmax(168px, 0.78fr) minmax(240px, 1.22fr) minmax(156px, 0.66fr);
+  grid-template-rows: minmax(160px, 1fr) minmax(132px, 0.74fr);
+  grid-template-areas:
+    "chapters graph characters"
+    "shots shots inspector";
+}
+
+.work-studio-pane {
+  @apply min-h-0 border-r border-border px-3 py-2.5;
+}
+
+.work-studio-pane:last-child {
+  @apply border-r-0;
+}
+
+.work-studio-chapters,
+.work-studio-characters,
+.work-studio-shots,
+.work-studio-inspector {
+  @apply flex flex-col;
+}
+
+.work-studio-chapters {
+  grid-area: chapters;
+}
+
+.work-studio-graph {
+  @apply flex min-w-0 flex-col;
+  grid-area: graph;
+}
+
+.work-studio-characters {
+  grid-area: characters;
+}
+
+.work-studio-shots {
+  grid-area: shots;
+}
+
+.work-studio-inspector {
+  grid-area: inspector;
+}
+
+.work-studio-mini-empty,
+.work-studio-state,
+.work-studio-empty {
+  @apply grid min-h-0 flex-1 place-items-center text-center text-[12px] font-medium text-on-surface-variant;
+}
+
+.work-studio-mini-empty {
+  @apply gap-2 rounded-[8px] border border-dashed border-border bg-main-background p-4;
+}
+
+.work-studio-state,
+.work-studio-empty {
+  @apply gap-3 p-6;
+}
+
+.work-studio-empty h3 {
+  @apply m-0 text-[16px] font-medium text-on-surface;
+}
+
+.work-studio-empty p {
+  @apply m-0 max-w-[320px] leading-[1.55];
+}
+
+.work-studio .relationship-empty,
+.work-studio-panel .relationship-empty {
+  @apply grid min-h-0 flex-1 place-items-center rounded-[8px] border border-dashed border-border bg-main-background text-[12px] font-medium text-on-surface-variant;
+}
+
+.work-studio-panel .relationship-graph {
+  @apply min-h-0 flex-1 overflow-hidden rounded-[8px] border border-border bg-main-background;
+}
+
+.work-studio-panel .relationship-svg {
+  @apply h-full w-full;
+}
+
+.work-studio-panel .relationship-link line {
+  stroke: rgba(26, 26, 26, 0.2);
+}
+
+.work-studio-panel .relationship-link.is-active line {
+  stroke: rgba(26, 26, 26, 0.45);
+}
+
+.work-studio-panel .relationship-link text {
+  @apply text-[10px] font-semibold;
+  fill: var(--color-on-surface-variant);
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(250, 249, 246, 0.92);
+  stroke-width: 5px;
+}
+
+.work-studio-panel .character-node {
+  @apply cursor-pointer;
+}
+
+.work-studio-panel .character-node circle {
+  @apply transition-colors;
+  fill: var(--color-card-background);
+  stroke: rgba(0, 0, 0, 0.1);
+  stroke-width: 1.5px;
+}
+
+.work-studio-panel .character-node.is-selected circle {
+  fill: var(--color-accent);
+  stroke: var(--color-border-strong);
+}
+
+.work-studio-panel .character-node text {
+  @apply pointer-events-none text-center font-medium;
+  text-anchor: middle;
+}
+
+.work-studio-panel .character-name {
+  @apply text-[12px];
+  fill: var(--color-on-surface);
+}
+
+.work-studio-panel .character-role {
+  @apply text-[10px];
+  fill: var(--color-on-surface-variant);
+}
+
+.work-studio-panel .character-node.is-selected .character-name,
+.work-studio-panel .character-node.is-selected .character-role {
+  fill: var(--color-on-surface);
+}
+
+.work-studio-inspector-body {
+  @apply flex min-h-0 flex-col gap-2;
+}
+
+.work-studio-inspector-body > span {
+  @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant;
+}
+
+.work-studio-inspector-body h4 {
+  @apply m-0 text-[14px] font-medium text-on-surface;
+}
+
+.work-studio-inspector-body p {
+  @apply m-0 text-[12px] leading-[1.55] text-on-surface-variant;
+}
+
+.work-studio-link-list {
+  @apply mt-2 flex flex-col gap-1;
+}
+
+.work-studio-link-list span {
+  @apply rounded-[6px] bg-surface-variant px-2 py-1 text-[11px] font-medium text-on-surface;
+}
+
+.work-studio-shot-list {
+  @apply flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.work-studio-shot-row {
+  @apply grid gap-0.5 rounded-[7px] border border-border bg-main-background px-2.5 py-2;
+}
+
+.work-studio-shot-row span {
+  @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant;
+}
+
+.work-studio-shot-row strong {
+  @apply truncate text-[12px] font-medium text-on-surface;
+}
+
+.work-studio-shot-row small {
+  @apply line-clamp-2 text-[11px] font-medium leading-[1.45] text-on-surface-variant;
+}
+
+@media (max-width: 1100px) {
+  .work-studio-panel {
+    @apply bottom-3 left-[68px] right-3 top-3 w-auto min-w-0;
+  }
+
+  .work-studio-grid {
+    grid-template-columns: minmax(180px, 0.9fr) minmax(0, 1.35fr);
+    grid-template-rows: minmax(168px, 0.8fr) minmax(210px, 1fr) minmax(150px, 0.72fr);
+    grid-template-areas:
+      "chapters characters"
+      "graph graph"
+      "shots inspector";
+  }
+}
+
+@media (max-width: 760px) {
+  .work-studio-panel {
+    @apply left-3;
+  }
+
+  .work-studio-layout {
+    @apply grid-cols-1;
+  }
+
+  .work-studio-works {
+    @apply max-h-[160px] border-r-0 border-b;
+  }
+
+  .work-studio-grid {
+    @apply grid-cols-1 overflow-y-auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      "chapters"
+      "graph"
+      "characters"
+      "shots"
+      "inspector";
+  }
+
+  .work-studio-pane {
+    @apply min-h-[220px] border-r-0 border-b;
+  }
+}

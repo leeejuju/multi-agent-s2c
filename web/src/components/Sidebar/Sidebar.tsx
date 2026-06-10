@@ -1,4 +1,14 @@
-import { BookOpen, Brush, Crop, Eraser, Lasso, LogOut, Move, Settings } from "lucide-react";
+import {
+  BookOpen,
+  Brush,
+  Crop,
+  Eraser,
+  FileText,
+  Lasso,
+  LogOut,
+  Move,
+  Settings,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { useAuthStore } from "@/store/auth";
@@ -15,21 +25,26 @@ const tools = [
 type SidebarProps = {
   onOpenLibrary: () => void;
   onOpenSettings: () => void;
+  onOpenWorkStudio: () => void;
 };
 
-export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps) {
+export default function Sidebar({
+  onOpenLibrary,
+  onOpenSettings,
+  onOpenWorkStudio,
+}: SidebarProps) {
   const [activeTool, setActiveTool] = useState("move");
   const clearAuth = useAuthStore((state) => state.clearAuth);
 
   return (
     <motion.aside
       aria-label="Image operations"
-      className="sidebar-capsule pointer-events-auto absolute left-5 top-1/2 flex flex-col items-center p-3 rounded-[40px] z-30"
+      className="sidebar-capsule pointer-events-auto absolute left-4 top-1/2 z-30 flex flex-col items-center rounded-[18px] p-2"
       initial={{ x: -100, y: "-50%", opacity: 0 }}
       animate={{ x: 0, y: "-50%", opacity: 1 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
     >
-      <nav className="flex flex-col items-center gap-2">
+      <nav className="flex flex-col items-center gap-1.5">
         {tools.map((tool) => {
           const Icon = tool.icon;
           return (
@@ -41,7 +56,7 @@ export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps)
               title={tool.label}
               type="button"
             >
-              <Icon size={20} strokeWidth={2.2} />
+              <Icon size={18} strokeWidth={2.1} />
               <span className="tooltip-text">{tool.label}</span>
               {activeTool === tool.key && (
                 <motion.div
@@ -54,7 +69,18 @@ export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps)
           );
         })}
 
-        <div className="h-px w-6 bg-border my-2" />
+        <div className="my-1.5 h-px w-5 bg-border" />
+
+        <button
+          aria-label="Script"
+          className="tool-item"
+          onClick={onOpenWorkStudio}
+          title="Script"
+          type="button"
+        >
+          <FileText size={18} strokeWidth={2.1} />
+          <span className="tooltip-text">Script</span>
+        </button>
 
         <button
           aria-label="Library"
@@ -63,7 +89,7 @@ export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps)
           title="Library"
           type="button"
         >
-          <BookOpen size={20} strokeWidth={2.2} />
+          <BookOpen size={18} strokeWidth={2.1} />
           <span className="tooltip-text">Library</span>
         </button>
 
@@ -74,11 +100,11 @@ export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps)
           title="Settings"
           type="button"
         >
-          <Settings size={20} strokeWidth={2.2} />
+          <Settings size={18} strokeWidth={2.1} />
           <span className="tooltip-text">Settings</span>
         </button>
 
-        <div className="h-px w-6 bg-border my-2" />
+        <div className="my-1.5 h-px w-5 bg-border" />
 
         <button
           aria-label="Log out"
@@ -87,7 +113,7 @@ export default function Sidebar({ onOpenLibrary, onOpenSettings }: SidebarProps)
           title="Log out"
           type="button"
         >
-          <LogOut size={20} strokeWidth={2.2} />
+          <LogOut size={18} strokeWidth={2.1} />
           <span className="tooltip-text">Log out</span>
         </button>
       </nav>

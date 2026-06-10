@@ -1,4 +1,4 @@
-import { get } from "./index";
+import { get, postForm } from "./index";
 
 export type LibraryStatus = "draft" | "review" | "ready" | "archived";
 
@@ -37,6 +37,9 @@ export interface ScreenplayItem {
   updated_at: string;
   characters: CharacterNode[];
   relationships: CharacterRelationship[];
+  source_file_name?: string | null;
+  source_content_type?: string | null;
+  source_file_size?: number | null;
 }
 
 async function safeGetList<T>(url: string): Promise<T[]> {
@@ -54,6 +57,14 @@ export const libraryApi = {
 
   getScreenplays() {
     return safeGetList<ScreenplayItem>("/libraries/screenplays");
+  },
+
+  importScreenplays(files: File[]) {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    return postForm<ScreenplayItem[]>("/libraries/screenplays/import", formData, {
+      timeout: 120000,
+    });
   },
 };
 

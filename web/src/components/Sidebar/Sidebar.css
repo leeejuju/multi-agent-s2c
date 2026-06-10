@@ -5,7 +5,7 @@
 }
 
 .tool-item {
-  @apply relative flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors duration-200;
+  @apply relative flex h-8 w-8 items-center justify-center rounded-[10px] text-on-surface-variant transition-colors duration-200;
 }
 
 .tool-item:hover {
@@ -17,11 +17,11 @@
 }
 
 .active-indicator {
-  @apply absolute inset-0 -z-10 bg-accent rounded-full;
+  @apply absolute inset-0 -z-10 rounded-[10px] bg-accent;
 }
 
 .tooltip-text {
-  @apply pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 -translate-x-2 whitespace-nowrap rounded-lg bg-accent py-1 px-2 text-[10px] font-medium text-primary-button-text opacity-0 transition-all duration-200;
+  @apply pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 -translate-x-2 whitespace-nowrap rounded-[7px] bg-accent px-2 py-1 text-[10px] font-medium text-primary-button-text opacity-0 transition-all duration-200;
 }
 
 .tool-item:hover .tooltip-text {

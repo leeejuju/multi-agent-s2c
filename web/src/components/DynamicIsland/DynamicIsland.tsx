@@ -4,7 +4,7 @@ import "./DynamicIsland.css";
 
 export default function DynamicIsland() {
   return (
-    <div className="relative z-50 flex justify-center pt-5 pointer-events-none w-full">
+    <div className="relative z-50 flex justify-center pt-4 pointer-events-none w-full">
       <motion.div
         className="dynamic-island"
         initial={false}
@@ -12,13 +12,13 @@ export default function DynamicIsland() {
         whileHover="expanded"
         variants={{
           resting: {
-            width: 48,
-            height: 48,
-            borderRadius: 24,
+            width: 42,
+            height: 42,
+            borderRadius: 21,
           },
           expanded: {
-            width: 600,
-            height: 100,
+            width: 460,
+            height: 72,
             borderRadius: 999,
           },
         }}
@@ -37,7 +37,7 @@ export default function DynamicIsland() {
               expanded: { opacity: 0, scale: 0.8 },
             }}
           >
-            <Orbit size={22} strokeWidth={2.2} />
+            <Orbit size={18} strokeWidth={2.2} />
           </motion.div>
           <motion.div
             className="island-text"
@@ -46,8 +46,8 @@ export default function DynamicIsland() {
               expanded: { opacity: 1, y: 0, pointerEvents: "auto" },
             }}
           >
-            <strong className="text-[22px]">System Active</strong>
-            <span className="text-[15px] mt-2 text-on-surface-variant">Canvas initialized and ready for advanced workflows.</span>
+            <strong className="text-[15px] font-medium">System Active</strong>
+            <span className="mt-1 text-[12px] text-on-surface-variant">Canvas initialized and ready for advanced workflows.</span>
           </motion.div>
         </div>
       </motion.div>

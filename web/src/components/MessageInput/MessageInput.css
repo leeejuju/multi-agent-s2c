@@ -10,7 +10,7 @@
 }
 
 .message-model-button {
-  @apply flex h-7 min-w-[104px] items-center justify-start rounded-lg px-2 text-[11px] font-medium text-on-surface-variant;
+  @apply flex h-7 min-w-[96px] items-center justify-start rounded-[7px] px-2 text-[11px] font-medium text-on-surface-variant;
 }
 
 .message-input .ant-btn {
@@ -37,20 +37,32 @@
 }
 
 .message-input .message-send-button:not(:disabled):hover {
-  box-shadow: 0 8px 18px rgba(44, 44, 44, 0.18) !important;
+  box-shadow: 0 8px 18px rgba(44, 44, 44, 0.1) !important;
 }
 
 .message-input .message-send-button {
-  min-width: 34px;
-  height: 34px;
+  min-width: 32px;
+  height: 32px;
+}
+
+.message-input .message-send-button.is-stopping {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #991b1b !important;
+}
+
+.message-input .message-send-button.is-stopping:not(:disabled):hover {
+  background: #fee2e2 !important;
+  border-color: #f87171 !important;
+  color: #7f1d1d !important;
 }
 
 .model-picker {
-  @apply grid w-[236px] grid-cols-2 gap-1.5 p-1;
+  @apply grid w-[220px] grid-cols-2 gap-1.5 p-1;
 }
 
 .model-picker-option {
-  @apply flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-card-background px-2 text-left text-on-surface transition-colors hover:bg-surface-variant;
+  @apply flex min-h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-border bg-card-background px-2 text-left text-on-surface transition-colors hover:bg-surface-variant;
 }
 
 .model-picker-option.is-selected {
