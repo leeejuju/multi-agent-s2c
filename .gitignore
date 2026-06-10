@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.template
+alembic.ini
 
 .claude/settings.local.json
 node_modules

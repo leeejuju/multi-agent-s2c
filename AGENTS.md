@@ -123,6 +123,7 @@ uv run --no-sync python -m compileall server/router server/service src/agents sr
 - Keep agent responsibilities narrow.
 - Keep API/service orchestration outside agents.
 - Keep database reads and writes in repositories.
+- Read project source/config files using UTF-8 encoding unless a different encoding is explicitly required.
 - Preserve user changes in the working tree; never revert unrelated modifications.
 - Git commit messages must be written in English and must not be wrapped with `@` characters.
 - Add tests or compile checks for behavior changes with non-trivial blast radius.

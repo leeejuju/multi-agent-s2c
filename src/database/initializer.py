@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from .base import Base
+from .migration import upgrade_database
 from .session import get_engine
 
 
@@ -9,8 +9,7 @@ class PostgreSQLInitializer:
         self.engine = engine or get_engine()
 
     async def initialize(self) -> None:
-        await self.create_tables()
+        await self.migrate()
 
-    async def create_tables(self) -> None:
-        async with self.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    async def migrate(self) -> None:
+        await upgrade_database(self.engine)

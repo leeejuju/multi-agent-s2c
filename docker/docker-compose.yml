@@ -33,12 +33,21 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:8-alpine
+    build:
+      context: .
+      dockerfile: api.Dockerfile
+      target: redis
+    image: multi-agent-s2c-redis:local
     container_name: multi-agent-s2c-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - ./volume/redis/data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - s2c-network
     restart: unless-stopped
