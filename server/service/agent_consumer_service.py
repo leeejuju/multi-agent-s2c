@@ -141,6 +141,8 @@ async def execute_agent_run(run_id: str) -> None:
             attachment_count=attachment_count,
             request_config=dict(run.request_config or {}),
         )
+        thread_id = str(run.conversation_id)
+        uid = str(run.user_id)
 
         try:
             async for mode, chunk in agent.stream_messages(
@@ -153,7 +155,10 @@ async def execute_agent_run(run_id: str) -> None:
                     ]
                 },
                 config={
-                    "configurable": {"thread_id": str(run.conversation_id)},
+                    "configurable": {
+                        "thread_id": thread_id,
+                        "uid": uid,
+                    },
                     **langfuse_config,
                 },
             ):

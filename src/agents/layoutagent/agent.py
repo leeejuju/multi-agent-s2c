@@ -32,5 +32,6 @@ class LayoutAgent(BaseAgent):
             model=load_model(sys_config.default_model),
             tools=[],
             system_prompt=self.context.system_prompt,
+            checkpointer=self.get_checkpointer(),
             middleware=middleware,
         )

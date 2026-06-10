@@ -26,6 +26,7 @@ class DesignAgent(BaseAgent):
             tools=[],
             system_prompt=self.context.system_prompt,
             context_schema=context,
+            checkpointer=self.get_checkpointer(),
             middleware=[
                 SubAgentMiddleware(
                     backend=StateBackend(),
