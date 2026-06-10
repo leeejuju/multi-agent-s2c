@@ -34,6 +34,9 @@ class User(Base):
     attachments: Mapped[list["Attachment"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    library_items: Mapped[list["LibraryItem"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Conversation(Base):
@@ -206,3 +209,42 @@ class Attachment(Base):
 
     conversation: Mapped["Conversation"] = relationship(back_populates="attachments")
     user: Mapped["User"] = relationship(back_populates="attachments")
+
+
+class LibraryItem(Base):
+    __tablename__ = "library_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, default="screenplay")
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    project_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    genre: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    content_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    object_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    cover_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    shot_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    style_tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    characters: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    relationships: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    item_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped["User"] = relationship(back_populates="library_items")

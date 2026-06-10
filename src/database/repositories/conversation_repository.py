@@ -36,6 +36,23 @@ class ConversationRepository:
         )
         return list(result.scalars().all())
 
+    async def create_conversation(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        summary: str | None = None,
+    ) -> Conversation:
+        conversation = Conversation(
+            id=uuid4(),
+            user_id=UUID(user_id),
+            title=title,
+            summary=summary,
+        )
+        self.session.add(conversation)
+        await self.session.flush()
+        return conversation
+
     async def save_message(
         self,
         role: str,
