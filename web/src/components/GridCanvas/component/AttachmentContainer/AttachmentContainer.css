@@ -1,0 +1,26 @@
+@reference "../../../../assets/css/Global.css";
+
+.grid-node.attachment-container {
+  @apply min-w-[160px] flex-row items-center gap-3 p-2.5;
+}
+
+.attachment-node-content {
+  @apply flex w-full items-center gap-3;
+}
+
+.attachment-icon-wrapper {
+  @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-surface-variant text-on-surface;
+}
+
+.attachment-info {
+  @apply flex min-w-0 flex-1 flex-col;
+}
+
+.attachment-info h4 {
+  @apply m-0 truncate text-[13px] font-medium text-on-surface;
+}
+
+.attachment-info span {
+  @apply text-[11px] font-medium uppercase text-on-surface-variant;
+  letter-spacing: 0;
+}
