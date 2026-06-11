@@ -18,6 +18,8 @@ const IMAGE_EXTENSIONS = new Set(["bmp", "gif", "jpeg", "jpg", "png", "svg", "we
 
 export type { ChatMessage, ChatMessageAttachment, ToolActivity } from "@/store/chat";
 
+type ScrollToBottom = (options?: { force?: boolean }) => void;
+
 function getFileExtension(file: File) {
   return file.name.split(".").pop()?.toLowerCase() || "";
 }
@@ -178,11 +180,14 @@ export function useChat() {
   const lastSequenceRef = useRef(0);
   const tokenBufferRef = useRef("");
   const tokenFrameRef = useRef<number | null>(null);
-  const scrollToBottomRef = useRef<(() => void) | null>(null);
+  const scrollToBottomRef = useRef<ScrollToBottom | null>(null);
 
   const draftText = useChatStore((state) => state.draftText);
   const setDraftText = useChatStore((state) => state.setDraftText);
   const messages = useChatStore((state) => state.messages);
+  const setMessagePersistencePaused = useChatStore(
+    (state) => state.setMessagePersistencePaused,
+  );
   const setMessages = useChatStore((state) => state.setMessages);
   const selectedModelId = useChatStore((state) => state.selectedModelId);
   const setSelectedModelId = useChatStore((state) => state.setSelectedModelId);
@@ -218,7 +223,7 @@ export function useChat() {
       return next;
     });
     scrollToBottomRef.current?.();
-  }, []);
+  }, [setMessages]);
 
   const scheduleTokenFlush = useCallback(() => {
     if (tokenFrameRef.current !== null) return;
@@ -271,8 +276,9 @@ export function useChat() {
   }, [setMessages]);
 
   const subscribeToRun = useCallback(
-    (run: AgentRunResponse, afterSequence = 0, onScrollToBottom?: () => void) => {
+    (run: AgentRunResponse, afterSequence = 0, onScrollToBottom?: ScrollToBottom) => {
       streamRef.current?.abort();
+      setMessagePersistencePaused(true);
       activeRunRef.current = run;
       lastSequenceRef.current = afterSequence;
       setIsSending(run.status === "queued" || run.status === "running");
@@ -329,14 +335,29 @@ export function useChat() {
             }
             return next;
           });
+          setMessagePersistencePaused(false);
           setIsSending(false);
           streamRef.current = null;
           activeRunRef.current = null;
           scrollToBottomRef.current = null;
           void loadConversations();
         },
-        onError() {
+        onError(error) {
           flushTokenBuffer();
+          setMessages((current) => {
+            const next = [...current];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant") {
+              next[next.length - 1] = {
+                ...last,
+                content: last.content || error.message,
+                status: "failed",
+                streaming: false,
+              };
+            }
+            return next;
+          });
+          setMessagePersistencePaused(false);
           setIsSending(false);
           streamRef.current = null;
           activeRunRef.current = null;
@@ -350,6 +371,7 @@ export function useChat() {
       loadConversations,
       scheduleTokenFlush,
       setConversationId,
+      setMessagePersistencePaused,
       setMessages,
     ],
   );
@@ -373,8 +395,9 @@ export function useChat() {
         window.cancelAnimationFrame(tokenFrameRef.current);
         tokenFrameRef.current = null;
       }
+      setMessagePersistencePaused(false);
     };
-  }, [loadConversations]);
+  }, [loadConversations, setMessagePersistencePaused]);
 
   const switchConversation = async (convId: string) => {
     streamRef.current?.abort();
@@ -384,6 +407,7 @@ export function useChat() {
     setConversationId(convId);
     setShowConversations(false);
     setMessages([]);
+    setMessagePersistencePaused(false);
 
     try {
       const history = await agentApi.getConversationMessages(convId);
@@ -420,6 +444,7 @@ export function useChat() {
     setConversationId(null);
     setMessages([]);
     setShowConversations(false);
+    setMessagePersistencePaused(false);
   };
 
   useEffect(() => {
@@ -429,13 +454,14 @@ export function useChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSend = async (onScrollToBottom: () => void) => {
+  const handleSend = async (onScrollToBottom: ScrollToBottom) => {
     const trimmedText = draftText.trim();
     if ((!trimmedText && attachments.length === 0) || isSending) return;
 
     const selectedAttachments = [...attachments];
     const pendingAttachments = selectedAttachments.map(createPendingAttachment);
 
+    setMessagePersistencePaused(true);
     setMessages((current) => [
       ...current,
       { role: "user", content: trimmedText, attachments: pendingAttachments },
@@ -443,7 +469,7 @@ export function useChat() {
     ]);
     setDraftText("");
     setAttachments([]); // Clear attachments after sending
-    onScrollToBottom();
+    onScrollToBottom({ force: true });
     scrollToBottomRef.current = onScrollToBottom;
     tokenBufferRef.current = "";
     if (tokenFrameRef.current !== null) {
@@ -489,6 +515,7 @@ export function useChat() {
         }
         return next;
       });
+      setMessagePersistencePaused(false);
       setIsSending(false);
       streamRef.current = null;
       scrollToBottomRef.current = null;
@@ -552,6 +579,7 @@ export function useChat() {
       setIsSending(false);
       streamRef.current = null;
       scrollToBottomRef.current = null;
+      setMessagePersistencePaused(false);
     }
   };
 
@@ -597,6 +625,7 @@ export function useChat() {
       }
       return next;
     });
+    setMessagePersistencePaused(false);
   };
 
   const addAttachments = (files: File[]) => {

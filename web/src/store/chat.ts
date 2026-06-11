@@ -6,6 +6,8 @@ const DEFAULT_AGENT_ID = "DesignAgent";
 
 type StateUpdater<T> = T | ((current: T) => T);
 
+let chatPersistencePaused = false;
+
 export type ChatMessageAttachment = {
   id: string;
   file_name: string;
@@ -47,11 +49,13 @@ export type ToolActivity = {
 
 interface ChatState {
   draftText: string;
+  messagePersistencePaused: boolean;
   messages: ChatMessage[];
   selectedModelId: string;
   selectedAgentId: string;
   conversationId: string | null;
   setDraftText: (value: string) => void;
+  setMessagePersistencePaused: (value: boolean) => void;
   setMessages: (value: StateUpdater<ChatMessage[]>) => void;
   setSelectedModelId: (value: string) => void;
   setSelectedAgentId: (value: string) => void;
@@ -78,15 +82,32 @@ function sanitizeMessagesForStorage(messages: ChatMessage[]) {
   }));
 }
 
+function createChatStorage() {
+  return {
+    getItem: (name: string) => localStorage.getItem(name),
+    removeItem: (name: string) => localStorage.removeItem(name),
+    setItem: (name: string, value: string) => {
+      if (!chatPersistencePaused) {
+        localStorage.setItem(name, value);
+      }
+    },
+  };
+}
+
 export const useChatStore = create<ChatState>()(
   persist(
     (set) => ({
       draftText: "",
+      messagePersistencePaused: false,
       messages: [],
       selectedModelId: "gpt-4o",
       selectedAgentId: DEFAULT_AGENT_ID,
       conversationId: null,
       setDraftText: (draftText) => set({ draftText }),
+      setMessagePersistencePaused: (messagePersistencePaused) => {
+        chatPersistencePaused = messagePersistencePaused;
+        set({ messagePersistencePaused });
+      },
       setMessages: (value) =>
         set((state) => ({
           messages: resolveState(state.messages, value),
@@ -97,7 +118,7 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: "chat-ui-storage",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(createChatStorage),
       partialize: (state) => ({
         conversationId: state.conversationId,
         draftText: state.draftText,
