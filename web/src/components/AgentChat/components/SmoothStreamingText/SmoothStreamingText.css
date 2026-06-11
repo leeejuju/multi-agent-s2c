@@ -1,4 +1,4 @@
-@reference "../../assets/css/Global.css";
+@reference "../../../../assets/css/Global.css";
 
 .smooth-streaming-text {
   @apply whitespace-pre-wrap break-words;

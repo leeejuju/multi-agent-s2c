@@ -4,8 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
 from threading import Event
-from typing import Any
-from typing import Final
+from typing import Any, Final
 
 from .base import (
     BlockingDocumentParser,
@@ -81,7 +80,7 @@ class DocumentParserRunner:
     async def parse(
         self,
         request: DocumentParseRequest,
-    ) -> AsyncGenerator[DocumentParseEvent, None]:
+    ) -> AsyncGenerator[DocumentParseEvent]:
         try:
             parser = self.factory.resolve(request)
         except NoDocumentParserError as exc:
@@ -115,7 +114,7 @@ class DocumentParserRunner:
         requests: Sequence[DocumentParseRequest],
         *,
         result_writer: ResultWriter | None = None,
-    ) -> AsyncGenerator[DocumentParseResult, None]:
+    ) -> AsyncGenerator[DocumentParseResult]:
         """Parse documents concurrently and yield each result as soon as it completes.
 
         Blocking parser work runs in the thread pool. `result_writer` is awaited

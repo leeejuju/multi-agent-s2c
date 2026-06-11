@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/auth";
 import HomeView from "@/pages/HomeView";
 import LoginView from "@/pages/LoginView";
 import RegisterView from "@/pages/RegisterView";
+import WorkspaceHomeView from "@/pages/WorkspaceHomeView";
 
 function RequireAuth() {
   const token = useAuthStore((state) => state.token);
@@ -69,7 +70,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<RequireAuth />}>
-            <Route path="/" element={<HomeView />} />
+            <Route path="/" element={<WorkspaceHomeView />} />
+            <Route path="/chat" element={<HomeView />} />
           </Route>
 
           <Route element={<RedirectIfAuthenticated />}>

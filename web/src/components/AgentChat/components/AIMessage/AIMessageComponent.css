@@ -1,50 +1,5 @@
-/* ——— Base Message Style (Inheritable) ——— */
-@reference "../../assets/css/Global.css";
+@reference "../../../../assets/css/Global.css";
 
-.message-bubble {
-  @apply rounded-[16px] px-3 py-1.5 text-[13px] font-normal leading-[1.55];
-}
-
-.message-row {
-  @apply flex w-full;
-}
-
-.message-row.is-user {
-  @apply justify-end;
-}
-
-.message-row.is-assistant {
-  @apply justify-start;
-}
-
-.message-stack {
-  @apply flex max-w-[88%] flex-col gap-1.5;
-}
-
-.message-stack.is-user {
-  @apply items-end;
-}
-
-.message-stack.is-assistant {
-  @apply w-full max-w-none items-stretch;
-}
-
-/* ——— Directional Shapes ——— */
-.is-user .message-bubble,
-.message-bubble.is-user {
-  @apply rounded-[14px] bg-accent px-3 py-1.5 text-primary-button-text;
-}
-
-.message-bubble.is-user.is-compact {
-  @apply rounded-full px-3 py-1.5;
-}
-
-.is-assistant .message-bubble,
-.message-bubble.is-assistant {
-  @apply w-full rounded-none border-0 bg-transparent px-0 py-1 text-on-surface shadow-none;
-}
-
-/* ——— Thinking Indicator ——— */
 .thinking-indicator {
   @apply flex items-center gap-1 py-1 px-2;
 }
@@ -54,12 +9,16 @@
   animation: dot-bounce 1.4s infinite ease-in-out both;
 }
 
-.thinking-indicator span:nth-child(1) { animation-delay: -0.32s; }
-.thinking-indicator span:nth-child(2) { animation-delay: -0.16s; }
+.thinking-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
 
-@keyframes dot-bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
+.thinking-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.message-bubble.is-assistant {
+  @apply w-full rounded-none border-0 bg-transparent px-0 py-1 text-on-surface shadow-none;
 }
 
 .tool-call-stack {
@@ -219,6 +178,22 @@
   -webkit-line-clamp: 2;
 }
 
+.tool-call-status + .tool-call-status-title,
+.tool-call-status + .tool-call-status-detail {
+  @apply text-primary-button-text;
+}
+
+@keyframes dot-bounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 @keyframes tool-call-roll {
   0%, 13% { transform: translateY(0); }
   20%, 33% { transform: translateY(-39px); }
@@ -239,69 +214,4 @@
 @keyframes tool-call-flicker {
   0%, 100% { opacity: 0.18; }
   50% { opacity: 0.36; }
-}
-
-@keyframes tool-call-spin {
-  to { transform: rotate(360deg); }
-}
-
-.message-attachments {
-  @apply flex max-w-[280px] flex-col gap-1.5 rounded-[12px] border border-border bg-card-background p-1.5 shadow-sm;
-}
-
-.message-attachments.is-single {
-  @apply w-fit min-w-[200px];
-}
-
-.message-attachment {
-  @apply flex min-w-0 items-center gap-2 rounded-[10px] border px-2 py-1.5 text-left no-underline transition-colors;
-}
-
-.is-user .message-attachment {
-  @apply border-border bg-surface-variant text-on-surface hover:bg-main-background;
-}
-
-.is-assistant .message-attachment {
-  @apply border-border bg-surface-variant text-on-surface hover:bg-main-background;
-}
-
-.message-attachment.is-uploading {
-  @apply pointer-events-none opacity-75;
-}
-
-.message-attachment.is-error {
-  @apply border-[#ff8a80]/50;
-}
-
-.message-attachment-thumb {
-  @apply relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary-button-text/15;
-}
-
-.is-assistant .message-attachment-thumb {
-  @apply bg-card-background;
-}
-
-.message-attachment-thumb img {
-  @apply h-full w-full object-cover;
-}
-
-.message-attachment-spinner {
-  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-accent p-0.5 text-primary-button-text;
-  animation: tool-call-spin 0.9s linear infinite;
-}
-
-.message-attachment-copy {
-  @apply flex min-w-0 flex-1 flex-col gap-0.5;
-}
-
-.message-attachment-name {
-  @apply truncate text-[11px] font-medium leading-tight;
-}
-
-.message-attachment-meta {
-  @apply truncate text-[10px] font-medium leading-tight opacity-65;
-}
-
-.message-attachment-download {
-  @apply shrink-0 opacity-70;
 }

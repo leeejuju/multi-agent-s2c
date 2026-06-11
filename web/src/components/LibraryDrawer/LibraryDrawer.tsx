@@ -25,7 +25,6 @@ import {
   getLibraryPanelMotion,
   libraryOverlayMotion,
 } from "@/assets/animations/LibraryDrawer.motion";
-import CharacterRelationshipGraph from "@/components/CharacterRelationshipGraph";
 import "./LibraryDrawer.css";
 
 type LibraryTab = "drawing-scripts" | "screenplays";
@@ -562,12 +561,6 @@ function WorkDetailView({
         selectedSection.character_ids?.includes(character.id),
       )
     : item.characters;
-  const sectionCharacterIds = new Set(sectionCharacters.map((character) => character.id));
-  const sectionRelationships = item.relationships.filter(
-    (relationship) =>
-      sectionCharacterIds.has(relationship.source_id) &&
-      sectionCharacterIds.has(relationship.target_id),
-  );
   const sectionShots = getSectionShots(item, selectedSection);
 
   useEffect(() => {
@@ -635,12 +628,13 @@ function WorkDetailView({
             <GitBranch size={13} />
             <span>Current Section Map</span>
           </div>
-          <CharacterRelationshipGraph
-            characters={sectionCharacters}
-            relationships={sectionRelationships}
-            selectedCharacterId={selectedCharacterId}
-            onSelectCharacter={setSelectedCharacterId}
-          />
+          {sectionCharacters.length > 0 ? (
+            <div className="work-empty-note">
+              Character map visualization has been removed. Use section character list below.
+            </div>
+          ) : (
+            <div className="work-empty-note">No characters for section-level map.</div>
+          )}
         </section>
 
         <aside className="work-character-list">

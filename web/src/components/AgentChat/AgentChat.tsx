@@ -1,44 +1,18 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import {
-  Bot,
-  Download,
-  FileText,
-  History,
-  Image as ImageIcon,
-  Loader2,
-  PanelRightClose,
-  Plus,
-} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bot, History, PanelRightClose, Plus } from "lucide-react";
 import { Button, List, Popover } from "antd";
 import { AnimatePresence, motion } from "motion/react";
 
-import { useChat, type ChatMessage, type ChatMessageAttachment } from "@/hooks/useChat";
+import { useChat, type ChatMessage } from "@/hooks/useChat";
 import { useWorkspaceStore, type CanvasImageItem } from "@/store/workspace";
-import MarkdownRenderer from "@/components/MarkdownRenderer";
 import MessageInput from "@/components/MessageInput";
-import SmoothStreamingText from "./SmoothStreamingText";
-import ToolCallPanel from "@/components/ToolCallPanel";
-import "./AgentChat.css";
+import ChatMessageRow from "./components/ChatMessageRow/ChatMessageRow";
 
 const CANVAS_IMAGE_EXTENSIONS = new Set(["bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"]);
 const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
 const HTML_IMAGE_PATTERN = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
 const RAW_IMAGE_URL_PATTERN = /\bhttps?:\/\/[^\s<>"')]+?\.(?:bmp|gif|jpe?g|png|svg|webp)(?:\?[^\s<>"')]+)?/gi;
 const AUTO_SCROLL_THRESHOLD = 96;
-
-function formatAttachmentSize(size?: number | null) {
-  if (!size) return "";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function isImageAttachment(attachment: ChatMessageAttachment) {
-  return (
-    attachment.category === "image" ||
-    attachment.content_type.startsWith("image/")
-  );
-}
 
 function getFileExtension(file: File) {
   return file.name.split(".").pop()?.toLowerCase() || "";
@@ -114,131 +88,6 @@ function extractGeneratedImages(content: string) {
 function getGeneratedImageScanKey(message: ChatMessage, index: number) {
   return message.id ?? `${index}-${hashText(message.content)}`;
 }
-
-function MessageAttachments({
-  attachments,
-}: {
-  attachments: ChatMessageAttachment[];
-}) {
-  if (attachments.length === 0) return null;
-
-  return (
-    <div className={`message-attachments ${attachments.length === 1 ? "is-single" : ""}`}>
-      {attachments.map((attachment) => {
-        const isImage = isImageAttachment(attachment);
-        const href = attachment.access_url;
-        const previewUrl = attachment.thumb_url || attachment.access_url;
-        const Icon = isImage ? ImageIcon : FileText;
-        const statusText = attachment.uploading
-          ? "Uploading"
-          : attachment.error || attachment.parse_error || formatAttachmentSize(attachment.file_size);
-
-        return (
-          <a
-            className={`message-attachment ${attachment.uploading ? "is-uploading" : ""} ${attachment.error ? "is-error" : ""}`}
-            href={href}
-            key={attachment.id}
-            rel="noreferrer"
-            target="_blank"
-            title={href || attachment.file_name}
-          >
-            <span className="message-attachment-thumb">
-              {isImage && previewUrl ? (
-                <img alt={attachment.file_name} src={previewUrl} />
-              ) : (
-                <Icon size={16} />
-              )}
-              {attachment.uploading && (
-                <Loader2 className="message-attachment-spinner" size={11} />
-              )}
-            </span>
-            <span className="message-attachment-copy">
-              <span className="message-attachment-name">
-                {attachment.file_name}
-              </span>
-              {statusText && (
-                <span className="message-attachment-meta">{statusText}</span>
-              )}
-            </span>
-            {href && !attachment.uploading && (
-              <Download className="message-attachment-download" size={14} />
-            )}
-          </a>
-        );
-      })}
-    </div>
-  );
-}
-
-type ChatMessageRowProps = {
-  message: ChatMessage;
-};
-
-const ChatMessageRow = memo(function ChatMessageRow({
-  message,
-}: ChatMessageRowProps) {
-  const [settledAssistantContent, setSettledAssistantContent] = useState(() =>
-    message.role === "assistant" && !message.streaming ? message.content : "",
-  );
-  const isCompactUserMessage =
-    message.role === "user" &&
-    message.content.length <= 80 &&
-    !message.content.includes("\n");
-  const hasContent = message.content.trim().length > 0;
-  const isAssistantRevealing =
-    message.role === "assistant" &&
-    (message.streaming || settledAssistantContent !== message.content);
-  const handleAssistantRevealSettled = useCallback(() => {
-    setSettledAssistantContent(message.content);
-  }, [message.content]);
-
-  return (
-    <div
-      className={`message-row group ${message.role === "user" ? "is-user" : "is-assistant"}`}
-    >
-      <div className={`message-stack ${message.role === "user" ? "is-user" : "is-assistant"}`}>
-        {message.attachments && message.attachments.length > 0 && (
-          <MessageAttachments attachments={message.attachments} />
-        )}
-        {(message.toolActivities && message.toolActivities.length > 0) ||
-        message.streaming ||
-        hasContent ? (
-          <div
-            className={`message-bubble animate-in fade-in slide-in-from-bottom-2 duration-300 ${message.role === "user" ? "is-user" : "is-assistant"} ${isCompactUserMessage ? "is-compact" : ""}`}
-          >
-            {message.toolActivities && message.toolActivities.length > 0 && (
-              <ToolCallPanel activities={message.toolActivities} />
-            )}
-            {message.streaming &&
-            !message.content &&
-            (!message.toolActivities || message.toolActivities.length === 0) ? (
-              <div className="thinking-indicator">
-                <span />
-                <span />
-                <span />
-              </div>
-            ) : hasContent ? (
-              message.role === "assistant" ? (
-                isAssistantRevealing ? (
-                  <SmoothStreamingText
-                    content={message.content}
-                    onSettled={handleAssistantRevealSettled}
-                  />
-                ) : (
-                  <MarkdownRenderer content={message.content} />
-                )
-              ) : (
-                <div className="whitespace-pre-wrap break-words">
-                  {message.content}
-                </div>
-              )
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-});
 
 export default function AgentChat() {
   const bodyRef = useRef<HTMLDivElement | null>(null);

@@ -1,0 +1,15 @@
+.library-graph-component {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.library-graph-component h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.library-graph-component p {
+  margin: 0;
+  color: #666;
+}

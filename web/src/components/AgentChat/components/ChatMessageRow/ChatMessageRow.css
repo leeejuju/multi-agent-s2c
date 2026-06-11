@@ -1,0 +1,30 @@
+@reference "../../../../assets/css/Global.css";
+
+.message-bubble {
+  @apply rounded-[16px] px-3 py-1.5 text-[13px] font-normal leading-[1.55];
+}
+
+.message-row {
+  @apply flex w-full;
+}
+
+.message-row.is-user {
+  @apply justify-end;
+}
+
+.message-row.is-assistant {
+  @apply justify-start;
+  
+}
+
+.message-stack {
+  @apply flex max-w-[88%] flex-col gap-1.5;
+}
+
+.message-stack.is-user {
+  @apply items-end;
+}
+
+.message-stack.is-assistant {
+  @apply w-full max-w-none items-stretch;
+}

@@ -17,7 +17,6 @@ import {
   type CharacterNode,
   type ScreenplayItem,
 } from "@/api/library";
-import CharacterRelationshipGraph from "@/components/CharacterRelationshipGraph";
 import "./WorkStudioPanel.css";
 
 type WorkStudioPanelProps = {
@@ -131,13 +130,6 @@ export default function WorkStudioPanel({ onClose, open }: WorkStudioPanelProps)
         selectedSection.character_ids?.includes(character.id),
       ) || []
     : selectedWork?.characters || [];
-  const sectionCharacterIds = new Set(sectionCharacters.map((character) => character.id));
-  const sectionRelationships =
-    selectedWork?.relationships.filter(
-      (relationship) =>
-        sectionCharacterIds.has(relationship.source_id) &&
-        sectionCharacterIds.has(relationship.target_id),
-    ) || [];
   const sectionShots = getSectionShots(selectedWork, selectedSection);
   const selectedCharacter = selectedWork?.characters.find(
     (character) => character.id === selectedCharacterId,
@@ -270,12 +262,20 @@ export default function WorkStudioPanel({ onClose, open }: WorkStudioPanelProps)
                       <GitBranch size={13} />
                       <span>Current Section Map</span>
                     </div>
-                    <CharacterRelationshipGraph
-                      characters={sectionCharacters}
-                      relationships={sectionRelationships}
-                      selectedCharacterId={selectedCharacterId}
-                      onSelectCharacter={setSelectedCharacterId}
-                    />
+                    {sectionCharacters.length > 0 ? (
+                      <div className="work-studio-mini-empty">
+                        <GitBranch size={16} />
+                        <span>
+                          Character map visualization has been removed. Open a section to view links
+                          in the inspector.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="work-studio-mini-empty">
+                        <GitBranch size={16} />
+                        <span>No characters available for this section.</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="work-studio-pane work-studio-characters">

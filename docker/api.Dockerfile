@@ -21,9 +21,3 @@ RUN mkdir -p save
 EXPOSE 5050
 
 CMD ["uv", "run", "--no-sync", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "5050"]
-
-FROM redis:8-alpine AS redis
-
-COPY redis.conf /usr/local/etc/redis/redis.conf
-
-CMD ["redis-server", "/usr/local/etc/redis/redis.conf"]
