@@ -7,6 +7,7 @@ from src.database.repositories import ConversationRepository, RunRepository
 from src.utils import logger
 
 from .agent_queue_service import (
+    agent_stream_enabled,
     get_redis_client,
     publish_run_event,
     serialize_attachment_for_chat,
@@ -80,7 +81,6 @@ def _iter_tool_activities(value: Any):
 
 
 async def execute_agent_run(run_id: str) -> None:
-    redis = get_redis_client()
     async with session_context() as session:
         run_repository = RunRepository(session)
         conversation_repository = ConversationRepository(session)
@@ -110,6 +110,7 @@ async def execute_agent_run(run_id: str) -> None:
         attachments = list((run.attachments or {}).get("items", []))
         messages, init_msg, message_type = _build_agent_input(run.input_text, attachments)
         attachment_count = len(attachments)
+        redis = get_redis_client() if agent_stream_enabled(run.request_config) else None
 
         try:
             agent = agent_manager.get_agent(run.agent_id)
@@ -292,13 +293,13 @@ async def _publish_tool_events(
 
 
 async def _fail_run(run_id: str, message: str) -> None:
-    redis = get_redis_client()
     async with session_context() as session:
         run_repository = RunRepository(session)
         conversation_repository = ConversationRepository(session)
         run = await run_repository.get_by_id(run_id)
         if run is None:
             return
+        redis = get_redis_client() if agent_stream_enabled(run.request_config) else None
         await run_repository.set_status(run, "failed", error=message)
         await conversation_repository.update_message_content(
             str(run.assistant_message_id),

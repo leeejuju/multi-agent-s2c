@@ -44,17 +44,13 @@ def _request_config_bool(
 def agent_queue_enabled(request_config: Mapping[str, Any] | None = None) -> bool:
     return _request_config_bool(
         request_config,
-        "queue_enabled",
-        config.agent_queue_enabled,
+        "enable_run_queue",
+        config.enable_run_queue,
     )
 
 
 def agent_stream_enabled(request_config: Mapping[str, Any] | None = None) -> bool:
-    return _request_config_bool(
-        request_config,
-        "stream_enabled",
-        config.agent_stream_enabled,
-    )
+    return agent_queue_enabled(request_config)
 
 
 def agent_event_persist_enabled(
@@ -151,7 +147,7 @@ def json_line_event(payload: dict[str, Any]) -> bytes:
 
 async def publish_run_event(
     session: AsyncSession,
-    redis: Redis,
+    redis: Redis | None,
     *,
     run_id: str,
     event_type: str,
@@ -182,6 +178,8 @@ async def publish_run_event(
         }
 
     if publish_stream:
+        if redis is None:
+            raise RuntimeError("Redis Stream publishing is enabled but no Redis client was provided.")
         await redis.xadd(
             _run_stream_key(run_id),
             {"payload": json.dumps(event_payload, ensure_ascii=False, default=str)},

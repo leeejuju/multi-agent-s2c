@@ -38,11 +38,10 @@ class Config(BaseSettings):
 
     # ---------- 数据库 ----------
     database_url: str = Field(default="", description="PostgreSQL 数据库连接地址")
-    redis_url: str = Field(default="redis://localhost:6379/0", description="Redis 连接地址")
+    redis_url: str = Field(default="redis://8.136.2.212:6379/0", description="Redis 连接地址")
     arq_queue_name: str = Field(default="agent-runs", description="ARQ 队列名称")
     arq_max_jobs: int = Field(default=64, description="ARQ worker 最大并发任务数")
-    agent_queue_enabled: bool = Field(default=True, description="是否使用 ARQ 队列执行 agent run")
-    agent_stream_enabled: bool = Field(default=True, description="是否发布 agent run Redis Stream 事件")
+    enable_run_queue: bool = Field(default=False, description="是否使用 ARQ/Redis 执行 agent run")
     agent_event_persist_enabled: bool = Field(default=True, description="是否持久化 agent run 流式事件")
     redis_pool_max_connections: int = Field(default=20, description="Redis 连接池最大连接数")
     run_stream_poll_timeout_ms: int = Field(
