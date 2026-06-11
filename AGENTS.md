@@ -29,6 +29,8 @@ The concrete business agents in `src/agents/` are `DesignAgent`, `SearchAgent`, 
 5. Agent stream tokens are emitted as JSON lines.
 6. The assistant's final accumulated response is saved to the conversation.
 
+Agent runs execute in-process by default. ARQ queue execution and Redis Stream event publishing are opt-in through `ENABLE_RUN_QUEUE=true`; database event persistence remains enabled by default.
+
 ## DesignAgent Status
 
 `DesignAgent` is currently positioned as a script and storyboard design agent. Its prompt asks it to produce structured creative planning outputs such as story summaries, dramatic structure, character notes, scene lists, shot tables, camera language, visual emphasis, and sound/music suggestions.
