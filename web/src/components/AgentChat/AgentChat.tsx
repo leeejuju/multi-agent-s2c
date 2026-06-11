@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot,
   Download,
@@ -11,16 +11,20 @@ import {
 } from "lucide-react";
 import { Button, List, Popover } from "antd";
 import { AnimatePresence, motion } from "motion/react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
-import { useChat, type ChatMessageAttachment } from "@/hooks/useChat";
-import { useWorkspaceStore } from "@/store/workspace";
+import { useChat, type ChatMessage, type ChatMessageAttachment } from "@/hooks/useChat";
+import { useWorkspaceStore, type CanvasImageItem } from "@/store/workspace";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 import MessageInput from "@/components/MessageInput";
+import SmoothStreamingText from "./SmoothStreamingText";
 import ToolCallPanel from "@/components/ToolCallPanel";
 import "./AgentChat.css";
 
-const ATTACHMENT_NODE_ID = "global-attachments-container";
+const CANVAS_IMAGE_EXTENSIONS = new Set(["bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"]);
+const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
+const HTML_IMAGE_PATTERN = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+const RAW_IMAGE_URL_PATTERN = /\bhttps?:\/\/[^\s<>"')]+?\.(?:bmp|gif|jpe?g|png|svg|webp)(?:\?[^\s<>"')]+)?/gi;
+const AUTO_SCROLL_THRESHOLD = 96;
 
 function formatAttachmentSize(size?: number | null) {
   if (!size) return "";
@@ -34,6 +38,81 @@ function isImageAttachment(attachment: ChatMessageAttachment) {
     attachment.category === "image" ||
     attachment.content_type.startsWith("image/")
   );
+}
+
+function getFileExtension(file: File) {
+  return file.name.split(".").pop()?.toLowerCase() || "";
+}
+
+function isCanvasImageFile(file: File) {
+  return file.type.startsWith("image/") || CANVAS_IMAGE_EXTENSIONS.has(getFileExtension(file));
+}
+
+function getUploadImageId(file: File) {
+  return `upload-${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function createUploadImageItem(file: File): CanvasImageItem {
+  const objectUrl = URL.createObjectURL(file);
+  return {
+    id: getUploadImageId(file),
+    title: file.name || "Uploaded image",
+    src: objectUrl,
+    source: "upload",
+    objectUrl,
+    createdAt: file.lastModified || Date.now(),
+  };
+}
+
+function normalizeGeneratedImageUrl(url: string) {
+  return url.trim().replace(/^["'<]+|[>"')]+$/g, "");
+}
+
+function hashText(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function createGeneratedImageItem(url: string, title: string): CanvasImageItem {
+  const src = normalizeGeneratedImageUrl(url);
+  return {
+    id: `generated-${hashText(src)}`,
+    title: title || "Generated image",
+    src,
+    source: "generated",
+    createdAt: Date.now(),
+  };
+}
+
+function extractGeneratedImages(content: string) {
+  const images: CanvasImageItem[] = [];
+  const seen = new Set<string>();
+  const pushImage = (url: string, title: string) => {
+    const item = createGeneratedImageItem(url, title);
+    if (!item.src || seen.has(item.id)) return;
+    seen.add(item.id);
+    images.push(item);
+  };
+
+  for (const match of content.matchAll(MARKDOWN_IMAGE_PATTERN)) {
+    pushImage(match[2], match[1] || "Generated image");
+  }
+  for (const match of content.matchAll(HTML_IMAGE_PATTERN)) {
+    pushImage(match[1], "Generated image");
+  }
+  for (const match of content.matchAll(RAW_IMAGE_URL_PATTERN)) {
+    pushImage(match[0], "Generated image");
+  }
+
+  return images;
+}
+
+function getGeneratedImageScanKey(message: ChatMessage, index: number) {
+  return message.id ?? `${index}-${hashText(message.content)}`;
 }
 
 function MessageAttachments({
@@ -91,11 +170,85 @@ function MessageAttachments({
   );
 }
 
+type ChatMessageRowProps = {
+  message: ChatMessage;
+};
+
+const ChatMessageRow = memo(function ChatMessageRow({
+  message,
+}: ChatMessageRowProps) {
+  const [settledAssistantContent, setSettledAssistantContent] = useState(() =>
+    message.role === "assistant" && !message.streaming ? message.content : "",
+  );
+  const isCompactUserMessage =
+    message.role === "user" &&
+    message.content.length <= 80 &&
+    !message.content.includes("\n");
+  const hasContent = message.content.trim().length > 0;
+  const isAssistantRevealing =
+    message.role === "assistant" &&
+    (message.streaming || settledAssistantContent !== message.content);
+  const handleAssistantRevealSettled = useCallback(() => {
+    setSettledAssistantContent(message.content);
+  }, [message.content]);
+
+  return (
+    <div
+      className={`message-row group ${message.role === "user" ? "is-user" : "is-assistant"}`}
+    >
+      <div className={`message-stack ${message.role === "user" ? "is-user" : "is-assistant"}`}>
+        {message.attachments && message.attachments.length > 0 && (
+          <MessageAttachments attachments={message.attachments} />
+        )}
+        {(message.toolActivities && message.toolActivities.length > 0) ||
+        message.streaming ||
+        hasContent ? (
+          <div
+            className={`message-bubble animate-in fade-in slide-in-from-bottom-2 duration-300 ${message.role === "user" ? "is-user" : "is-assistant"} ${isCompactUserMessage ? "is-compact" : ""}`}
+          >
+            {message.toolActivities && message.toolActivities.length > 0 && (
+              <ToolCallPanel activities={message.toolActivities} />
+            )}
+            {message.streaming &&
+            !message.content &&
+            (!message.toolActivities || message.toolActivities.length === 0) ? (
+              <div className="thinking-indicator">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : hasContent ? (
+              message.role === "assistant" ? (
+                isAssistantRevealing ? (
+                  <SmoothStreamingText
+                    content={message.content}
+                    onSettled={handleAssistantRevealSettled}
+                  />
+                ) : (
+                  <MarkdownRenderer content={message.content} />
+                )
+              ) : (
+                <div className="whitespace-pre-wrap break-words">
+                  {message.content}
+                </div>
+              )
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+});
+
 export default function AgentChat() {
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
+  const syncedGeneratedImagesRef = useRef<Set<string>>(new Set());
+  const scannedGeneratedMessagesRef = useRef<Set<string>>(new Set());
 
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { nodes, addNode, removeNode } = useWorkspaceStore();
+  const upsertImageContainer = useWorkspaceStore((state) => state.upsertImageContainer);
+  const removeImageFromContainer = useWorkspaceStore((state) => state.removeImageFromContainer);
 
   const {
     draftText,
@@ -115,30 +268,51 @@ export default function AgentChat() {
     attachments,
     addAttachments,
     removeAttachment,
-    setAttachments,
   } = useChat();
 
-  // Sync workspace node count with local attachments state
   useEffect(() => {
-    const attachmentNode = nodes.find((n) => n.id === ATTACHMENT_NODE_ID);
-    
-    // If node exists but attachments are empty, remove node
-    if (attachmentNode && attachments.length === 0) {
-      removeNode(ATTACHMENT_NODE_ID);
-    } 
-    // If node is missing but attachments exist, it was probably deleted from canvas
-    else if (!attachmentNode && attachments.length > 0) {
-      setAttachments([]);
-    }
-    // Update count if it changed
-    else if (attachmentNode && attachmentNode.count !== attachments.length) {
-      const { updateNode } = useWorkspaceStore.getState();
-      updateNode(ATTACHMENT_NODE_ID, { count: attachments.length });
-    }
-  }, [nodes, attachments.length, removeNode, setAttachments]);
+    const nextImages: CanvasImageItem[] = [];
+    messages.forEach((message, index) => {
+      if (
+        message.role !== "assistant" ||
+        !message.content ||
+        message.streaming ||
+        message.status === "pending" ||
+        message.status === "streaming"
+      ) {
+        return;
+      }
 
-  const scrollToBottom = useCallback(() => {
-    window.requestAnimationFrame(() => {
+      const scanKey = getGeneratedImageScanKey(message, index);
+      if (scannedGeneratedMessagesRef.current.has(scanKey)) return;
+      scannedGeneratedMessagesRef.current.add(scanKey);
+
+      extractGeneratedImages(message.content).forEach((image) => {
+        if (syncedGeneratedImagesRef.current.has(image.id)) return;
+        syncedGeneratedImagesRef.current.add(image.id);
+        nextImages.push(image);
+      });
+    });
+    if (nextImages.length > 0) {
+      upsertImageContainer(nextImages);
+    }
+  }, [messages, upsertImageContainer]);
+
+  const scrollToBottom = useCallback((options: { force?: boolean } = {}) => {
+    const body = bodyRef.current;
+    if (!body) return;
+
+    const distanceFromBottom = body.scrollHeight - body.scrollTop - body.clientHeight;
+    if (!options.force && distanceFromBottom > AUTO_SCROLL_THRESHOLD) {
+      return;
+    }
+
+    if (scrollFrameRef.current !== null) {
+      return;
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
       const body = bodyRef.current;
       if (body) {
         body.scrollTop = body.scrollHeight;
@@ -146,27 +320,33 @@ export default function AgentChat() {
     });
   }, []);
 
+  useEffect(
+    () => () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    },
+    [],
+  );
+
   const onSend = () => handleSend(scrollToBottom);
 
   const handleFileSelect = (files: File[]) => {
     addAttachments(files);
 
-    // Ensure unified attachment container exists on workspace
-    const existingNode = nodes.find(n => n.id === ATTACHMENT_NODE_ID);
-    if (!existingNode) {
-      addNode({
-        id: ATTACHMENT_NODE_ID,
-        type: "attachment",
-        x: 400,
-        y: 300,
-        width: 200,
-        height: 72,
-        count: files.length,
-      });
-    } else {
-      const { updateNode } = useWorkspaceStore.getState();
-      updateNode(ATTACHMENT_NODE_ID, { count: attachments.length + files.length });
+    const imageItems = files.filter(isCanvasImageFile).map(createUploadImageItem);
+    if (imageItems.length > 0) {
+      upsertImageContainer(imageItems);
     }
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    const file = attachments[index];
+    if (file && isCanvasImageFile(file)) {
+      removeImageFromContainer(getUploadImageId(file));
+    }
+    removeAttachment(index);
   };
 
   const toggleCollapse = () => {
@@ -210,7 +390,7 @@ export default function AgentChat() {
           transition={{ type: "spring", stiffness: 200, damping: 24 }}
         >
           <div className="glass-effect flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border-strong ring-1 ring-border-strong">
-            <header className="flex items-center justify-between border-b border-border px-4 py-3">
+            <header className="flex items-center justify-between border-border px-4 py-3">
               <div className="flex flex-col">
                 <h1 className="m-0 text-[15px] font-medium tracking-tight">
                   {conversationId ? "Conversation" : "New Chat"}
@@ -281,56 +461,12 @@ export default function AgentChat() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-2.5">
-                  {messages.map((m, i) => {
-                    const isCompactUserMessage =
-                      m.role === "user" &&
-                      m.content.length <= 80 &&
-                      !m.content.includes("\n");
-                    const hasContent = m.content.trim().length > 0;
-                    return (
-                    <div
-                      key={i}
-                      className={`message-row group ${m.role === "user" ? "is-user" : "is-assistant"}`}
-                    >
-                      <div className={`message-stack ${m.role === "user" ? "is-user" : "is-assistant"}`}>
-                        {m.attachments && m.attachments.length > 0 && (
-                          <MessageAttachments attachments={m.attachments} />
-                        )}
-                        {(m.toolActivities && m.toolActivities.length > 0) ||
-                        m.streaming ||
-                        hasContent ? (
-                          <div
-                            className={`message-bubble animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "is-user" : "is-assistant"} ${isCompactUserMessage ? "is-compact" : ""}`}
-                          >
-                            {m.toolActivities && m.toolActivities.length > 0 && (
-                              <ToolCallPanel activities={m.toolActivities} />
-                            )}
-                            {m.streaming &&
-                            !m.content &&
-                            (!m.toolActivities || m.toolActivities.length === 0) ? (
-                              <div className="thinking-indicator">
-                                <span />
-                                <span />
-                                <span />
-                              </div>
-                            ) : hasContent ? (
-                              <div className={m.role === "assistant" ? "markdown-body break-words" : "whitespace-pre-wrap break-words"}>
-                                {m.role === "assistant" ? (
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {m.content}
-                                  </ReactMarkdown>
-                                ) : (
-                                  m.content
-                                )}
-                                {m.streaming && <span className="cursor-blink" />}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                    );
-                  })}
+                  {messages.map((message, index) => (
+                    <ChatMessageRow
+                      key={message.id ?? index}
+                      message={message}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -347,7 +483,7 @@ export default function AgentChat() {
                 attachments={attachments}
                 images={[]}
                 onClickAttachment={() => {}} // This is now handled internally by MessageInput with a hidden file input
-                onRemoveAttachment={removeAttachment}
+                onRemoveAttachment={handleRemoveAttachment}
                 onRemoveImage={() => {}}
                 onFileSelect={handleFileSelect}
               />

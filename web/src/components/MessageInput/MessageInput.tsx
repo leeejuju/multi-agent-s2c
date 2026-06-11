@@ -112,7 +112,7 @@ export default function MessageInput({
   );
 
   return (
-    <div className="message-input glass-effect-sm flex flex-col overflow-hidden rounded-[18px] bg-card-background">
+    <div className="message-input glass-effect-sm flex px-1.5 py-1.5 flex-col overflow-hidden rounded-[18px] bg-card-background">
       <input
         type="file"
         ref={fileInputRef}

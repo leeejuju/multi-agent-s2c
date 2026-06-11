@@ -187,6 +187,16 @@ export default function LibraryDrawer({
     () => screenplays.find((item) => item.id === activeWorkId) || null,
     [activeWorkId, screenplays],
   );
+  const visibleCount =
+    activeTab === "drawing-scripts"
+      ? filteredDrawingScripts.length
+      : filteredScreenplays.length;
+  const totalCount =
+    activeTab === "drawing-scripts" ? drawingScripts.length : screenplays.length;
+  const countLabel =
+    activeTab === "drawing-scripts"
+      ? `${visibleCount}/${totalCount} scripts`
+      : `${visibleCount}/${totalCount} works`;
 
   useEffect(() => {
     if (activeTab !== "screenplays") setActiveWorkId(null);
@@ -278,32 +288,39 @@ export default function LibraryDrawer({
               role="dialog"
               style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
             >
-              <header className="library-header" onPointerDown={handleDragStart}>
-                <h2>{activeWork ? "Work Detail" : "Script Library"}</h2>
-                <div className="library-header-actions">
-                  <input
-                    accept=".doc,.docx,.pdf,.txt,.md,.markdown,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-                    className="hidden"
-                    multiple
-                    onChange={(event) => void handleImportFiles(event.target.files)}
-                    ref={fileInputRef}
-                    type="file"
-                  />
-                  <button
-                    aria-label="Close library"
-                    className="library-icon-btn"
-                    onClick={onClose}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    title="Close"
-                    type="button"
-                  >
-                    <X size={16} />
-                  </button>
+              <input
+                accept=".doc,.docx,.pdf,.txt,.md,.markdown,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                className="hidden"
+                multiple
+                onChange={(event) => void handleImportFiles(event.target.files)}
+                ref={fileInputRef}
+                type="file"
+              />
+
+              <header
+                className={activeWork ? "library-topbar is-detail" : "library-topbar"}
+                onPointerDown={handleDragStart}
+              >
+                <div className="library-title-block">
+                  <span>{activeWork ? "Screenplay workspace" : "Script desk"}</span>
+                  <h2>{activeWork ? "Work Detail" : "Script Library"}</h2>
+                  {!activeWork && <small>{countLabel}</small>}
                 </div>
+
+                <button
+                  aria-label="Close library"
+                  className="library-icon-btn"
+                  onClick={onClose}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  title="Close"
+                  type="button"
+                >
+                  <X size={16} />
+                </button>
               </header>
 
               {!activeWork && (
-                <div className="library-toolbar">
+                <div className="library-command-bar">
                   <div className="library-tab-group" role="tablist">
                     {tabItems.map(({ icon: Icon, key, label }) => (
                       <button

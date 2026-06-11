@@ -1,14 +1,17 @@
 import { CSSProperties, PointerEvent, WheelEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Brush, Crop, MessageSquare, Trash2 } from "lucide-react";
+
 import { useWorkspaceStore, type CanvasNode } from "@/store/workspace";
-import NodeContainer from "@/components/NodeContainer";
+import AgentContainer from "./component/AgentContainer";
+import AttachmentContainer from "./component/AttachmentContainer";
+import ImageContainer from "./component/ImageContainer";
+import ContainerContextMenu from "./component/menu/ContainerContextMenu";
 import "./GridCanvas.css";
 
 type ContextMenuState = {
   show: boolean;
   x: number;
   y: number;
-  nodeId: string;
+  containerId: string;
 };
 
 type PanState = {
@@ -23,17 +26,21 @@ type PanState = {
 type DragState = {
   active: boolean;
   pointerId: number;
-  nodeId: string;
+  containerId: string;
   startClientX: number;
   startClientY: number;
-  originNodeX: number;
-  originNodeY: number;
+  originContainerX: number;
+  originContainerY: number;
 };
 
 const GRID_SIZE = 24;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 3;
 const ZOOM_STEP = 0.08;
+const SINGLE_IMAGE_MAX_WIDTH = 560;
+const SINGLE_IMAGE_MAX_HEIGHT = 520;
+const SINGLE_IMAGE_MIN_WIDTH = 220;
+const SINGLE_IMAGE_MIN_HEIGHT = 160;
 
 const defaultPanState: PanState = {
   active: false,
@@ -47,18 +54,18 @@ const defaultPanState: PanState = {
 const defaultDragState: DragState = {
   active: false,
   pointerId: -1,
-  nodeId: "",
+  containerId: "",
   startClientX: 0,
   startClientY: 0,
-  originNodeX: 0,
-  originNodeY: 0,
+  originContainerX: 0,
+  originContainerY: 0,
 };
 
 const defaultContextMenu: ContextMenuState = {
   show: false,
   x: 0,
   y: 0,
-  nodeId: "",
+  containerId: "",
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -69,46 +76,84 @@ function snapToGrid(value: number) {
   return Math.round(value / GRID_SIZE) * GRID_SIZE;
 }
 
+function getFittedImageNodeSize(
+  naturalWidth: number,
+  naturalHeight: number,
+  imageCount: number,
+) {
+  const safeWidth = naturalWidth > 0 ? naturalWidth : 1;
+  const safeHeight = naturalHeight > 0 ? naturalHeight : 1;
+  const aspectRatio = safeWidth / safeHeight;
+
+  if (imageCount > 1) {
+    const columns = Math.ceil(Math.sqrt(imageCount));
+    const rows = Math.ceil(imageCount / columns);
+    const tileWidth = aspectRatio >= 1 ? 220 : 172;
+    const tileHeight = tileWidth / aspectRatio;
+    return {
+      width: snapToGrid(clamp(columns * tileWidth + (columns - 1) * 8 + 16, 320, 640)),
+      height: snapToGrid(clamp(rows * tileHeight + (rows - 1) * 8 + 16, 220, 560)),
+    };
+  }
+
+  let width = clamp(safeWidth, SINGLE_IMAGE_MIN_WIDTH, SINGLE_IMAGE_MAX_WIDTH);
+  let height = width / aspectRatio;
+
+  if (height > SINGLE_IMAGE_MAX_HEIGHT) {
+    height = SINGLE_IMAGE_MAX_HEIGHT;
+    width = height * aspectRatio;
+  }
+  if (height < SINGLE_IMAGE_MIN_HEIGHT) {
+    height = SINGLE_IMAGE_MIN_HEIGHT;
+    width = height * aspectRatio;
+  }
+
+  return {
+    width: snapToGrid(clamp(width, SINGLE_IMAGE_MIN_WIDTH, SINGLE_IMAGE_MAX_WIDTH)),
+    height: snapToGrid(clamp(height, SINGLE_IMAGE_MIN_HEIGHT, SINGLE_IMAGE_MAX_HEIGHT)),
+  };
+}
+
 export default function GridCanvas() {
   const viewportRef = useRef<HTMLElement | null>(null);
-  const { nodes, updateNodePosition, removeNode } = useWorkspaceStore();
+  const { nodes, updateNode, updateNodePosition, removeNode } = useWorkspaceStore();
   const [panX, setPanX] = useState(28);
   const [panY, setPanY] = useState(28);
   const [scale, setScale] = useState(1);
   const [panState, setPanState] = useState<PanState>(defaultPanState);
   const [dragState, setDragState] = useState<DragState>(defaultDragState);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(defaultContextMenu);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.key === "Backspace" || event.key === "Delete") && selectedNodeId) {
-        // Only trigger if not typing in an input/textarea
-        const isInput = document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA";
+      if ((event.key === "Backspace" || event.key === "Delete") && selectedContainerId) {
+        const isInput =
+          document.activeElement?.tagName === "INPUT" ||
+          document.activeElement?.tagName === "TEXTAREA";
         if (!isInput) {
-          removeNode(selectedNodeId);
-          setSelectedNodeId(null);
+          removeNode(selectedContainerId);
+          setSelectedContainerId(null);
         }
       }
     };
 
     const closeMenu = () => setContextMenu(defaultContextMenu);
-    
-    // Explicitly prevent browser native zoom when hovering over the canvas
-    const handleWheel = (e: globalThis.WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
+
+    const handleWheel = (event: globalThis.WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
       }
     };
-    
+
     const viewport = viewportRef.current;
     if (viewport) {
       viewport.addEventListener("wheel", handleWheel, { passive: false });
     }
-    
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("click", closeMenu);
-    
+
     return () => {
       if (viewport) {
         viewport.removeEventListener("wheel", handleWheel);
@@ -116,7 +161,7 @@ export default function GridCanvas() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("click", closeMenu);
     };
-  }, [selectedNodeId, removeNode]);
+  }, [selectedContainerId, removeNode]);
 
   const workspaceStyle = useMemo<CSSProperties>(
     () => ({
@@ -133,29 +178,48 @@ export default function GridCanvas() {
     [panX, panY, scale],
   );
 
+  const contextContainer = useMemo(
+    () => nodes.find((node) => node.id === contextMenu.containerId),
+    [contextMenu.containerId, nodes],
+  );
+
+  const closeContextMenu = () => setContextMenu(defaultContextMenu);
+
+  const onImageLoad = (
+    node: CanvasNode,
+    _imageId: string,
+    naturalWidth: number,
+    naturalHeight: number,
+    imageCount: number,
+  ) => {
+    const nextSize = getFittedImageNodeSize(naturalWidth, naturalHeight, imageCount);
+    if (
+      Math.abs(node.width - nextSize.width) < 2 &&
+      Math.abs(node.height - nextSize.height) < 2
+    ) {
+      return;
+    }
+    updateNode(node.id, nextSize);
+  };
+
   const releasePointer = (pointerId: number) => {
     viewportRef.current?.releasePointerCapture(pointerId);
   };
 
   const onViewportPointerDown = (event: PointerEvent<HTMLElement>) => {
-    // Clear selection on background click (left click)
     if (event.button === 0) {
-      setSelectedNodeId(null);
+      setSelectedContainerId(null);
     }
 
-    // Trigger panning on middle mouse button (1)
     if (event.button !== 1) {
       return;
     }
 
-    if (
-      event.target instanceof Element &&
-      event.target.closest(".grid-node")
-    ) {
+    if (event.target instanceof Element && event.target.closest(".grid-node")) {
       return;
     }
 
-    event.preventDefault(); // Stop browser auto-scroll
+    event.preventDefault();
 
     setPanState({
       active: true,
@@ -168,7 +232,7 @@ export default function GridCanvas() {
     viewportRef.current?.setPointerCapture(event.pointerId);
   };
 
-  const onNodePointerDown = (
+  const onContainerPointerDown = (
     node: CanvasNode,
     event: PointerEvent<HTMLElement>,
   ) => {
@@ -176,32 +240,32 @@ export default function GridCanvas() {
       return;
     }
 
-    setSelectedNodeId(node.id);
+    setSelectedContainerId(node.id);
 
     setDragState({
       active: true,
       pointerId: event.pointerId,
-      nodeId: node.id,
+      containerId: node.id,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      originNodeX: node.x,
-      originNodeY: node.y,
+      originContainerX: node.x,
+      originContainerY: node.y,
     });
     viewportRef.current?.setPointerCapture(event.pointerId);
   };
 
-  const onNodeContextMenu = (
+  const onContainerContextMenu = (
     node: CanvasNode,
     event: React.MouseEvent<HTMLElement>,
   ) => {
-    if (node.type !== "image") return;
     event.preventDefault();
     event.stopPropagation();
+    setSelectedContainerId(node.id);
     setContextMenu({
       show: true,
       x: event.clientX,
       y: event.clientY,
-      nodeId: node.id,
+      containerId: node.id,
     });
   };
 
@@ -209,10 +273,10 @@ export default function GridCanvas() {
     if (dragState.active && event.pointerId === dragState.pointerId) {
       const deltaWorldX = (event.clientX - dragState.startClientX) / scale;
       const deltaWorldY = (event.clientY - dragState.startClientY) / scale;
-      const nextX = snapToGrid(dragState.originNodeX + deltaWorldX);
-      const nextY = snapToGrid(dragState.originNodeY + deltaWorldY);
+      const nextX = snapToGrid(dragState.originContainerX + deltaWorldX);
+      const nextY = snapToGrid(dragState.originContainerY + deltaWorldY);
 
-      updateNodePosition(dragState.nodeId, nextX, nextY);
+      updateNodePosition(dragState.containerId, nextX, nextY);
       return;
     }
 
@@ -280,50 +344,58 @@ export default function GridCanvas() {
     >
       <div className="canvas-grid" style={gridBackgroundStyle} />
       <div className="canvas-workspace" style={workspaceStyle}>
-        {nodes.map((node) => (
-          <NodeContainer
-            key={node.id}
-            node={node}
-            isSelected={selectedNodeId === node.id}
-            onPointerDown={(event) => onNodePointerDown(node, event)}
-            onContextMenu={(event) => onNodeContextMenu(node, event)}
-            onRemove={removeNode}
-          />
-        ))}
+        {nodes.map((node) => {
+          if (node.type === "image") {
+            return (
+              <ImageContainer
+                isSelected={selectedContainerId === node.id}
+                key={node.id}
+                node={node}
+                onContextMenu={(event) => onContainerContextMenu(node, event)}
+                onImageLoad={onImageLoad}
+                onPointerDown={(event) => onContainerPointerDown(node, event)}
+                onRemove={removeNode}
+              />
+            );
+          }
+
+          if (node.type === "attachment") {
+            return (
+              <AttachmentContainer
+                isSelected={selectedContainerId === node.id}
+                key={node.id}
+                node={node}
+                onContextMenu={(event) => onContainerContextMenu(node, event)}
+                onPointerDown={(event) => onContainerPointerDown(node, event)}
+                onRemove={removeNode}
+              />
+            );
+          }
+
+          return (
+            <AgentContainer
+              isSelected={selectedContainerId === node.id}
+              key={node.id}
+              node={node}
+              onContextMenu={(event) => onContainerContextMenu(node, event)}
+              onPointerDown={(event) => onContainerPointerDown(node, event)}
+            />
+          );
+        })}
       </div>
 
-      {contextMenu.show && (
-        <div 
-          className="canvas-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button className="menu-item" onClick={() => setContextMenu(defaultContextMenu)}>
-            <Crop size={16} />
-            <span>裁剪</span>
-          </button>
-          <button className="menu-item" onClick={() => setContextMenu(defaultContextMenu)}>
-            <Brush size={16} />
-            <span>涂抹</span>
-          </button>
-          <div className="menu-divider" />
-          <button className="menu-item is-primary" onClick={() => setContextMenu(defaultContextMenu)}>
-            <MessageSquare size={16} />
-            <span>Ask Agent</span>
-          </button>
-          <div className="menu-divider" />
-          <button 
-            className="menu-item text-[#ff3b30]" 
-            onClick={() => {
-              removeNode(contextMenu.nodeId);
-              setSelectedNodeId(null);
-              setContextMenu(defaultContextMenu);
-            }}
-          >
-            <Trash2 size={16} />
-            <span>删除</span>
-          </button>
-        </div>
+      {contextMenu.show && contextContainer && (
+        <ContainerContextMenu
+          node={contextContainer}
+          onClose={closeContextMenu}
+          onRemove={() => {
+            removeNode(contextMenu.containerId);
+            setSelectedContainerId(null);
+            setContextMenu(defaultContextMenu);
+          }}
+          x={contextMenu.x}
+          y={contextMenu.y}
+        />
       )}
     </section>
   );
