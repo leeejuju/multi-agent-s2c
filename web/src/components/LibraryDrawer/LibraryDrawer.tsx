@@ -288,7 +288,7 @@ export default function LibraryDrawer({
               style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
             >
               <input
-                accept=".doc,.docx,.pdf,.txt,.md,.markdown,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                accept=".txt,.md,.markdown,.docx,.html,.htm,.json,.csv,.xls,.xlsx,.pdf,.pptx,application/pdf,application/json,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/xhtml+xml,text/csv,text/html,text/plain,text/markdown"
                 className="hidden"
                 multiple
                 onChange={(event) => void handleImportFiles(event.target.files)}

@@ -114,7 +114,6 @@ export default function SmoothStreamingText({
           {tailContent}
         </span>
       )}
-      <span aria-hidden="true" className="smooth-streaming-cursor" />
     </span>
   );
 }

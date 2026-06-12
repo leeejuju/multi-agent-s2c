@@ -19,7 +19,7 @@ export default function DynamicIsland() {
           expanded: {
             width: 460,
             height: 72,
-            borderRadius: 999,
+            borderRadius: 36,
           },
         }}
         transition={{
@@ -46,8 +46,6 @@ export default function DynamicIsland() {
               expanded: { opacity: 1, y: 0, pointerEvents: "auto" },
             }}
           >
-            <strong className="text-[15px] font-medium">System Active</strong>
-            <span className="mt-1 text-[12px] text-on-surface-variant">Canvas initialized and ready for advanced workflows.</span>
           </motion.div>
         </div>
       </motion.div>

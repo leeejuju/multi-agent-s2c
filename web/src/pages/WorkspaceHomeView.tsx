@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, PenLine, Plus, Search } from "lucide-react";
+import { ArrowRight, Clock3, Plus, Search, Paperclip } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -88,63 +88,74 @@ export default function WorkspaceHomeView() {
             startDesign();
           }}
         >
-          <PenLine size={18} />
+          <button type="button" className="icon-action-button" title="Add attachment">
+            <Paperclip size={20} strokeWidth={2.5} />
+          </button>
+          <Search size={20} className="search-indicator-icon" />
           <textarea
             aria-label="Start design prompt"
             onChange={(event) => setPrompt(event.target.value)}
             placeholder="Describe the scene, story, shot, style, or visual concept you want to design..."
             value={prompt}
+            rows={1}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (prompt.trim()) startDesign();
+              }
+            }}
           />
-          <button type="submit">
-            <span>Enter chat</span>
-            <ArrowRight size={16} />
+          <button type="submit" className="submit-action-button" disabled={!prompt.trim()}>
+            <ArrowRight size={18} strokeWidth={2.5} />
           </button>
         </form>
       </section>
 
       <section className="workspace-home-history">
-        <div className="workspace-history-topbar">
-          <div>
-            <span>Previous workspace</span>
-            <h2>Recent work</h2>
+        <div className="workspace-history-container">
+          <div className="workspace-history-topbar">
+            <div>
+              <span>Previous workspace</span>
+              <h2>Recent work</h2>
+            </div>
+            <label className="workspace-history-search">
+              <Search size={15} />
+              <input
+                aria-label="Search previous workspaces"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search"
+                value={query}
+              />
+            </label>
           </div>
-          <label className="workspace-history-search">
-            <Search size={15} />
-            <input
-              aria-label="Search previous workspaces"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              value={query}
-            />
-          </label>
-        </div>
 
-        {loading ? (
-          <div className="workspace-home-empty">Loading workspace...</div>
-        ) : visibleWorkspaces.length === 0 ? (
-          <div className="workspace-home-empty">
-            <Plus size={18} />
-            <span>No previous workspace yet.</span>
-          </div>
-        ) : (
-          <div className="workspace-card-grid">
-            {visibleWorkspaces.map((workspace) => (
-              <button
-                className="workspace-card"
-                key={workspace.id}
-                onClick={() => openWorkspace(workspace)}
-                type="button"
-              >
-                <span className="workspace-card-kicker">Workspace</span>
-                <strong>{workspace.title || "Untitled workspace"}</strong>
-                <small>
-                  <Clock3 size={13} />
-                  {formatWorkspaceDate(workspace.updated_at || workspace.created_at)}
-                </small>
-              </button>
-            ))}
-          </div>
-        )}
+          {loading ? (
+            <div className="workspace-home-empty">Loading workspace...</div>
+          ) : visibleWorkspaces.length === 0 ? (
+            <div className="workspace-home-empty">
+              <Plus size={18} />
+              <span>No previous workspace yet.</span>
+            </div>
+          ) : (
+            <div className="workspace-card-grid">
+              {visibleWorkspaces.map((workspace) => (
+                <button
+                  className="workspace-card"
+                  key={workspace.id}
+                  onClick={() => openWorkspace(workspace)}
+                  type="button"
+                >
+                  <span className="workspace-card-kicker">Workspace</span>
+                  <strong>{workspace.title || "Untitled workspace"}</strong>
+                  <small>
+                    <Clock3 size={13} />
+                    {formatWorkspaceDate(workspace.updated_at || workspace.created_at)}
+                  </small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </main>
   );
