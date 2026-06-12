@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from src.agents.common import BaseContext
+from src.agents.base_context import BaseContext
 from src.configs.config import config as sys_config
 
 

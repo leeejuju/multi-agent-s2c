@@ -7,7 +7,8 @@ from langchain.agents.middleware import (
 )
 from langgraph.graph.state import CompiledStateGraph
 
-from src.agents.common import BaseAgent, load_model
+from src.agents.base_agent import BaseAgent
+from src.agents.utils.model_tool import load_model
 from src.configs import config as sys_config
 
 from .context import LayoutAgentContext

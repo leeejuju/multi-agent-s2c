@@ -2,9 +2,10 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRetryMiddleware
 from langgraph.graph.state import CompiledStateGraph
 
-from src.agents.common import BaseAgent, load_model
-from src.agents.common.middlewares import SearchToolMiddleware
+from src.agents.base_agent import BaseAgent
+from src.agents.middlewares import SearchToolMiddleware
 from src.agents.subagent import knowledge_search, web_search_one, web_search_parallel
+from src.agents.utils.model_tool import load_model
 from src.configs import config as sys_config
 
 from .context import SearchAgentContext

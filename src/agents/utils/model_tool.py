@@ -1,4 +1,5 @@
 from langchain_openai import ChatOpenAI
+
 from src.configs import DEFAULT_BASE_MODEL_PROVIER
 from src.configs import config as sys_config
 

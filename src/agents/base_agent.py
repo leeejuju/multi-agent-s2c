@@ -41,10 +41,10 @@ class BaseAgent:
         async for mode, chunk in agent.astream(
             messages,
             config=config,
-            stream_mode=["messages", "updates"],
+            stream_mode=["messages"],
+            version="v3",
             **kwargs,
         ):
-            logger.info(f"mode={mode}, chunk={chunk}")
             if mode == "messages":
                 yield mode, chunk[0]
             else:
