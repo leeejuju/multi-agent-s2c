@@ -97,6 +97,15 @@ class Config(BaseSettings):
     search_route_timeout_seconds: float = Field(default=8.0, description="单路搜索超时时间")
     local_reference_root: str = Field(default="", description="本地参考资料搜索根目录")
 
+    # ---------- Document Parser APIs ----------
+    mineru_api_url: str = Field(default="", description="MinerU parsing API URL")
+    mineru_api_key: str = Field(default="", description="MinerU parsing API key")
+    paddle_ocr_api_url: str = Field(default="https://paddleocr.aistudio-app.com/api/v2/ocr/jobs", description="PaddleOCR parsing API URL")
+    paddle_ocr_api_key: str = Field(default="a7bbafaf11b02db719bacf50084985f7c6b2b015", description="PaddleOCR parsing API key")
+    document_parser_api_timeout_seconds: float = Field(
+        default=120.0, description="Document parser API request timeout"
+    )
+
     # ---------- Langfuse ----------
     langfuse_public_key: str = Field(default="", description="Langfuse Public Key")
     langfuse_secret_key: str = Field(default="", description="Langfuse Secret Key")

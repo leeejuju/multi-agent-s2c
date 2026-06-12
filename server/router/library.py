@@ -2,6 +2,7 @@ from collections import Counter
 from pathlib import Path
 from re import IGNORECASE, MULTILINE
 from re import compile as compile_regex
+from tempfile import NamedTemporaryFile
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -13,11 +14,7 @@ from server.utils.auth import AuthenticatedUser
 from src.database import get_db
 from src.database.models import LibraryItem
 from src.database.repositories import LibraryRepository
-from src.plugins.document_parser import (
-    DocumentParseRequest,
-    DocumentParseResult,
-    DocumentParserRunner,
-)
+from src.knowledge.extractor import ExtractorFactory, ExtractorResult, NoExtractorError
 from src.storage import (
     build_object_key,
     delete_object,
@@ -35,17 +32,30 @@ MAX_PARSED_DOCUMENT_CHARS = 120_000
 ALLOWED_LIBRARY_DOCUMENT_TYPES = {
     "application/pdf",
     "application/msword",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/json",
+    "application/xhtml+xml",
+    "text/csv",
+    "text/html",
     "text/plain",
     "text/markdown",
 }
 ALLOWED_LIBRARY_DOCUMENT_EXTENSIONS = {
-    ".pdf",
-    ".doc",
-    ".docx",
     ".txt",
     ".md",
     ".markdown",
+    ".docx",
+    ".html",
+    ".htm",
+    ".json",
+    ".csv",
+    ".xls",
+    ".xlsx",
+    ".pdf",
+    ".pptx",
 }
 
 speaker_line_pattern = compile_regex(
@@ -130,40 +140,38 @@ async def _parse_library_document(
     content_type: str,
     content: bytes,
 ) -> dict[str, Any]:
-    request = DocumentParseRequest(
-        file_name=file_name,
-        content_type=content_type,
-        content=content,
-        parser_name="docling",
-    )
-    runner = DocumentParserRunner(max_workers=1)
-    events = []
+    suffix = _file_extension(file_name) or ".bin"
+    temp_path: Path | None = None
     try:
-        async for event in runner.parse(request):
-            events.append(event)
+        with NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file.write(content)
+            temp_path = Path(temp_file.name)
+        result = await ExtractorFactory.default().extractor_file(
+            temp_path,
+            content_type=content_type,
+            file_name=file_name,
+        )
+    except NoExtractorError as exc:
+        result = ExtractorResult(
+            extractor="factory",
+            file_path=str(temp_path or file_name),
+            success=False,
+            error=str(exc),
+        )
     finally:
-        await runner.aclose()
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
-    result = DocumentParseResult.from_events(
-        request=request,
-        parser="docling",
-        events=events,
-    )
     parsed_text, truncated = _truncate_text((result.content or "").strip())
-    warnings = [
-        event.message for event in events if event.type == "warning" and event.message
-    ]
     return {
-        "parser": result.parser,
+        "parser": result.extractor,
         "success": result.success,
         "error": result.error,
         "parsed_text": parsed_text,
         "metadata": {
             **dict(result.metadata),
-            "event_count": len(events),
             "truncated": truncated,
-            "warning_count": len(warnings),
-            "warnings": warnings,
+            "source_file_name": file_name,
         },
     }
 

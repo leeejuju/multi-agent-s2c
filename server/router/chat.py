@@ -1,4 +1,5 @@
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -21,11 +22,7 @@ from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.database import get_db
 from src.database.repositories import RunRepository
-from src.plugins.document_parser import (
-    DocumentParseRequest,
-    DocumentParseResult,
-    DocumentParserRunner,
-)
+from src.knowledge.extractor import ExtractorFactory, ExtractorResult, NoExtractorError
 from src.storage import (
     build_object_key,
     create_object_access_url,
@@ -55,7 +52,13 @@ ALLOWED_IMAGE_TYPES = {
 ALLOWED_DOCUMENT_TYPES = {
     "application/pdf",
     "application/csv",
+    "application/msword",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/xhtml+xml",
     "text/plain",
+    "text/html",
     "text/markdown",
     "text/csv",
     "application/json",
@@ -71,13 +74,18 @@ ALLOWED_IMAGE_EXTENSIONS = {
     ".svg",
 }
 ALLOWED_DOCUMENT_EXTENSIONS = {
-    ".pdf",
     ".txt",
     ".md",
     ".markdown",
-    ".csv",
-    ".json",
     ".docx",
+    ".html",
+    ".htm",
+    ".json",
+    ".csv",
+    ".xls",
+    ".xlsx",
+    ".pdf",
+    ".pptx",
 }
 MAX_PARSED_DOCUMENT_CHARS = 80_000
 
@@ -187,54 +195,45 @@ def _truncate_parsed_text(text: str) -> tuple[str, bool]:
     )
 
 
-async def _parse_uploaded_document_with_docling(
+async def _parse_uploaded_document(
     *,
     file_name: str,
     content_type: str,
     content: bytes,
 ) -> dict[str, Any]:
-    request = DocumentParseRequest(
-        file_name=file_name,
-        content_type=content_type,
-        content=content,
-        parser_name="docling",
-    )
-    runner = DocumentParserRunner(max_workers=1)
-    events = []
+    suffix = _file_extension(file_name) or ".bin"
+    temp_path: Path | None = None
     try:
-        async for event in runner.parse(request):
-            events.append(event)
+        with NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file.write(content)
+            temp_path = Path(temp_file.name)
+        result = await ExtractorFactory.default().extractor_file(
+            temp_path,
+            content_type=content_type,
+            file_name=file_name,
+        )
+    except NoExtractorError as exc:
+        result = ExtractorResult(
+            extractor="factory",
+            file_path=str(temp_path or file_name),
+            success=False,
+            error=str(exc),
+        )
     finally:
-        await runner.aclose()
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
-    result = DocumentParseResult.from_events(
-        request=request,
-        parser="docling",
-        events=events,
-    )
     parsed_text, truncated = _truncate_parsed_text(result.content.strip())
-    warning_messages = [
-        event.message
-        for event in events
-        if event.type == "warning" and event.message
-    ]
-    parse_error = result.error
-    if not parse_error and warning_messages and not result.success:
-        parse_error = warning_messages[-1]
-
     parse_metadata = {
         **dict(result.metadata),
-        "event_count": len(events),
         "truncated": truncated,
-        "warning_count": len(warning_messages),
+        "source_file_name": file_name,
     }
-    if warning_messages:
-        parse_metadata["warnings"] = warning_messages
 
     return {
-        "parser": result.parser,
+        "parser": result.extractor,
         "parse_status": "success" if result.success else "failed",
-        "parse_error": parse_error,
+        "parse_error": result.error,
         "parsed_text": parsed_text or None,
         "parse_metadata": parse_metadata,
     }
@@ -332,7 +331,7 @@ async def _upload_attachments(
 
             parse_result: dict[str, Any] = {}
             if category == "document":
-                parse_result = await _parse_uploaded_document_with_docling(
+                parse_result = await _parse_uploaded_document(
                     file_name=upload.filename or "file",
                     content_type=content_type or "application/octet-stream",
                     content=content,
