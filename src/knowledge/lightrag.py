@@ -136,17 +136,6 @@ class LightRAGKnowledgeProvider(BaseGraphKnowledgeProvider):
             )
         return self._client
 
-    async def ensure_ready(self) -> None:
-        client = self.get_client()
-        initializer = getattr(client, "initialize_storages", None)
-        if callable(initializer):
-            await initializer()
-        try:
-            from lightrag.kg.shared_storage import initialize_pipeline_status
-        except ImportError:
-            return
-        await initialize_pipeline_status(workspace=config.lightrag_workspace)
-
     async def insert_documents(self, documents: list[KnowledgeDocument]) -> Any:
         #TODO 这里需要异步
         client = self.get_client()

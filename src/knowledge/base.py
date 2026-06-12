@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 
 @dataclass(slots=True)
@@ -19,10 +20,6 @@ class VectorRecord:
 
 class BaseKnowledgeProvider(ABC):
     provider_name: str
-
-    @abstractmethod
-    async def ensure_ready(self) -> None:
-        """Prepare the provider for requests."""
 
 
 class BaseGraphKnowledgeProvider(BaseKnowledgeProvider, ABC):
@@ -55,15 +52,29 @@ ProviderT = TypeVar("ProviderT", bound=BaseKnowledgeProvider)
 
 
 class BaseKnowledgeFactory(ABC, Generic[ProviderT]):
-    _providers: dict[str, Any] = {}
+    _providers: ClassVar[dict[str, Callable[[], ProviderT]]] = {}
 
     @classmethod
-    def register_provider(cls, provider_name: str, provider_factory: Any) -> None:
-        cls._providers[provider_name.lower()] = provider_factory
+    def register_provider(
+        cls,
+        provider_name: str,
+        provider_factory: Callable[[], ProviderT],
+    ) -> None:
+        normalized_name = cls._normalize_provider_name(provider_name)
+        cls._providers[normalized_name] = provider_factory
+
+    @classmethod
+    def provider_names(cls) -> tuple[str, ...]:
+        return tuple(sorted(cls._providers))
 
     @classmethod
     def create(cls, provider_name: str) -> ProviderT:
-        provider_factory = cls._providers.get(provider_name.lower())
+        normalized_name = cls._normalize_provider_name(provider_name)
+        provider_factory = cls._providers.get(normalized_name)
         if provider_factory is None:
-            raise ValueError(f"Unsupported knowledge provider: {provider_name}")
+            supported = ", ".join(cls.provider_names()) or "none"
+            raise ValueError(
+                f"Unsupported knowledge provider: {provider_name}. "
+                f"Supported providers: {supported}."
+            )
         return provider_factory()

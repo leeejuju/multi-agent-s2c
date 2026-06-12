@@ -6,7 +6,12 @@ from .base import (
     KnowledgeDocument,
     VectorRecord,
 )
-from .factory import GraphKnowledgeFactory, VectorKnowledgeFactory
+from .factory import (
+    GraphKnowledgeFactory,
+    KnowledgeFactory,
+    KnowledgeProviderType,
+    VectorKnowledgeFactory,
+)
 from .lightrag import LightRAGKnowledgeProvider, get_lightrag_provider
 from .milvus import MilvusKnowledgeProvider, get_milvus_provider
 
@@ -16,7 +21,9 @@ __all__ = [
     "BaseKnowledgeProvider",
     "BaseVectorKnowledgeProvider",
     "GraphKnowledgeFactory",
+    "KnowledgeFactory",
     "KnowledgeDocument",
+    "KnowledgeProviderType",
     "LightRAGKnowledgeProvider",
     "MilvusKnowledgeProvider",
     "VectorKnowledgeFactory",

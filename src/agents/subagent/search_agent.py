@@ -54,7 +54,6 @@ async def knowledge_search(
     limit: int = 5,
 ) -> dict[str, Any]:
     provider = GraphKnowledgeFactory.create()
-    await provider.ensure_ready()
     result = await provider.query(
         query,
         mode=mode,

@@ -35,9 +35,6 @@ class MilvusKnowledgeProvider(BaseVectorKnowledgeProvider):
             self._client = client_cls(**client_kwargs)
         return self._client
 
-    async def ensure_ready(self) -> None:
-        self.get_client()
-
     async def upsert_records(self, records: list[VectorRecord]) -> Any:
         client = self.get_client()
         if not records:
