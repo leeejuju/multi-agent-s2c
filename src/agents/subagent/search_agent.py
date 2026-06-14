@@ -5,7 +5,12 @@ from langchain.tools import tool
 from langchain_tavily import TavilySearch
 
 from src.configs import config as sys_config
-from src.knowledge.factory import GraphKnowledgeFactory
+from src.knowledge import KnowledgeFactory, KnowledgeSearch
+from src.knowledge.store.milvus.config import (
+    DEFAULT_COLLECTION_NAME,
+    DEFAULT_SIMILARITY_THRESHOLD,
+    DEFAULT_TOP_K,
+)
 
 
 def _build_tavily_tool(max_results: int = 5) -> TavilySearch:
@@ -47,20 +52,23 @@ async def web_search_parallel(queries: list[str]) -> list[dict[str, Any]]:
     return valid_results
 
 
-@tool(description="Search the local graph knowledge base through LightRAG.")
+@tool(description="Search the local Milvus knowledge base with a dense vector.")
 async def knowledge_search(
-    query: str,
-    mode: str = "mix",
-    limit: int = 5,
+    vector: list[float],
+    collection_name: str = DEFAULT_COLLECTION_NAME,
+    limit: int = DEFAULT_TOP_K,
+    similarity_threshold: float | None = DEFAULT_SIMILARITY_THRESHOLD,
 ) -> dict[str, Any]:
-    provider = GraphKnowledgeFactory.create()
-    result = await provider.query(
-        query,
-        mode=mode,
-        top_k=limit,
-        chunk_top_k=limit,
-        only_need_context=True,
-        include_references=True,
+    knowledge = KnowledgeFactory.create("milvus")
+    result = await knowledge.search(
+        KnowledgeSearch(
+            vector=vector,
+            limit=limit,
+            options={
+                "collection_name": collection_name,
+                "similarity_threshold": similarity_threshold,
+            },
+        )
     )
     return {
         "reference_context": {
@@ -68,8 +76,8 @@ async def knowledge_search(
             "material_refs": [],
             "knowledge_refs": [
                 {
-                    "query": query,
-                    "mode": mode,
+                    "collection_name": collection_name,
+                    "vector_dimension": len(vector),
                     "content": result,
                 }
             ],
@@ -78,7 +86,7 @@ async def knowledge_search(
         },
         "recommended_usage": {
             "must_follow": [],
-            "can_use": ["Use knowledge_refs as local project/reference context."],
+            "can_use": ["Use knowledge_refs as local Milvus reference context."],
             "avoid": [],
         },
         "search_notes": [],
