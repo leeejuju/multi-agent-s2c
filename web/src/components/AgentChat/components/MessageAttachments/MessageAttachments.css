@@ -9,7 +9,7 @@
 }
 
 .message-attachment {
-  @apply flex min-w-0 items-center gap-2 rounded-[10px] border px-2 py-1.5 text-left no-underline transition-colors;
+  @apply relative flex min-w-0 items-center gap-2 overflow-hidden rounded-[10px] border px-2 py-1.5 text-left no-underline transition-colors;
 }
 
 .is-user .message-attachment {
@@ -21,7 +21,7 @@
 }
 
 .message-attachment.is-uploading {
-  @apply pointer-events-none opacity-75;
+  @apply pointer-events-none;
 }
 
 .message-attachment.is-error {
@@ -40,11 +40,6 @@
   @apply h-full w-full object-cover;
 }
 
-.message-attachment-spinner {
-  @apply absolute -bottom-0.5 -right-0.5 rounded-full bg-accent p-0.5 text-primary-button-text;
-  animation: tool-call-spin 0.9s linear infinite;
-}
-
 .message-attachment-copy {
   @apply flex min-w-0 flex-1 flex-col gap-0.5;
 }
@@ -59,4 +54,21 @@
 
 .message-attachment-download {
   @apply shrink-0 opacity-70;
+}
+
+.message-attachment-progress-overlay {
+  @apply absolute inset-0 z-10 flex items-center justify-center rounded-[10px] bg-card-background/60 backdrop-blur-[1px];
+}
+
+.message-attachment-progress-ring {
+  @apply relative h-8 w-8 rounded-full shadow-sm;
+  background: conic-gradient(
+    var(--accent, #0a84ff) var(--attachment-progress),
+    rgb(148 163 184 / 0.35) 0
+  );
+}
+
+.message-attachment-progress-ring::after {
+  @apply absolute inset-[4px] rounded-full bg-card-background;
+  content: "";
 }

@@ -1,4 +1,5 @@
-import { Download, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Download, FileText, Image as ImageIcon } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { type ChatMessageAttachment } from "@/hooks/useChat";
 import "./MessageAttachments.css";
@@ -26,8 +27,15 @@ export default function MessageAttachments({
         const href = attachment.access_url;
         const previewUrl = attachment.thumb_url || attachment.access_url;
         const Icon = isImage ? ImageIcon : FileText;
+        const uploadProgress = Math.max(
+          0,
+          Math.min(100, attachment.uploadProgress ?? (attachment.uploading ? 0 : 100)),
+        );
+        const progressStyle = {
+          "--attachment-progress": `${uploadProgress}%`,
+        } as CSSProperties;
         const statusText = attachment.uploading
-          ? "Uploading"
+          ? `Uploading ${uploadProgress}%`
           : attachment.error || attachment.parse_error || "";
         const fileSizeText = attachment.file_size
           ? attachment.file_size < 1024
@@ -53,9 +61,6 @@ export default function MessageAttachments({
               ) : (
                 <Icon size={16} />
               )}
-              {attachment.uploading && (
-                <Loader2 className="message-attachment-spinner" size={11} />
-              )}
             </span>
             <span className="message-attachment-copy">
               <span className="message-attachment-name">
@@ -65,6 +70,15 @@ export default function MessageAttachments({
             </span>
             {href && !attachment.uploading && (
               <Download className="message-attachment-download" size={14} />
+            )}
+            {attachment.uploading && (
+              <span
+                aria-hidden="true"
+                className="message-attachment-progress-overlay"
+                style={progressStyle}
+              >
+                <span className="message-attachment-progress-ring" />
+              </span>
             )}
           </a>
         );

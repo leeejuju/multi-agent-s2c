@@ -21,6 +21,7 @@ export type ChatMessageAttachment = {
   parse_status?: "failed" | "success" | null;
   parse_error?: string | null;
   uploading?: boolean;
+  uploadProgress?: number;
   error?: string;
 };
 

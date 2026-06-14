@@ -191,7 +191,7 @@ export default function AgentChat() {
   };
 
   const handleRemoveAttachment = (index: number) => {
-    const file = attachments[index];
+    const file = attachments[index]?.file;
     if (file && isCanvasImageFile(file)) {
       removeImageFromContainer(getUploadImageId(file));
     }

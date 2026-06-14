@@ -70,11 +70,8 @@ export interface AgentRunResponse {
   created_at: string;
 }
 
-function buildUploadFormData(files: File[], conversationId?: string): FormData {
+function buildUploadFormData(files: File[]): FormData {
   const formData = new FormData();
-  if (conversationId) {
-    formData.append("conversation_id", conversationId);
-  }
   files.forEach((file) => formData.append("files", file));
   return formData;
 }
@@ -84,27 +81,18 @@ export const agentApi = {
     return get<AgentSummary[]>("/chat/agents");
   },
 
-  uploadImages(
+  uploadAttachmentTmp(
     files: File[],
-    conversationId?: string,
-    config?: Pick<RequestConfig, "signal">,
+    config?: Pick<RequestConfig, "signal" | "onUploadProgress">,
   ) {
     return postForm<AttachmentItem[]>(
-      "/chat/attachments/images/upload",
-      buildUploadFormData(files, conversationId),
-      { timeout: 60000, signal: config?.signal },
-    );
-  },
-
-  uploadFiles(
-    files: File[],
-    conversationId?: string,
-    config?: Pick<RequestConfig, "signal">,
-  ) {
-    return postForm<AttachmentItem[]>(
-      "/chat/attachments/files/upload",
-      buildUploadFormData(files, conversationId),
-      { timeout: 180000, signal: config?.signal },
+      "/chat/attachment/tmp/upload",
+      buildUploadFormData(files),
+      {
+        timeout: 180000,
+        signal: config?.signal,
+        onUploadProgress: config?.onUploadProgress,
+      },
     );
   },
 

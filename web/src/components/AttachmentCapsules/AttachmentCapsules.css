@@ -1,0 +1,22 @@
+@reference "../../assets/css/Global.css";
+
+.attachment-capsule-upload-progress-overlay {
+  @apply absolute inset-0 z-10 flex items-center justify-center rounded-full bg-card-background/65 backdrop-blur-[1px];
+}
+
+.attachment-capsule-upload-progress-ring {
+  @apply relative flex h-6 w-6 items-center justify-center rounded-full shadow-sm;
+  background: conic-gradient(
+    var(--accent, #0a84ff) var(--attachment-upload-progress),
+    rgb(148 163 184 / 0.35) 0
+  );
+}
+
+.attachment-capsule-upload-progress-ring::after {
+  @apply absolute inset-[3px] rounded-full bg-card-background;
+  content: "";
+}
+
+.attachment-capsule-upload-progress-text {
+  @apply absolute z-10 text-[10px] font-semibold leading-none text-on-surface;
+}

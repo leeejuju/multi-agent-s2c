@@ -18,6 +18,11 @@ export interface ApiResponse<T = unknown> {
 export type RequestConfig = RequestInit & {
   params?: Record<string, string | number>;
   timeout?: number;
+  onUploadProgress?: (progress: {
+    loaded: number;
+    total: number;
+    percent: number;
+  }) => void;
 };
 
 export async function request<T = unknown>(
@@ -168,11 +173,125 @@ export const postForm = <T>(
   data: FormData,
   config?: RequestConfig,
 ) =>
-  request<T>(url, {
+  requestForm<T>(url, data, {
     ...config,
     method: "POST",
-    body: data,
   });
+
+function requestForm<T = unknown>(
+  url: string,
+  data: FormData,
+  config: RequestConfig = {},
+): Promise<T> {
+  const {
+    params,
+    timeout = 10000,
+    headers: customHeaders,
+    signal,
+    onUploadProgress,
+    method = "POST",
+  } = config;
+
+  const searchParams = new URLSearchParams();
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      searchParams.append(key, String(value));
+    });
+  }
+
+  const queryString = searchParams.toString();
+  const fullUrl = `${BASE_URL}${url}${queryString ? `?${queryString}` : ""}`;
+  const headers = new Headers(customHeaders);
+
+  if (typeof window !== "undefined" && !headers.has("Authorization")) {
+    const accessToken = useAuthStore.getState().token;
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+    }
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let timedOut = false;
+
+    const cleanup = () => {
+      signal?.removeEventListener("abort", abortFromSignal);
+    };
+
+    const abortFromSignal = () => {
+      xhr.abort();
+    };
+
+    xhr.open(method, fullUrl, true);
+    xhr.timeout = timeout;
+    headers.forEach((value, key) => {
+      xhr.setRequestHeader(key, value);
+    });
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || !onUploadProgress) return;
+      onUploadProgress({
+        loaded: event.loaded,
+        total: event.total,
+        percent: Math.min(100, Math.round((event.loaded / event.total) * 100)),
+      });
+    };
+
+    xhr.onload = () => {
+      cleanup();
+      if (xhr.status === 401) {
+        handleUnauthorized();
+      }
+
+      if (xhr.status === 204) {
+        resolve({} as T);
+        return;
+      }
+
+      const contentType = xhr.getResponseHeader("content-type") || "";
+      if (xhr.status < 200 || xhr.status >= 300) {
+        let errorDetail: { detail?: unknown; message?: string } = {};
+        try {
+          errorDetail = JSON.parse(xhr.responseText) as {
+            detail?: unknown;
+            message?: string;
+          };
+        } catch {
+          errorDetail = { message: `HTTP error ${xhr.status}` };
+        }
+        reject(new Error(formatApiError(errorDetail, xhr.status)));
+        return;
+      }
+
+      if (contentType.includes("application/json")) {
+        resolve(JSON.parse(xhr.responseText) as T);
+        return;
+      }
+      resolve(xhr.responseText as T);
+    };
+
+    xhr.onerror = () => {
+      cleanup();
+      reject(new Error("Request failed"));
+    };
+    xhr.ontimeout = () => {
+      timedOut = true;
+      cleanup();
+      reject(new Error("Request timed out"));
+    };
+    xhr.onabort = () => {
+      cleanup();
+      reject(new Error(timedOut ? "Request timed out" : "Request aborted"));
+    };
+
+    if (signal?.aborted) {
+      xhr.abort();
+      return;
+    }
+    signal?.addEventListener("abort", abortFromSignal, { once: true });
+    xhr.send(data);
+  });
+}
 
 export const put = <T>(url: string, data?: unknown, config?: RequestConfig) =>
   request<T>(url, {

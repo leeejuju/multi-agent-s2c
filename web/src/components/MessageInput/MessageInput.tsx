@@ -28,6 +28,13 @@ type Props = {
   onFileSelect?: (files: File[]) => void;
 };
 
+type UploadAwareItem = {
+  file?: File;
+  uploaded?: unknown;
+  uploading?: boolean;
+  uploadProgress?: number;
+};
+
 const models = [
   { id: "gpt-4o", name: "GPT-4o" },
   { id: "deepseek", name: "DeepSeek" },
@@ -55,14 +62,38 @@ export default function MessageInput({
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const selectedModel =
     models.find((model) => model.id === selectedModelId) || models[0];
+  const hasUploadingAttachment = [...images, ...attachments].some(
+    (item) => item?.uploading,
+  );
+  const hasIncompleteAttachmentUpload = [...images, ...attachments].some(
+    (item) => {
+      const attachment = item as UploadAwareItem;
+      return (
+        Boolean(attachment?.file) &&
+        (attachment.uploading === true ||
+          attachment.uploaded === undefined ||
+          (typeof attachment.uploadProgress === "number" && attachment.uploadProgress < 100))
+      );
+    },
+  );
 
   const canSend = useMemo(() => {
     return (
       !disabled &&
       !sending &&
+      !hasUploadingAttachment &&
+      !hasIncompleteAttachmentUpload &&
       (text.trim().length > 0 || images.length > 0 || attachments.length > 0)
     );
-  }, [attachments.length, disabled, images.length, sending, text]);
+  }, [
+    attachments.length,
+    disabled,
+    hasIncompleteAttachmentUpload,
+    hasUploadingAttachment,
+    images.length,
+    sending,
+    text,
+  ]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {

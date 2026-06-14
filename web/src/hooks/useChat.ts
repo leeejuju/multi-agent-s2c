@@ -20,6 +20,16 @@ export type { ChatMessage, ChatMessageAttachment, ToolActivity } from "@/store/c
 
 type ScrollToBottom = (options?: { force?: boolean }) => void;
 
+type UploadAttachment = ChatMessageAttachment & {
+  file: File;
+  uploaded?: AttachmentItem;
+};
+
+type UploadTask = {
+  promise: Promise<AttachmentItem>;
+  abortController: AbortController;
+};
+
 function getFileExtension(file: File) {
   return file.name.split(".").pop()?.toLowerCase() || "";
 }
@@ -31,14 +41,24 @@ function getFileCategory(file: File): "image" | "document" {
   return "document";
 }
 
-function createPendingAttachment(file: File, index: number): ChatMessageAttachment {
+function isUploadFinished(attachment: UploadAttachment): boolean {
+  return attachment.uploaded !== undefined;
+}
+
+function createPendingAttachment(file: File, index: number): UploadAttachment {
+  const localId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${index}`;
   return {
-    id: `pending-${index}-${file.name}-${file.lastModified}`,
+    id: `pending-${localId}`,
+    file,
     file_name: file.name,
     content_type: file.type || "application/octet-stream",
     file_size: file.size,
     category: getFileCategory(file),
     uploading: true,
+    uploadProgress: 0,
   };
 }
 
@@ -78,6 +98,7 @@ function normalizeAttachment(value: unknown): ChatMessageAttachment | null {
     parse_error:
       typeof attachment.parse_error === "string" ? attachment.parse_error : null,
     uploading: false,
+    uploadProgress: undefined,
   };
 }
 
@@ -109,6 +130,34 @@ function applyAttachmentsToLastUserMessage(
   return next;
 }
 
+function updateLastUserAttachment(
+  current: ChatMessage[],
+  attachmentId: string,
+  updates: Partial<ChatMessageAttachment>,
+) {
+  const next = [...current];
+  for (let index = next.length - 1; index >= 0; index -= 1) {
+    const message = next[index];
+    if (message.role !== "user" || !message.attachments?.length) {
+      continue;
+    }
+
+    next[index] = {
+      ...message,
+      attachments: message.attachments.map((attachment) =>
+        attachment.id === attachmentId ? { ...attachment, ...updates } : attachment,
+      ),
+    };
+    break;
+  }
+  return next;
+}
+
+function toMessageAttachment(attachment: UploadAttachment): ChatMessageAttachment {
+  const { file: _file, uploaded: _uploaded, ...messageAttachment } = attachment;
+  return messageAttachment;
+}
+
 function mapHistoryMessage(message: {
   id: string;
   role: string;
@@ -125,57 +174,27 @@ function mapHistoryMessage(message: {
   };
 }
 
-async function uploadSelectedAttachments(
-  files: File[],
-  conversationId?: string,
+async function uploadAttachment(
+  file: File,
   signal?: AbortSignal,
-): Promise<AttachmentItem[]> {
-  if (files.length === 0) return [];
-
-  const indexedFiles = files.map((file, index) => ({
-    file,
-    index,
-    category: getFileCategory(file),
-  }));
-  const uploadedByIndex: Array<AttachmentItem | undefined> = new Array(files.length);
-  const imageFiles = indexedFiles.filter((item) => item.category === "image");
-  const documentFiles = indexedFiles.filter((item) => item.category === "document");
-
-  await Promise.all([
-    imageFiles.length > 0
-      ? agentApi
-          .uploadImages(
-            imageFiles.map((item) => item.file),
-            conversationId,
-            { signal },
-          )
-          .then((items) => {
-            items.forEach((item, itemIndex) => {
-              uploadedByIndex[imageFiles[itemIndex].index] = item;
-            });
-          })
-      : Promise.resolve(),
-    documentFiles.length > 0
-      ? agentApi
-          .uploadFiles(
-            documentFiles.map((item) => item.file),
-            conversationId,
-            { signal },
-          )
-          .then((items) => {
-            items.forEach((item, itemIndex) => {
-              uploadedByIndex[documentFiles[itemIndex].index] = item;
-            });
-          })
-      : Promise.resolve(),
-  ]);
-
-  return uploadedByIndex.filter((item): item is AttachmentItem => Boolean(item));
+  onProgress?: (progress: number) => void,
+): Promise<AttachmentItem> {
+  onProgress?.(0);
+  const items = await agentApi.uploadAttachmentTmp([file], {
+    signal,
+    onUploadProgress: ({ percent }) => onProgress?.(percent),
+  });
+  const item = items[0];
+  if (!item) {
+    throw new Error(`Attachment upload returned no item: ${file.name}`);
+  }
+  onProgress?.(100);
+  return item;
 }
 
 export function useChat() {
   const streamRef = useRef<{ abort: () => void } | null>(null);
-  const uploadAbortControllerRef = useRef<AbortController | null>(null);
+  const uploadTasksRef = useRef<Map<string, UploadTask>>(new Map());
   const activeRunRef = useRef<AgentRunResponse | null>(null);
   const lastSequenceRef = useRef(0);
   const tokenBufferRef = useRef("");
@@ -199,7 +218,7 @@ export function useChat() {
   const [isSending, setIsSending] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [showConversations, setShowConversations] = useState(false);
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachments, setAttachments] = useState<UploadAttachment[]>([]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -274,6 +293,20 @@ export function useChat() {
       return next;
     });
   }, [setMessages]);
+
+  const updateAttachmentUploadState = useCallback(
+    (attachmentId: string, updates: Partial<ChatMessageAttachment>) => {
+      setAttachments((current) =>
+        current.map((attachment) =>
+          attachment.id === attachmentId ? { ...attachment, ...updates } : attachment,
+        ),
+      );
+      setMessages((current) =>
+        updateLastUserAttachment(current, attachmentId, updates),
+      );
+    },
+    [setMessages],
+  );
 
   const subscribeToRun = useCallback(
     (run: AgentRunResponse, afterSequence = 0, onScrollToBottom?: ScrollToBottom) => {
@@ -388,8 +421,8 @@ export function useChat() {
       ]);
     });
     return () => {
-      uploadAbortControllerRef.current?.abort();
-      uploadAbortControllerRef.current = null;
+      uploadTasksRef.current.forEach((task) => task.abortController.abort());
+      uploadTasksRef.current.clear();
       streamRef.current?.abort();
       if (tokenFrameRef.current !== null) {
         window.cancelAnimationFrame(tokenFrameRef.current);
@@ -403,6 +436,9 @@ export function useChat() {
     streamRef.current?.abort();
     streamRef.current = null;
     activeRunRef.current = null;
+    uploadTasksRef.current.forEach((task) => task.abortController.abort());
+    uploadTasksRef.current.clear();
+    setAttachments([]);
     setIsSending(false);
     setConversationId(convId);
     setShowConversations(false);
@@ -440,6 +476,9 @@ export function useChat() {
     streamRef.current?.abort();
     streamRef.current = null;
     activeRunRef.current = null;
+    uploadTasksRef.current.forEach((task) => task.abortController.abort());
+    uploadTasksRef.current.clear();
+    setAttachments([]);
     setIsSending(false);
     setConversationId(null);
     setMessages([]);
@@ -456,19 +495,33 @@ export function useChat() {
 
   const handleSend = async (onScrollToBottom: ScrollToBottom) => {
     const trimmedText = draftText.trim();
-    if ((!trimmedText && attachments.length === 0) || isSending) return;
+    const pendingAttachments = attachments.filter((attachment) => attachment.file);
+    if ((!trimmedText && pendingAttachments.length === 0) || isSending) return;
+    const allUploadsFinished = pendingAttachments.every(isUploadFinished);
+    if (!allUploadsFinished) {
+      return;
+    }
 
     const selectedAttachments = [...attachments];
-    const pendingAttachments = selectedAttachments.map(createPendingAttachment);
+    const selectedAttachmentIds = new Set(
+      selectedAttachments.map((attachment) => attachment.id),
+    );
+    const messageAttachments = selectedAttachments.map(toMessageAttachment);
 
     setMessagePersistencePaused(true);
     setMessages((current) => [
       ...current,
-      { role: "user", content: trimmedText, attachments: pendingAttachments },
-      { role: "assistant", content: "", streaming: true },
+      {
+        role: "user",
+        content: trimmedText,
+        attachments: messageAttachments,
+        status: allUploadsFinished ? "completed" : "pending",
+      },
     ]);
     setDraftText("");
-    setAttachments([]); // Clear attachments after sending
+    setAttachments((current) =>
+      current.filter((attachment) => !selectedAttachmentIds.has(attachment.id)),
+    );
     onScrollToBottom({ force: true });
     scrollToBottomRef.current = onScrollToBottom;
     tokenBufferRef.current = "";
@@ -479,51 +532,62 @@ export function useChat() {
     setIsSending(true);
 
     let uploadedAttachments: AttachmentItem[] = [];
-    const uploadController = new AbortController();
-    uploadAbortControllerRef.current = uploadController;
     try {
-      uploadedAttachments = await uploadSelectedAttachments(
-        selectedAttachments,
-        conversationId || undefined,
-        uploadController.signal,
+      uploadedAttachments = await Promise.all(
+        selectedAttachments.map((attachment) => {
+          if (attachment.uploaded) {
+            return Promise.resolve(attachment.uploaded);
+          }
+          const task = uploadTasksRef.current.get(attachment.id);
+          if (!task) {
+            return Promise.reject(
+              new Error(`Attachment upload is not available: ${attachment.file_name}`),
+            );
+          }
+          return task.promise;
+        }),
       );
-      if (uploadController.signal.aborted) {
-        return;
-      }
+      const uploadedMessageAttachments = uploadedAttachments
+        .map(normalizeAttachment)
+        .filter((attachment): attachment is ChatMessageAttachment => Boolean(attachment));
+      setMessages((current) =>
+        applyAttachmentsToLastUserMessage(current, uploadedMessageAttachments),
+      );
     } catch (error) {
-      if (uploadController.signal.aborted) {
-        return;
-      }
       const errorMessage =
         error instanceof Error ? error.message : "Attachment upload failed";
+      if (errorMessage === "Request aborted") {
+        setMessagePersistencePaused(false);
+        setIsSending(false);
+        streamRef.current = null;
+        scrollToBottomRef.current = null;
+        return;
+      }
       setMessages((current) => {
         const next = applyAttachmentsToLastUserMessage(
           current,
-          pendingAttachments.map((attachment) => ({
+          messageAttachments.map((attachment) => ({
             ...attachment,
             uploading: false,
+            uploadProgress: undefined,
             error: errorMessage,
           })),
         );
-        const last = next[next.length - 1];
-        if (last?.role === "assistant") {
-          next[next.length - 1] = {
-            ...last,
+        return [
+          ...next,
+          {
+            role: "assistant",
             content: `Attachment upload failed: ${errorMessage}`,
+            status: "failed",
             streaming: false,
-          };
-        }
-        return next;
+          },
+        ];
       });
       setMessagePersistencePaused(false);
       setIsSending(false);
       streamRef.current = null;
       scrollToBottomRef.current = null;
       return;
-    } finally {
-      if (uploadAbortControllerRef.current === uploadController) {
-        uploadAbortControllerRef.current = null;
-      }
     }
 
     try {
@@ -539,23 +603,27 @@ export function useChat() {
       setConversationId(run.conversation_id);
       setMessages((current) => {
         const next = [...current];
-        const assistant = next[next.length - 1];
-        const user = next[next.length - 2];
-        if (user?.role === "user") {
-          next[next.length - 2] = {
-            ...user,
+        let userIndex = -1;
+        for (let index = next.length - 1; index >= 0; index -= 1) {
+          if (next[index].role === "user") {
+            userIndex = index;
+            break;
+          }
+        }
+        if (userIndex >= 0) {
+          next[userIndex] = {
+            ...next[userIndex],
             id: run.user_message_id,
             status: "completed",
           };
-        }
-        if (assistant?.role === "assistant") {
-          next[next.length - 1] = {
-            ...assistant,
+          next.splice(userIndex + 1, 0, {
             id: run.assistant_message_id,
+            role: "assistant",
+            content: "",
             runId: run.id,
             status: "streaming",
             streaming: true,
-          };
+          });
         }
         return next;
       });
@@ -564,17 +632,15 @@ export function useChat() {
       const errorMessage = error instanceof Error ? error.message : "Request failed";
       flushTokenBuffer();
       setMessages((current) => {
-        const next = [...current];
-        const last = next[next.length - 1];
-        if (last?.role === "assistant") {
-          next[next.length - 1] = {
-            ...last,
+        return [
+          ...current,
+          {
+            role: "assistant",
             content: errorMessage,
             status: "failed",
             streaming: false,
-          };
-        }
-        return next;
+          },
+        ];
       });
       setIsSending(false);
       streamRef.current = null;
@@ -590,8 +656,8 @@ export function useChat() {
         // The local stream is still stopped even if the backend cancel request fails.
       });
     }
-    uploadAbortControllerRef.current?.abort();
-    uploadAbortControllerRef.current = null;
+    uploadTasksRef.current.forEach((task) => task.abortController.abort());
+    uploadTasksRef.current.clear();
     streamRef.current?.abort();
     streamRef.current = null;
     activeRunRef.current = null;
@@ -617,7 +683,12 @@ export function useChat() {
           ...message,
           attachments: message.attachments.map((attachment) =>
             attachment.uploading
-              ? { ...attachment, uploading: false, error: "Canceled" }
+              ? {
+                  ...attachment,
+                  uploading: false,
+                  uploadProgress: undefined,
+                  error: "Canceled",
+                }
               : attachment,
           ),
         };
@@ -629,11 +700,86 @@ export function useChat() {
   };
 
   const addAttachments = (files: File[]) => {
-    setAttachments((prev) => [...prev, ...files]);
+    const pendingAttachments = files.map(createPendingAttachment);
+    setAttachments((prev) => [...prev, ...pendingAttachments]);
+
+    pendingAttachments.forEach((attachment) => {
+      const abortController = new AbortController();
+      const promise = uploadAttachment(
+        attachment.file,
+        abortController.signal,
+        (progress) => {
+          updateAttachmentUploadState(attachment.id, {
+            uploading: true,
+            uploadProgress: progress,
+            error: undefined,
+          });
+        },
+      )
+        .then((item) => {
+          const uploadedAttachment = normalizeAttachment(item);
+          const updates: Partial<ChatMessageAttachment> = {
+            ...(uploadedAttachment ? { ...uploadedAttachment, id: attachment.id } : {}),
+            uploading: false,
+            uploadProgress: 100,
+            error: undefined,
+          };
+          setAttachments((current) =>
+            current.map((currentAttachment) =>
+              currentAttachment.id === attachment.id
+                ? {
+                    ...currentAttachment,
+                    ...(uploadedAttachment || {}),
+                    id: currentAttachment.id,
+                    uploaded: item,
+                    uploading: false,
+                    uploadProgress: 100,
+                    error: undefined,
+                  }
+                : currentAttachment,
+            ),
+          );
+          setMessages((current) =>
+            updateLastUserAttachment(current, attachment.id, updates),
+          );
+          return item;
+        })
+        .catch((error) => {
+          if (!abortController.signal.aborted) {
+            const errorMessage =
+              error instanceof Error ? error.message : "Attachment upload failed";
+            updateAttachmentUploadState(attachment.id, {
+              uploading: false,
+              uploadProgress: undefined,
+              error: errorMessage,
+            });
+          }
+          throw error;
+        })
+        .finally(() => {
+          uploadTasksRef.current.delete(attachment.id);
+        });
+
+      uploadTasksRef.current.set(attachment.id, {
+        promise,
+        abortController,
+      });
+      void promise.catch(() => {
+        // The send path awaits this same promise when the attachment is used.
+      });
+    });
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => {
+      const attachment = prev[index];
+      if (attachment) {
+        const task = uploadTasksRef.current.get(attachment.id);
+        task?.abortController.abort();
+        uploadTasksRef.current.delete(attachment.id);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   return {
