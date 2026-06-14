@@ -7,6 +7,32 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+class MilvusConfig(BaseSettings):
+    """Milvus 知识库配置。"""
+
+    model_config = SettingsConfigDict(
+        env_file=str(_PROJECT_ROOT / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    uri: str = Field(
+        default="",
+        validation_alias="MILVUS_URI",
+        description="Milvus 连接地址",
+    )
+    token: str = Field(
+        default="",
+        validation_alias="MILVUS_TOKEN",
+        description="Milvus 访问令牌",
+    )
+    db_name: str = Field(
+        default="",
+        validation_alias="MILVUS_DB_NAME",
+        description="Milvus 数据库名称",
+    )
+
+
 class Config(BaseSettings):
     """配置管理: 环境变量 > .env > 代码默认值"""
 
@@ -66,30 +92,10 @@ class Config(BaseSettings):
     )
 
     # ---------- 知识库 ----------
-    graph_knowledge_provider: str = Field(
-        default="lightrag", description="图知识库提供商"
+    milvus: MilvusConfig = Field(
+        default_factory=MilvusConfig,
+        description="Milvus 知识库配置",
     )
-    vector_knowledge_provider: str = Field(
-        default="milvus", description="向量知识库提供商"
-    )
-    lightrag_working_dir: str = Field(
-        default="./save/lightrag", description="LightRAG 工作目录"
-    )
-    lightrag_workspace: str = Field(default="default", description="LightRAG 空间名称")
-    lightrag_llm_model: str = Field(
-        default="", description="LightRAG 使用的 OpenAI-compatible 聊天模型，留空时使用 DEFAULT_MODEL"
-    )
-    lightrag_embedding_model: str = Field(
-        default="dashscope/text-embedding-v4",
-        description="LightRAG 使用的 OpenAI-compatible embedding 模型",
-    )
-    lightrag_embedding_dim: int = Field(default=1024, description="LightRAG embedding 维度")
-    lightrag_embedding_max_token_size: int = Field(
-        default=8192, description="LightRAG embedding 最大 token 数"
-    )
-    milvus_uri: str = Field(default="", description="Milvus 连接地址")
-    milvus_token: str = Field(default="", description="Milvus 访问令牌")
-    milvus_db_name: str = Field(default="", description="Milvus 数据库名称")
 
     # ---------- Search ----------
     tavily_api_key: str = Field(default="", description="Tavily Web Search API Key")
@@ -104,6 +110,11 @@ class Config(BaseSettings):
     paddle_ocr_api_key: str = Field(default="a7bbafaf11b02db719bacf50084985f7c6b2b015", description="PaddleOCR parsing API key")
     document_parser_api_timeout_seconds: float = Field(
         default=120.0, description="Document parser API request timeout"
+    )
+
+    # ---------- Sandbox ----------
+    sandbox_provisioner_url: str = Field(
+        default="", description="Sandbox provisioner service URL"
     )
 
     # ---------- Langfuse ----------

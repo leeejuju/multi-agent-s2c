@@ -69,7 +69,7 @@ The retrieval routes are:
 
 - `ProjectHistorySearch`: current user's conversation history, established characters, scenes, style, and previous plans.
 - `MaterialSearch`: current and historical attachment summaries, filenames, user references, and parsed text or image descriptions once available.
-- `KnowledgeSearch`: LightRAG or local knowledge providers for story structure, genre patterns, storyboard conventions, and camera language templates.
+- `KnowledgeSearch`: Milvus vector retrieval or local knowledge providers for story structure, genre patterns, storyboard conventions, and camera language templates.
 - `WebSearch`: Tavily web results.
 - `LocalFileSearch`: LangChain filesystem search under `LOCAL_REFERENCE_ROOT`.
 
