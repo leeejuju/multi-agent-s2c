@@ -9,9 +9,10 @@ from .chat_service import (
     stream_run_events,
 )
 from .knowledge_service import (
-    get_graph_knowledge_status,
-    insert_graph_knowledge_documents,
-    query_graph_knowledge,
+    delete_knowledge_records,
+    get_knowledge_status,
+    search_knowledge,
+    upsert_knowledge_records,
 )
 from .mcp_service import MCPServerConfig, MCPService, MCPToolDescriptor
 from .model_service import list_models
@@ -24,15 +25,16 @@ __all__ = [
     "get_active_run",
     "get_conversation",
     "get_messages",
-    "get_graph_knowledge_status",
-    "insert_graph_knowledge_documents",
+    "delete_knowledge_records",
     "list_models",
     "list_conversations",
+    "get_knowledge_status",
     "MCPServerConfig",
     "MCPService",
     "MCPToolDescriptor",
-    "query_graph_knowledge",
+    "search_knowledge",
     "SkillDescriptor",
     "SkillService",
     "stream_run_events",
+    "upsert_knowledge_records",
 ]

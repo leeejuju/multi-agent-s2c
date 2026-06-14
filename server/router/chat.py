@@ -1,9 +1,9 @@
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from time import perf_counter
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,19 +18,20 @@ from server.service import (
     list_conversations,
     stream_run_events,
 )
+from server.service.conversation_service import (
+    build_tmp_attachment_object_key,
+    safe_path_filter,
+)
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.database import get_db
 from src.database.repositories import RunRepository
-from src.knowledge.extractor import ExtractorFactory, ExtractorResult, NoExtractorError
 from src.storage import (
-    build_object_key,
     create_object_access_url,
     delete_object,
     upload_object_bytes,
 )
 from src.utils import logger
-from src.utils.image_process import store_image_assets
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -38,7 +39,6 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 MAX_FILES_PER_REQUEST = 10
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
 MAX_DOCUMENT_SIZE = 25 * 1024 * 1024
-NULL_CONVERSATION_ID = UUID("00000000-0000-0000-0000-000000000000")
 
 # 文件类型限制
 ALLOWED_IMAGE_TYPES = {
@@ -87,7 +87,6 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
     ".pdf",
     ".pptx",
 }
-MAX_PARSED_DOCUMENT_CHARS = 80_000
 
 
 class ChatAttachment(BaseModel):
@@ -185,60 +184,6 @@ def _is_allowed_file(
     return content_type in allowed_types or extension in allowed_extensions
 
 
-def _truncate_parsed_text(text: str) -> tuple[str, bool]:
-    if len(text) <= MAX_PARSED_DOCUMENT_CHARS:
-        return text, False
-    return (
-        text[:MAX_PARSED_DOCUMENT_CHARS]
-        + "\n\n[Document content truncated by backend parser.]",
-        True,
-    )
-
-
-async def _parse_uploaded_document(
-    *,
-    file_name: str,
-    content_type: str,
-    content: bytes,
-) -> dict[str, Any]:
-    suffix = _file_extension(file_name) or ".bin"
-    temp_path: Path | None = None
-    try:
-        with NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            temp_file.write(content)
-            temp_path = Path(temp_file.name)
-        result = await ExtractorFactory.default().extractor_file(
-            temp_path,
-            content_type=content_type,
-            file_name=file_name,
-        )
-    except NoExtractorError as exc:
-        result = ExtractorResult(
-            extractor="factory",
-            file_path=str(temp_path or file_name),
-            success=False,
-            error=str(exc),
-        )
-    finally:
-        if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
-
-    parsed_text, truncated = _truncate_parsed_text(result.content.strip())
-    parse_metadata = {
-        **dict(result.metadata),
-        "truncated": truncated,
-        "source_file_name": file_name,
-    }
-
-    return {
-        "parser": result.extractor,
-        "parse_status": "success" if result.success else "failed",
-        "parse_error": result.error,
-        "parsed_text": parsed_text or None,
-        "parse_metadata": parse_metadata,
-    }
-
-
 @router.get("/agents", response_model=list[AgentSummary])
 async def list_agent_summaries(current_user: AuthenticatedUser):
     return [AgentSummary(**agent) for agent in agent_manager.list_agents()]
@@ -247,17 +192,11 @@ async def list_agent_summaries(current_user: AuthenticatedUser):
 async def _upload_attachments(
     *,
     files: list[UploadFile],
-    conversation_id: UUID | None,
     current_user: AuthenticatedUser,
-    category: str,
-    max_file_size: int,
-    allowed_types: set[str],
-    allowed_extensions: set[str],
-    with_thumbnail: bool,
 ) -> list[UploadedAttachmentResponse]:
     """通用附件上传逻辑处理（含存储、缩略图生成及元数据组装）"""
     logger.info(
-        f"收到上传请求: 用户ID={current_user.user_id}, 对话ID={conversation_id}, 文件数量={len(files)}, 类型={category}."
+        f"收到上传请求: 用户ID={current_user.user_id}, 文件数量={len(files)}, 类型=tmp_attachment."
     )
 
     if not files:
@@ -271,23 +210,32 @@ async def _upload_attachments(
             detail=f"单次上传文件系统数量不能超过 {MAX_FILES_PER_REQUEST} 个。",
         )
 
-    resolved_conversation_id = conversation_id or NULL_CONVERSATION_ID
     uploaded_keys: list[str] = []
     responses: list[UploadedAttachmentResponse] = []
 
     try:
         for upload in files:
             content_type = (upload.content_type or "").lower()
-            # 校验合法性
-            if not _is_allowed_file(
+            if _is_allowed_file(
                 filename=upload.filename,
                 content_type=content_type,
-                allowed_types=allowed_types,
-                allowed_extensions=allowed_extensions,
+                allowed_types=ALLOWED_IMAGE_TYPES,
+                allowed_extensions=ALLOWED_IMAGE_EXTENSIONS,
             ):
+                category = "image"
+                max_file_size = MAX_IMAGE_SIZE
+            elif _is_allowed_file(
+                filename=upload.filename,
+                content_type=content_type,
+                allowed_types=ALLOWED_DOCUMENT_TYPES,
+                allowed_extensions=ALLOWED_DOCUMENT_EXTENSIONS,
+            ):
+                category = "document"
+                max_file_size = MAX_DOCUMENT_SIZE
+            else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"不支持的 {category} 文件类型: {upload.filename or '未知'}.",
+                    detail=f"不支持的附件文件类型: {upload.filename or '未知'}.",
                 )
 
             content = await upload.read()
@@ -302,53 +250,40 @@ async def _upload_attachments(
                     detail=f"文件 '{upload.filename or '未知'}' 大小查过了限制。",
                 )
 
-            # 根据是否需要缩略图（图片类）走不同的存储流程
-            if with_thumbnail:
-                stored_image = await store_image_assets(
-                    conversation_id=resolved_conversation_id,
-                    filename=upload.filename or "image",
-                    content=content,
-                    content_type=content_type or "application/octet-stream",
-                )
-                object_key = stored_image.object_key
-                access_url = stored_image.access_url
-                thumb_url = stored_image.thumb_url
-                uploaded_keys.extend(stored_image.uploaded_keys)
-            else:
-                object_key = build_object_key(
-                    conversation_id=resolved_conversation_id,
-                    category=category,
-                    filename=upload.filename or "file",
-                )
-                await upload_object_bytes(
-                    object_key,
-                    content,
-                    content_type or "application/octet-stream",
-                )
-                uploaded_keys.append(object_key)
-                access_url = await create_object_access_url(object_key)
-                thumb_url = None
+            original_filename = upload.filename or "file"
+            filename = safe_path_filter(original_filename)
+            object_key = build_tmp_attachment_object_key(
+                current_user.user_id,
+                filename,
+            )
+            upload_started_at = perf_counter()
+            await upload_object_bytes(
+                object_key,
+                content,
+                content_type or "application/octet-stream",
+            )
+            upload_duration_ms = (perf_counter() - upload_started_at) * 1000
+            logger.info(
+                "附件上传到 tmp 完成: 用户ID=%s, 文件名=%s, object_key=%s, 文件大小=%s, 耗时=%.2fms.",
+                current_user.user_id,
+                original_filename,
+                object_key,
+                len(content),
+                upload_duration_ms,
+            )
+            uploaded_keys.append(object_key)
+            access_url = await create_object_access_url(object_key)
 
-            parse_result: dict[str, Any] = {}
-            if category == "document":
-                parse_result = await _parse_uploaded_document(
-                    file_name=upload.filename or "file",
-                    content_type=content_type or "application/octet-stream",
-                    content=content,
-                )
-
-            # 组装内存级响应（注：此处暂未持久化到数据库）
             responses.append(
                 UploadedAttachmentResponse(
                     id=str(uuid4()),
-                    file_name=upload.filename or "file",
+                    file_name=original_filename,
                     content_type=content_type or "application/octet-stream",
                     file_size=len(content),
                     object_key=object_key,
                     category=category,
                     access_url=access_url,
-                    thumb_url=thumb_url,
-                    **parse_result,
+                    thumb_url=None,
                 )
             )
     except Exception:
@@ -361,8 +296,8 @@ async def _upload_attachments(
         logger.exception(
             "上传失败，已尝试清理相关存储对象: 用户ID=%s, 对话ID=%s, 类型=%s.",
             current_user.user_id,
-            resolved_conversation_id,
-            category,
+            None,
+            "tmp_attachment",
         )
         raise
 
@@ -370,46 +305,17 @@ async def _upload_attachments(
 
 
 @router.post(
-    "/attachments/images/upload",
+    "/attachment/tmp/upload",
     response_model=list[UploadedAttachmentResponse],
 )
-async def upload_images(
+async def upload_tmp_attachments(
     current_user: AuthenticatedUser,
-    conversation_id: UUID | None = Form(None),
     files: list[UploadFile] = File(...),
 ):
-    """图片上传接口（支持生成缩略图）"""
+    """附件上传到临时路径，不触发对话。"""
     return await _upload_attachments(
         files=files,
-        conversation_id=conversation_id,
         current_user=current_user,
-        category="image",
-        max_file_size=MAX_IMAGE_SIZE,
-        allowed_types=ALLOWED_IMAGE_TYPES,
-        allowed_extensions=ALLOWED_IMAGE_EXTENSIONS,
-        with_thumbnail=True,
-    )
-
-
-@router.post(
-    "/attachments/files/upload",
-    response_model=list[UploadedAttachmentResponse],
-)
-async def upload_files(
-    current_user: AuthenticatedUser,
-    conversation_id: UUID | None = Form(None),
-    files: list[UploadFile] = File(...),
-):
-    """通用文件上传接口"""
-    return await _upload_attachments(
-        files=files,
-        conversation_id=conversation_id,
-        current_user=current_user,
-        category="document",
-        max_file_size=MAX_DOCUMENT_SIZE,
-        allowed_types=ALLOWED_DOCUMENT_TYPES,
-        allowed_extensions=ALLOWED_DOCUMENT_EXTENSIONS,
-        with_thumbnail=False,
     )
 
 

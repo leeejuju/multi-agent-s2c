@@ -13,6 +13,7 @@ from src.database.models import AgentRun
 from src.database.repositories import ConversationRepository, RunRepository
 from src.utils import logger
 
+from .agent_consumer_service import execute_agent_run
 from .agent_queue_service import (
     agent_event_persist_enabled,
     agent_queue_enabled,
@@ -22,9 +23,8 @@ from .agent_queue_service import (
     iter_persisted_run_events,
     json_line_event,
     run_stream_key,
-    serialize_attachment_for_chat,
 )
-from .agent_consumer_service import execute_agent_run
+from .conversation_service import prepare_attachments_for_conversation
 
 
 async def _execute_agent_run_locally(run_id: str) -> None:
@@ -138,6 +138,13 @@ async def create_agent_run(
             detail="This conversation already has a running agent response.",
         )
 
+    normalized_attachments = await prepare_attachments_for_conversation(
+        db,
+        user_id=user_id,
+        conversation_id=resolved_conversation_id,
+        attachments=attachments,
+    )
+
     _, assistant_message = await conversation_repository.save_message(
         "assistant",
         "",
@@ -151,9 +158,7 @@ async def create_agent_run(
         assistant_message_id=str(assistant_message.id),
         agent_id=agent_id,
         input_text=input_text,
-        attachments=[
-            serialize_attachment_for_chat(attachment) for attachment in attachments or []
-        ],
+        attachments=normalized_attachments,
         request_config=dict(request_config or {}),
     )
     await run_repository.commit()

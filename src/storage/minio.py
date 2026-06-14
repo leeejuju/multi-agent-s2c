@@ -129,6 +129,39 @@ class MinioStorage:
                 detail="生成文件访问 URL 失败。",
             ) from exc
 
+    async def download_object_bytes(self, object_key: str) -> bytes:
+        client = self.get_client()
+        try:
+            return await run_in_threadpool(
+                _download_object_bytes,
+                client,
+                config.minio_bucket,
+                object_key,
+            )
+        except S3Error as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="从存储服务下载文件失败。",
+            ) from exc
+
+    async def download_object_to_file(self, object_key: str, target_path: str) -> None:
+        content = await self.download_object_bytes(object_key)
+        await run_in_threadpool(_write_bytes_to_file, target_path, content)
+
+
+def _download_object_bytes(client: Minio, bucket: str, object_key: str) -> bytes:
+    response = client.get_object(bucket, object_key)
+    try:
+        return response.read()
+    finally:
+        response.close()
+        response.release_conn()
+
+
+def _write_bytes_to_file(target_path: str, content: bytes) -> None:
+    with open(target_path, "wb") as file:
+        file.write(content)
+
 
 def get_storage() -> MinioStorage:
     """获取单例存储管理对象"""
@@ -170,3 +203,11 @@ async def delete_object(object_key: str) -> None:
 async def create_object_access_url(object_key: str) -> str:
     """（便捷函数）生成访问 URL"""
     return await get_storage().create_object_access_url(object_key)
+
+
+async def download_object_bytes(object_key: str) -> bytes:
+    return await get_storage().download_object_bytes(object_key)
+
+
+async def download_object_to_file(object_key: str, target_path: str) -> None:
+    await get_storage().download_object_to_file(object_key, target_path)

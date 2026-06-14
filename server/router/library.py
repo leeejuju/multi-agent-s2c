@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from server.utils.auth import AuthenticatedUser
 from src.database import get_db
 from src.database.models import LibraryItem
 from src.database.repositories import LibraryRepository
-from src.knowledge.extractor import ExtractorFactory, ExtractorResult, NoExtractorError
+from src.knowledge.document_praser import DocumentProcessor
 from src.storage import (
     build_object_key,
     delete_object,
@@ -139,6 +139,7 @@ async def _parse_library_document(
     file_name: str,
     content_type: str,
     content: bytes,
+    enable_ocr: bool = False,
 ) -> dict[str, Any]:
     suffix = _file_extension(file_name) or ".bin"
     temp_path: Path | None = None
@@ -146,25 +147,19 @@ async def _parse_library_document(
         with NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             temp_file.write(content)
             temp_path = Path(temp_file.name)
-        result = await ExtractorFactory.default().extractor_file(
+        result = await DocumentProcessor.apraser(
             temp_path,
             content_type=content_type,
             file_name=file_name,
-        )
-    except NoExtractorError as exc:
-        result = ExtractorResult(
-            extractor="factory",
-            file_path=str(temp_path or file_name),
-            success=False,
-            error=str(exc),
+            enable_ocr=enable_ocr,
         )
     finally:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
 
-    parsed_text, truncated = _truncate_text((result.content or "").strip())
+    parsed_text, truncated = _truncate_text((result.markdown or "").strip())
     return {
-        "parser": result.extractor,
+        "parser": result.parser,
         "success": result.success,
         "error": result.error,
         "parsed_text": parsed_text,
@@ -313,6 +308,7 @@ async def list_screenplays(
 async def import_screenplays(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
+    enable_ocr: bool = Form(False),
     files: list[UploadFile] = File(...),
 ):
     if not files:
@@ -368,6 +364,7 @@ async def import_screenplays(
                 file_name=upload.filename or "screenplay",
                 content_type=content_type or "application/octet-stream",
                 content=content,
+                enable_ocr=enable_ocr,
             )
             parsed_text = parse_result["parsed_text"]
             characters, relationships = _build_character_graph(parsed_text)
