@@ -3,6 +3,7 @@ from .docling import DoclingExtractor
 from .factory import ExtractorFactory
 from .mineru import MinerUExtractor
 from .paddle_ocr import PaddleOCRExtractor
+from .rapid_ocr import RapidOCRExtractor
 
 __all__ = [
     "BaseExtractor",
@@ -12,4 +13,5 @@ __all__ = [
     "MinerUExtractor",
     "NoExtractorError",
     "PaddleOCRExtractor",
+    "RapidOCRExtractor",
 ]

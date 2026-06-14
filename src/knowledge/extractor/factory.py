@@ -3,15 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .base import BaseExtractor, ExtractorResult, NoExtractorError
+from .base import ExtractorResult, NoExtractorError
 
 
 class ExtractorFactory:
     """Registry and resolver for file extractors."""
 
-    def __init__(self, extractors: list[BaseExtractor] | None = None) -> None:
-        self._extractors: list[BaseExtractor] = []
-        self._by_name: dict[str, BaseExtractor] = {}
+    def __init__(self, extractors: list[Any] | None = None) -> None:
+        self._extractors: list[Any] = []
+        self._by_name: dict[str, Any] = {}
         for extractor in extractors or ():
             self.register(extractor)
 
@@ -20,9 +20,11 @@ class ExtractorFactory:
         from .docling import DoclingExtractor
         from .mineru import MinerUExtractor
         from .paddle_ocr import PaddleOCRExtractor
+        from .rapid_ocr import RapidOCRExtractor
 
         return cls(
             [
+                RapidOCRExtractor(),
                 PaddleOCRExtractor(),
                 DoclingExtractor(),
                 MinerUExtractor(),
@@ -30,11 +32,14 @@ class ExtractorFactory:
         )
 
     @property
-    def extractors(self) -> tuple[BaseExtractor, ...]:
+    def extractors(self) -> tuple[Any, ...]:
         return tuple(self._extractors)
 
-    def register(self, extractor: BaseExtractor) -> None:
-        names = (extractor.name, *extractor.aliases)
+    def register(self, extractor: Any) -> None:
+        names = (
+            self._extractor_name(extractor),
+            *getattr(extractor, "aliases", ()),
+        )
         for name in names:
             normalized_name = self._normalize_name(name)
             if normalized_name in self._by_name:
@@ -42,7 +47,7 @@ class ExtractorFactory:
             self._by_name[normalized_name] = extractor
         self._extractors.append(extractor)
 
-    def create(self, extractor_type: str) -> BaseExtractor:
+    def create(self, extractor_type: str) -> Any:
         normalized_type = self._normalize_name(extractor_type)
         extractor = self._by_name.get(normalized_type)
         if extractor is None:
@@ -59,17 +64,24 @@ class ExtractorFactory:
         *,
         content_type: str | None = None,
         extractor_type: str | None = None,
-    ) -> BaseExtractor:
+    ) -> Any:
         if extractor_type:
             extractor = self.create(extractor_type)
-            extractor.ensure_supported(filepath, content_type=content_type)
+            if not extractor.supports_file(filepath, content_type=content_type):
+                raise NoExtractorError(
+                    f"{self._extractor_name(extractor)} does not support "
+                    f"file={Path(filepath).name!r}, content_type={content_type!r}."
+                )
             return extractor
 
         for extractor in self._extractors:
             if extractor.supports_file(filepath, content_type=content_type):
                 return extractor
 
-        supported = ", ".join(extractor.name for extractor in self._extractors) or "none"
+        supported = (
+            ", ".join(self._extractor_name(extractor) for extractor in self._extractors)
+            or "none"
+        )
         raise NoExtractorError(
             f"No extractor supports file={Path(filepath).name!r}, "
             f"content_type={content_type!r}. Registered extractors: {supported}."
@@ -100,3 +112,10 @@ class ExtractorFactory:
         if not normalized_name:
             raise ValueError("Extractor name cannot be empty.")
         return normalized_name
+
+    @staticmethod
+    def _extractor_name(extractor: Any) -> str:
+        service_name = getattr(extractor, "service_name", None)
+        if callable(service_name):
+            return str(service_name())
+        return type(extractor).__name__.removesuffix("Extractor").lower()

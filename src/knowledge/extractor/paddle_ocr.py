@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from mimetypes import guess_type
 from pathlib import Path
 from typing import Any
-
-import httpx
+from urllib.parse import urlparse
 
 from src.configs.config import config
 
-from .base import BaseExtractor, ExtractorResult
+from .base import BaseExtractor, ExtractorResult, NoExtractorError
 
 SUPPORTED_CONTENT_TYPES = (
     "application/pdf",
@@ -28,54 +28,66 @@ SUPPORTED_EXTENSIONS = (
 
 
 class PaddleOCRExtractor(BaseExtractor):
-    name = "paddleocr"
-    display_name = "PaddleOCR extractor"
     aliases = ("paddle_ocr",)
-    supported_content_types = SUPPORTED_CONTENT_TYPES
-    supported_extensions = SUPPORTED_EXTENSIONS
+
+    def __init__(
+        self,
+        *,
+        api_url: str | None = None,
+        api_key: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> None:
+        self.api_url = config.paddle_ocr_api_url if api_url is None else api_url
+        self.api_key = config.paddle_ocr_api_key if api_key is None else api_key
+        self.timeout_seconds = (
+            config.document_parser_api_timeout_seconds
+            if timeout_seconds is None
+            else timeout_seconds
+        )
 
     async def extractor_file(
         self,
         filepath: str | Path,
         **params: Any,
     ) -> ExtractorResult:
-        path = self.ensure_supported(
-            filepath,
-            content_type=params.get("content_type"),
-        )
-        file_name = str(params.get("file_name") or path.name)
-        api_url = str(params.get("paddle_ocr_api_url") or config.paddle_ocr_api_url).strip()
-        if not api_url:
-            return ExtractorResult(
-                extractor=self.name,
-                file_path=str(path),
-                success=False,
-                error="PaddleOCR API URL is not configured.",
-                metadata={"missing_config": "paddle_ocr_api_url"},
+        path = Path(filepath)
+        if not self.supports_file(path, content_type=params.get("content_type")):
+            raise NoExtractorError(
+                f"{self.service_name()} does not support file={path.name!r}, "
+                f"content_type={params.get('content_type')!r}."
+            )
+
+        status = await self.check_status(**params)
+        if not status.get("available"):
+            return _failure_result(
+                self.service_name(),
+                path,
+                str(status.get("error") or "PaddleOCR API is unavailable."),
+                status,
             )
 
         try:
             payload = await _call_paddle_ocr_api(
-                api_url=api_url,
+                api_url=self._api_url(params),
+                api_key=self._api_key(params),
                 filepath=path,
-                file_name=file_name,
-                content_type=self.resolve_content_type(
+                file_name=str(params.get("file_name") or path.name),
+                content_type=_resolve_content_type(
                     path,
                     content_type=params.get("content_type"),
                 ),
                 lang=str(params.get("lang", "ch")),
-                timeout=float(
-                    params.get("timeout_seconds")
-                    or config.document_parser_api_timeout_seconds
-                ),
+                timeout=self._timeout(params),
             )
+        except ImportError as exc:
+            return _dependency_failure_result(self.service_name(), path, exc)
         except Exception as exc:
-            return ExtractorResult(
-                extractor=self.name,
-                file_path=str(path),
-                success=False,
-                error=f"PaddleOCR API extraction failed: {exc}",
-                metadata={
+            return _failure_result(
+                self.service_name(),
+                path,
+                f"PaddleOCR API extraction failed: {exc}",
+                {
+                    "stage": "extract",
                     "engine": "paddleocr-api",
                     "exception_type": type(exc).__name__,
                 },
@@ -83,24 +95,64 @@ class PaddleOCRExtractor(BaseExtractor):
 
         lines = _extract_text_lines(payload)
         return ExtractorResult(
-            extractor=self.name,
+            extractor=self.service_name(),
             file_path=str(path),
             content="\n".join(lines),
             success=True,
             metadata={"engine": "paddleocr-api", "line_count": len(lines)},
         )
 
+    async def check_status(self, **params: Any) -> dict[str, Any]:
+        try:
+            import httpx  # noqa: F401
+        except ImportError as exc:
+            return _dependency_status(self.service_name(), exc)
+
+        return await _check_http_api(
+            service_name="PaddleOCR",
+            api_url=self._api_url(params),
+            headers=_auth_headers(self._api_key(params)),
+            timeout=self._timeout(params),
+            missing_config_key="paddle_ocr_api_url",
+        )
+
+    def service_name(self) -> str:
+        return "paddleocr"
+
+    def supports_file(
+        self,
+        filepath: str | Path,
+        *,
+        content_type: str | None = None,
+    ) -> bool:
+        return _supports_file(filepath, content_type=content_type)
+
+    def supported_file_types(self) -> list[str]:
+        return [*SUPPORTED_CONTENT_TYPES, *SUPPORTED_EXTENSIONS]
+
+    def _api_url(self, params: dict[str, Any]) -> str:
+        return str(params.get("paddle_ocr_api_url") or self.api_url).strip()
+
+    def _api_key(self, params: dict[str, Any]) -> str:
+        return str(params.get("paddle_ocr_api_key") or self.api_key).strip()
+
+    def _timeout(self, params: dict[str, Any]) -> float:
+        return float(params.get("timeout_seconds") or self.timeout_seconds)
+
 
 async def _call_paddle_ocr_api(
     *,
     api_url: str,
+    api_key: str,
     filepath: Path,
     file_name: str,
     content_type: str,
     lang: str,
     timeout: float,
 ) -> Any:
-    headers = _auth_headers(config.paddle_ocr_api_key)
+    import httpx
+
+    headers = _auth_headers(api_key)
     file_bytes = await asyncio.to_thread(filepath.read_bytes)
     files = {"file": (file_name, file_bytes, content_type)}
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -114,13 +166,113 @@ async def _call_paddle_ocr_api(
     return _decode_response(response)
 
 
+async def _check_http_api(
+    *,
+    service_name: str,
+    api_url: str,
+    headers: dict[str, str],
+    timeout: float,
+    missing_config_key: str,
+) -> dict[str, Any]:
+    normalized_url = api_url.strip()
+    if not normalized_url:
+        return {
+            "available": False,
+            "service": service_name,
+            "error": f"{service_name} API URL is not configured.",
+            "stage": "api_check",
+            "missing_config": missing_config_key,
+        }
+
+    parsed = urlparse(normalized_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return {
+            "available": False,
+            "service": service_name,
+            "error": f"{service_name} API URL is invalid.",
+            "stage": "api_check",
+            "api_url": normalized_url,
+            "reason": "invalid_url",
+        }
+
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            try:
+                response = await client.head(normalized_url, headers=headers)
+            except httpx.RequestError:
+                response = await client.get(normalized_url, headers=headers)
+    except httpx.RequestError as exc:
+        return {
+            "available": False,
+            "service": service_name,
+            "error": f"{service_name} API is unreachable: {exc}",
+            "stage": "api_check",
+            "api_url": normalized_url,
+            "exception_type": type(exc).__name__,
+        }
+
+    status_code = response.status_code
+    if status_code < 400 or status_code == 405:
+        return {"available": True, "service": service_name, "status_code": status_code}
+    if status_code in {401, 403}:
+        reason = "auth_invalid"
+        error = f"{service_name} API authentication failed."
+    elif status_code == 404:
+        reason = "endpoint_invalid"
+        error = f"{service_name} API endpoint was not found."
+    elif status_code >= 500:
+        reason = "service_unavailable"
+        error = f"{service_name} API is unavailable."
+    else:
+        reason = "unexpected_status"
+        error = f"{service_name} API check failed with status {status_code}."
+
+    return {
+        "available": False,
+        "service": service_name,
+        "error": error,
+        "stage": "api_check",
+        "api_url": normalized_url,
+        "status_code": status_code,
+        "reason": reason,
+    }
+
+
+def _supports_file(filepath: str | Path, *, content_type: str | None = None) -> bool:
+    extension = Path(filepath).suffix.lower()
+    if extension and extension in SUPPORTED_EXTENSIONS:
+        return True
+
+    normalized_content_type = (content_type or "").lower().strip()
+    for candidate in SUPPORTED_CONTENT_TYPES:
+        if candidate == normalized_content_type:
+            return True
+        if candidate.endswith("/*") and normalized_content_type.startswith(candidate[:-1]):
+            return True
+    return False
+
+
+def _resolve_content_type(
+    filepath: str | Path,
+    *,
+    content_type: str | None = None,
+) -> str:
+    resolved = (content_type or "").lower().strip()
+    if resolved:
+        return resolved
+    guessed, _ = guess_type(str(filepath))
+    return guessed or "application/octet-stream"
+
+
 def _auth_headers(api_key: str) -> dict[str, str]:
     if not api_key:
         return {}
     return {"Authorization": f"Bearer {api_key}"}
 
 
-def _decode_response(response: httpx.Response) -> Any:
+def _decode_response(response: Any) -> Any:
     content_type = response.headers.get("content-type", "")
     if "application/json" in content_type:
         return response.json()
@@ -156,3 +308,44 @@ def _collect_text(value: Any, lines: list[str]) -> None:
     if isinstance(value, list):
         for item in value:
             _collect_text(item, lines)
+
+
+def _failure_result(
+    service_name: str,
+    filepath: str | Path,
+    error: str,
+    metadata: dict[str, Any],
+) -> ExtractorResult:
+    return ExtractorResult(
+        extractor=service_name,
+        file_path=str(filepath),
+        success=False,
+        error=error,
+        metadata=metadata,
+    )
+
+
+def _dependency_status(service_name: str, exc: ImportError) -> dict[str, Any]:
+    missing_dependency = exc.name or service_name
+    return {
+        "available": False,
+        "service": service_name,
+        "error": f"{service_name} dependency is not installed: {missing_dependency}.",
+        "stage": "sdk_check",
+        "missing_dependency": missing_dependency,
+        "exception_type": type(exc).__name__,
+    }
+
+
+def _dependency_failure_result(
+    service_name: str,
+    filepath: str | Path,
+    exc: ImportError,
+) -> ExtractorResult:
+    status = _dependency_status(service_name, exc)
+    return _failure_result(
+        service_name,
+        filepath,
+        str(status["error"]),
+        status,
+    )
