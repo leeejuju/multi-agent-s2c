@@ -9,12 +9,6 @@ class BaseModelProvider(BaseModel):
     model_list: list[str] = Field(..., description="模型列表")
 
 
-# class EmbedModelInfo(BaseModel):
-#     name: str = Field(..., description="模型名称")
-#     api_key: str = Field(..., description="API密钥")
-#     base_url: str = Field(..., description="API基础URL")
-
-
 DEFAULT_BASE_MODEL_PROVIER: dict[str, BaseModelProvider] = {
     # 阿里
     "dashscope": BaseModelProvider(
@@ -25,6 +19,15 @@ DEFAULT_BASE_MODEL_PROVIER: dict[str, BaseModelProvider] = {
         model_list=[
             "qwen3.6-plus",
         ],
+    ),
+    
+    # deepseek
+    "deepseek": BaseModelProvider(
+        name="deepseek",
+        api_key="DEEPSEEK_API_KEY",
+        default_model="deepseek-v4-pro",
+        base_url="https://api.deepseek.com/v1",
+        model_list=["deepseek-v4-pro", "deepseek-v4-flash"],
     ),
     # openai
     "openai": BaseModelProvider(

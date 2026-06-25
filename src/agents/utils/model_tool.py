@@ -1,3 +1,4 @@
+from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
 from src.configs import DEFAULT_BASE_MODEL_PROVIER
@@ -18,5 +19,7 @@ def load_model(model: str):
 
     if provider in ["dashscope", "openai"]:
         return ChatOpenAI(model=model_name, api_key=sk, base_url=base_url)
+    elif provider in ["deepseek"]:
+        return ChatDeepSeek(model=model_name, api_key=sk, base_url=base_url)
     else:
         raise ValueError(f"不支持的模型提供商: {provider}")

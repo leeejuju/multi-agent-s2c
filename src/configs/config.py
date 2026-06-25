@@ -48,13 +48,13 @@ class Config(BaseSettings):
 
     # ---------- 模型 ----------
     default_model: str = Field(
-        default="dashscope/qwen3.6-plus", description="默认使用的模型名称"
+        default="deepseek/deepseek-v4-pro", description="默认使用的模型名称"
     )
     fallback_model: str = Field(
-        default="dashscope/qwen3.6-plus", description="备用模型名称"
+        default="deepseek/deepseek-v4-pro", description="备用模型名称"
     )
     flash_model: str = Field(
-        default="dashscope/qwen3.6-plus", description="快速推断模型名称"
+        default="deepseek/deepseek-v4-flash", description="快速推断模型名称"
     )
     image_model: str = Field(default="qwen-image-2.0-pro-2026-04-22", description="图片生成模型名称")
 
@@ -130,6 +130,7 @@ class Config(BaseSettings):
     dashscope_api_key: str = Field(default="", description="阿里 DashScope API Key")
     openai_api_key: str = Field(default="", description="OpenAI API Key")
     gemini_api_key: str = Field(default="", description="Gemini API Key")
+    deepseek_api_key: str = Field(default="", description="DeepSeek API Key")
 
 
 config = Config()
