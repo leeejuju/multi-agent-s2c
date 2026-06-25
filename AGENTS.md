@@ -81,7 +81,7 @@ The retrieval routes are:
 
 ## Frontend Architecture
 
-For frontend-specific conventions, follow `web/AGENTS.md` and `GEMINI.md`.
+For frontend-specific conventions, follow `web/AGENTS.md`
 
 Current frontend stack:
 
