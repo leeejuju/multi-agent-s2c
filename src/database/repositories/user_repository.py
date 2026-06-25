@@ -13,6 +13,9 @@ class UserRepository:
     async def get_by_username(self, username: str) -> User | None:
         return await self.session.scalar(select(User).where(User.username == username))
 
+    async def get_by_email(self, email: str) -> User | None:
+        return await self.session.scalar(select(User).where(User.email == email))
+
     async def get_active_by_id(self, user_id: str) -> User | None:
         user = await self.session.get(User, UUID(user_id))
         if user is None or not user.is_active:

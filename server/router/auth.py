@@ -20,6 +20,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=6, max_length=128)
+    email: EmailStr | None = None
 
 
 class LoginRequest(BaseModel):
@@ -73,9 +74,21 @@ async def register(payload: RegisterRequest, session: AsyncSession = Depends(get
             detail="Username already exists.",
         )
 
+    if payload.email is not None:
+        existing_email = await user_repository.get_by_email(str(payload.email))
+        if existing_email is not None:
+            logger.warning(
+                "Registration rejected; email already exists: %s.",
+                payload.email,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already exists.",
+            )
+
     user = await user_repository.create(
         username=payload.username,
-        email=None,
+        email=str(payload.email) if payload.email is not None else None,
         password_hash=hash_password(payload.password),
     )
     await session.commit()
