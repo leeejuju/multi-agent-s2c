@@ -1,7 +1,24 @@
 @import "antd/dist/reset.css";
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Inspire Mono";
+  src: url("../fonts/InspireMono-Regular.otf") format("opentype");
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Inspire Mono";
+  src: url("../fonts/InspireMono-Bold.otf") format("opentype");
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700 900;
+}
+
 @theme {
+  --color-background: #ffffff;
   --color-main-background: #faf9f6;
   --color-card-background: #ffffff;
   --color-surface: #ffffff;
@@ -15,9 +32,16 @@
   --color-border-strong: #d6d3c9;
   --color-glass: rgba(255, 255, 255, 0.78);
   --color-glass-border: rgba(229, 226, 218, 0.72);
+  --color-landing-bg: #f5f3ee;
+  --color-landing-paper: #fbfaf7;
+  --color-landing-block-cool: #e7e5e0;
+  --color-landing-block-warm: #d9cfc3;
+  --color-landing-text: #292d25;
+  --color-landing-muted: #858379;
+  --color-landing-action: #394532;
 
-  --font-sans: sans-serif;
-  --font-display: sans-serif;
+  --font-sans: "Inspire Mono", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", monospace;
+  --font-display: "Inspire Mono", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", monospace;
 }
 
 @utility glass-effect { 
@@ -94,4 +118,65 @@
 
 .spin {
   animation: spin 1s linear infinite;
+}
+
+.landing-animated-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.landing-loader-card {
+  border: 1px solid rgba(41, 45, 37, 0.08);
+  box-shadow: 0 24px 70px rgba(41, 45, 37, 0.12);
+  filter: saturate(0.52) contrast(0.96);
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.landing-loader-card img {
+  backface-visibility: hidden;
+}
+
+.landing-poster-card {
+  pointer-events: auto;
+  overflow: hidden;
+  border: 1px solid rgba(41, 45, 37, 0.08);
+  border-radius: 20px;
+  background: var(--color-landing-paper);
+  box-shadow: 0 20px 50px rgba(41, 45, 37, 0.08);
+  filter: saturate(0.46) contrast(0.96);
+  transform: rotate(var(--poster-rotation, 0deg));
+  transition:
+    transform 240ms ease,
+    filter 240ms ease,
+    box-shadow 240ms ease;
+  will-change: transform, opacity;
+}
+
+.landing-poster-card:hover {
+  box-shadow: 0 24px 60px rgba(41, 45, 37, 0.11);
+  filter: saturate(0.82) contrast(1);
+  transform: translateY(-6px) rotate(var(--poster-rotation, 0deg));
+}
+
+.landing-focus:focus-visible {
+  outline: 2px solid rgba(57, 69, 50, 0.56);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-action,
+  .landing-poster-card,
+  .landing-loader-card {
+    transition: none !important;
+  }
+
+  .landing-action:hover {
+    transform: none !important;
+  }
+
+  .landing-poster-card,
+  .landing-poster-card:hover {
+    transform: rotate(var(--poster-rotation, 0deg));
+  }
 }
