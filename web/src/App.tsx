@@ -4,8 +4,6 @@ import { useAuthStore } from "@/store/auth";
 
 import HomeView from "@/pages/HomeView";
 import LoginView from "@/pages/LoginView";
-import RegisterView from "@/pages/RegisterView";
-import WorkspaceHomeView from "@/pages/WorkspaceHomeView";
 
 function RequireAuth() {
   const token = useAuthStore((state) => state.token);
@@ -48,7 +46,7 @@ export default function App() {
           controlHeightLG: 38,
           controlHeightSM: 28,
           fontFamily:
-            'sans-serif, "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui',
+            '"Inspire Mono", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", monospace',
         },
         components: {
           Button: {
@@ -70,13 +68,12 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<RequireAuth />}>
-            <Route path="/" element={<WorkspaceHomeView />} />
+            <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route path="/chat" element={<HomeView />} />
           </Route>
 
           <Route element={<RedirectIfAuthenticated />}>
             <Route path="/login" element={<LoginView />} />
-            <Route path="/register" element={<RegisterView />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

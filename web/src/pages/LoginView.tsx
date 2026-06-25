@@ -1,125 +1,445 @@
-import { Alert, Button, Form, Input } from "antd";
-import { Layers3 } from "lucide-react";
-import { motion } from "motion/react";
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { gsap } from "gsap";
+import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
-import { authApi } from "@/api/auth";
-import { useAuthStore } from "@/store/auth";
+import {
+  landingPosterDecorations,
+  landingShapeDecorations,
+  type LandingPosterDecoration,
+  type LandingShapeDecoration,
+} from "@/assets/landing/posters";
 
-type LoginFormValues = {
-  password: string;
-  username: string;
+type LandingDecorStyle = CSSProperties & {
+  "--landing-delay"?: string;
+  "--poster-rotation"?: string;
 };
 
-export default function LoginView() {
-  const navigate = useNavigate();
-  const setAuth = useAuthStore((state) => state.setAuth);
-  const [form] = Form.useForm<LoginFormValues>();
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+const loadingPosterPositions = [
+  { x: 0, y: 0, rotation: 0, scale: 1 },
+  { x: 3, y: 4, rotation: 0, scale: 0.985 },
+  { x: -3, y: 8, rotation: 0, scale: 0.97 },
+  { x: 4, y: 12, rotation: 0, scale: 0.955 },
+];
 
-  const handleLogin = async (values: LoginFormValues) => {
-    setErrorMessage("");
-    setIsLoading(true);
+const navLinkClass =
+  "landing-focus whitespace-nowrap rounded-lg px-1 py-1 text-[1rem] font-semibold tracking-[0.14em] text-landing-text/62 no-underline transition hover:text-landing-text max-[520px]:text-[0.78rem] max-[520px]:tracking-[0.08em]";
 
-    try {
-      const response = await authApi.login({
-        username: values.username.trim(),
-        password: values.password,
-      });
+const navActionClass =
+  "landing-focus whitespace-nowrap rounded-lg px-1 py-1 text-[1rem] font-semibold tracking-[0.1em] text-landing-text/74 no-underline transition hover:text-landing-text max-[520px]:text-[0.76rem] max-[520px]:tracking-[0.06em]";
 
-      setAuth(response.access_token, response.user);
-      navigate("/", { replace: true });
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Login failed. Please check your credentials.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
+const navLoginButtonClass =
+  "landing-focus whitespace-nowrap rounded-lg bg-landing-action px-2.5 py-1.5 text-[1rem] font-semibold tracking-[0.1em] text-landing-paper no-underline transition hover:bg-[#2f3b2b] max-[520px]:text-[0.76rem] max-[520px]:tracking-[0.06em]";
+
+const primaryActionClass =
+  "landing-action landing-focus inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-landing-action px-7 text-[0.96rem] font-semibold text-landing-paper no-underline shadow-[0_14px_34px_rgba(41,45,37,0.12)] transition hover:-translate-y-0.5 hover:bg-[#2f3b2b] max-[420px]:w-full";
+
+function LandingNav() {
+  return (
+    <header className="landing-nav landing-animated-hidden fixed left-0 top-0 z-30 flex w-full items-center justify-between gap-5 px-[clamp(1.25rem,4vw,4rem)] pt-[max(1.35rem,env(safe-area-inset-top))] max-[520px]:gap-3">
+      <nav
+        className="flex min-w-0 items-center gap-7 max-[640px]:gap-4 max-[520px]:gap-2.5"
+        aria-label="主导航"
+      >
+        <Link className={navLinkClass} to="/">
+          首页
+        </Link>
+        <Link className={navLinkClass} to="/chat">
+          工作台
+        </Link>
+        <Link className={navLinkClass} to="/chat">
+          创作
+        </Link>
+        <Link className={`${navLoginButtonClass} min-[521px]:hidden`} to="/chat">
+          登录
+        </Link>
+      </nav>
+
+      <div className="flex shrink-0 items-center gap-5 max-[640px]:gap-3 max-[520px]:hidden">
+      
+        <Link className={navLoginButtonClass} to="/chat">
+          登录
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+function HeroContent() {
+  return (
+    <section
+      className="landing-hero landing-animated-hidden relative z-20 flex min-h-[100svh] w-full items-center justify-center px-5 py-28 text-center"
+      aria-labelledby="login-home-title"
+    >
+      <div className="relative mx-auto flex w-[min(42rem,86vw)] flex-col items-center">
+        <p className="mb-4 text-[0.78rem] font-semibold tracking-[0.24em] text-landing-muted max-[520px]:tracking-[0.16em]">
+          从剧本到画面
+        </p>
+        <h1
+          className="m-0 text-[clamp(4.2rem,13vw,9.6rem)] font-black leading-[0.86] tracking-normal text-landing-text"
+          id="login-home-title"
+        >
+          剧画
+        </h1>
+        <p className="mt-5 text-[clamp(1.05rem,2vw,1.34rem)] font-medium tracking-[0.1em] text-landing-text/76">
+          漂浮的分镜工作台
+        </p>
+        <p className="mt-4 max-w-[28rem] text-[0.98rem] leading-7 text-landing-muted max-[520px]:text-[0.92rem]">
+          把故事，变成看得见的分镜。
+        </p>
+
+        <div className="mt-[clamp(4.5rem,8vw,6rem)] flex items-center justify-center max-[420px]:w-full">
+          <Link className={primaryActionClass} to="/chat">
+            <span>开始创作</span>
+            <ArrowRight size={17} strokeWidth={2.35} />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PosterCard({ poster }: { poster: LandingPosterDecoration }) {
+  const style: LandingDecorStyle = {
+    "--landing-delay": poster.delay,
+    "--poster-rotation": poster.rotation,
   };
 
   return (
-    <main className="grid min-h-screen place-items-center bg-main-background p-5">
-      <motion.section
-        aria-labelledby="login-title"
-        className="w-full max-w-[400px] rounded-[18px] border border-border bg-card-background px-7 py-8 shadow-[0_16px_38px_rgba(44,44,44,0.08)]"
-        initial={{ opacity: 0, y: 40, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: "spring", stiffness: 100, damping: 20, mass: 1 }}
-      >
-        <div className="mb-7 text-center">
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-accent text-primary-button-text shadow-[0_8px_20px_rgba(44,44,44,0.1)]"
-          >
-            <Layers3 size={23} strokeWidth={2.1} />
-          </motion.div>
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.1em] text-on-surface-variant">
-            multi-agent-s2c
-          </p>
-          <h1
-            id="login-title"
-            className="m-0 text-[24px] font-medium leading-tight text-on-surface"
-          >
-            Welcome Back
-          </h1>
+    <div
+      className={`landing-poster-card landing-animated-hidden absolute ${poster.className}`}
+      style={style}
+      data-home-rotation={Number.parseFloat(poster.rotation)}
+      data-scatter-scale={poster.scatterFrom.scale}
+      data-scatter-x={poster.scatterFrom.x}
+      data-scatter-y={poster.scatterFrom.y}
+    >
+      <img
+        alt=""
+        aria-hidden="true"
+        className="h-full w-full select-none object-cover"
+        draggable={false}
+        src={poster.src}
+      />
+    </div>
+  );
+}
+
+function ShapeBlock({ shape }: { shape: LandingShapeDecoration }) {
+  const style: LandingDecorStyle = {
+    "--landing-delay": shape.delay,
+  };
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`landing-shape landing-animated-hidden pointer-events-none absolute rounded-2xl shadow-[0_18px_48px_rgba(41,45,37,0.04)] ${shape.className}`}
+      style={style}
+    />
+  );
+}
+
+function PosterField() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
+    >
+      {landingShapeDecorations.map((shape) => (
+        <ShapeBlock key={`${shape.className}-${shape.delay}`} shape={shape} />
+      ))}
+      {landingPosterDecorations.map((poster) => (
+        <PosterCard key={poster.src} poster={poster} />
+      ))}
+    </div>
+  );
+}
+
+function LoadingSequence({
+  loadingRef,
+}: {
+  loadingRef: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div
+      aria-live="polite"
+      className="landing-loader pointer-events-none absolute inset-0 z-40 flex min-h-[100svh] items-center justify-center bg-landing-bg px-6"
+      ref={loadingRef}
+      role="status"
+    >
+      <div className="flex flex-col items-center gap-7">
+        <div className="relative h-[min(56vh,29rem)] w-[min(64vw,19rem)] [perspective:1200px] max-[520px]:h-[22rem] max-[520px]:w-[14.5rem]">
+          {landingPosterDecorations.map((poster, index) => {
+            const position =
+              loadingPosterPositions[index] ?? loadingPosterPositions[0];
+
+            return (
+              <div
+                className="landing-load-poster landing-loader-card absolute inset-0 overflow-hidden rounded-[22px] bg-landing-paper"
+                data-load-rotation={position.rotation}
+                data-load-scale={position.scale}
+                data-load-x={position.x}
+                data-load-y={position.y}
+                key={`loading-${poster.src}`}
+              >
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full select-none object-cover"
+                  draggable={false}
+                  src={poster.src}
+                />
+              </div>
+            );
+          })}
         </div>
 
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleLogin}
-          requiredMark={false}
-        >
-          <Form.Item
-            label="Username"
-            name="username"
-            rules={[
-              { required: true, message: "Please enter your username." },
-              { min: 3, message: "Username must be at least 3 characters." },
-            ]}
-          >
-            <Input autoComplete="username" placeholder="Your username" />
-          </Form.Item>
+        <div className="landing-load-meta flex flex-col items-center text-[0.76rem] font-semibold tracking-[0.22em] text-landing-text/50">
+          <span>正在翻阅影像档案</span>
+          <span className="mt-3 block h-px w-36 overflow-hidden bg-landing-text/10">
+            <span className="landing-load-line block h-full w-full origin-left bg-landing-text/45" />
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          <Form.Item
-            label="Password"
-            name="password"
-            rules={[
-              { required: true, message: "Please enter your password." },
-              { min: 6, message: "Password must be at least 6 characters." },
-            ]}
-          >
-            <Input.Password
-              autoComplete="current-password"
-              placeholder="Password"
-            />
-          </Form.Item>
+function readDataNumber(
+  target: Element,
+  key: "homeRotation" | "loadRotation" | "loadScale" | "loadX" | "loadY" | "scatterScale" | "scatterX" | "scatterY",
+  fallback: number,
+) {
+  const value = (target as HTMLElement).dataset[key];
+  const parsed = Number.parseFloat(value ?? "");
 
-          {errorMessage ? (
-            <Alert className="mb-4" message={errorMessage} showIcon type="error" />
-          ) : null}
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
-          <Form.Item className="mb-0 mt-6">
-            <Button block htmlType="submit" loading={isLoading} type="primary">
-              Sign In
-            </Button>
-          </Form.Item>
-        </Form>
+function useLandingIntroAnimation(
+  pageRef: RefObject<HTMLElement | null>,
+  loadingRef: RefObject<HTMLDivElement | null>,
+  setLoadingMounted: (mounted: boolean) => void,
+) {
+  useEffect(() => {
+    const page = pageRef.current;
 
-        <p className="mt-5 text-center text-[13px] font-medium text-on-surface-variant">
-          New here?{" "}
-          <Link className="font-bold text-on-surface hover:text-accent-hover hover:underline" to="/register">
-            Create an account
-          </Link>
-        </p>
-      </motion.section>
+    if (!page) {
+      return;
+    }
+
+    const ctx = gsap.context(() => {
+      const loading = loadingRef.current;
+      const nav = page.querySelector<HTMLElement>(".landing-nav");
+      const hero = page.querySelector<HTMLElement>(".landing-hero");
+      const loadingMeta = page.querySelector<HTMLElement>(".landing-load-meta");
+      const loadingLine = page.querySelector<HTMLElement>(".landing-load-line");
+      const loadingTargets = loading ? [loading] : [];
+      const navTargets = nav ? [nav] : [];
+      const heroTargets = hero ? [hero] : [];
+      const loadingMetaTargets = loadingMeta ? [loadingMeta] : [];
+      const loadingLineTargets = loadingLine ? [loadingLine] : [];
+      const loadingPosters = gsap.utils.toArray<HTMLElement>(
+        ".landing-load-poster",
+        page,
+      );
+      const homePosters = gsap.utils.toArray<HTMLElement>(
+        ".landing-poster-card",
+        page,
+      );
+      const shapes = gsap.utils.toArray<HTMLElement>(".landing-shape", page);
+      const revealTargets = [
+        ...navTargets,
+        ...heroTargets,
+        ...homePosters,
+        ...shapes,
+      ];
+
+      gsap.set(revealTargets, { autoAlpha: 0 });
+      gsap.set(navTargets, { y: -10 });
+      gsap.set(heroTargets, { y: 18 });
+      gsap.set(shapes, { scale: 0.98, y: 12 });
+      gsap.set(loadingLineTargets, { scaleX: 0, transformOrigin: "left center" });
+      gsap.set(loadingMetaTargets, { autoAlpha: 0, y: 8 });
+      gsap.set(loadingPosters, {
+        autoAlpha: 1,
+        backfaceVisibility: "hidden",
+        rotation: (index, target) => readDataNumber(target, "loadRotation", index),
+        scale: (index, target) => readDataNumber(target, "loadScale", 1),
+        transformOrigin: "50% 50%",
+        transformPerspective: 1200,
+        x: (index, target) => readDataNumber(target, "loadX", index * 8),
+        y: (index, target) => readDataNumber(target, "loadY", index * 8),
+        zIndex: (index) => loadingPosters.length - index,
+      });
+
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      if (reducedMotion) {
+        gsap.set(loadingTargets, { autoAlpha: 0, display: "none" });
+        gsap.set(revealTargets, { autoAlpha: 1, clearProps: "transform" });
+        gsap.set(shapes, { autoAlpha: 0.72 });
+        setLoadingMounted(false);
+        return;
+      }
+
+      gsap.set(homePosters, {
+        rotation: 0,
+        scale: (index, target) => readDataNumber(target, "scatterScale", 0.74),
+        x: (index, target) => readDataNumber(target, "scatterX", 0),
+        y: (index, target) => readDataNumber(target, "scatterY", 0),
+      });
+
+      const tl = gsap.timeline({
+        defaults: { ease: "power3.out" },
+        onComplete: () => {
+          setLoadingMounted(false);
+        },
+      });
+
+      tl.to(loadingMetaTargets, {
+        autoAlpha: 1,
+        duration: 0.28,
+        y: 0,
+      })
+        .to(
+          loadingLineTargets,
+          {
+            duration: 1.12,
+            ease: "power2.inOut",
+            scaleX: 1,
+          },
+          "<",
+        );
+
+      loadingPosters.forEach((poster, index) => {
+        if (index === 0) {
+          return;
+        }
+
+        const previousPoster = loadingPosters[index - 1];
+        const posterX = readDataNumber(poster, "loadX", index * 8);
+
+        tl.to(
+          previousPoster,
+          {
+            autoAlpha: 0,
+            duration: 0.18,
+            ease: "power2.in",
+            rotationY: -74,
+            x: "-=20",
+          },
+          index === 1 ? "<0.18" : ">-0.02",
+        )
+          .fromTo(
+            poster,
+            {
+              rotationY: 64,
+              x: posterX + 18,
+              zIndex: loadingPosters.length + index,
+            },
+            {
+              duration: 0.28,
+              ease: "power2.out",
+              immediateRender: false,
+              rotationY: 0,
+              x: posterX,
+            },
+            "<",
+          );
+      });
+
+      tl.to(loadingPosters, {
+        autoAlpha: 1,
+        duration: 0.34,
+        rotation: (index, target) => readDataNumber(target, "loadRotation", index),
+        rotationY: 0,
+        scale: (index, target) => readDataNumber(target, "loadScale", 1),
+        stagger: 0.04,
+        x: (index, target) => readDataNumber(target, "loadX", index * 8),
+        y: (index, target) => readDataNumber(target, "loadY", index * 8),
+      })
+        .to(
+          loadingTargets,
+          {
+            autoAlpha: 0,
+            duration: 0.28,
+          },
+          "+=0.08",
+        )
+        .to(
+          shapes,
+          {
+            autoAlpha: 0.72,
+            duration: 0.5,
+            scale: 1,
+            stagger: 0.05,
+            y: 0,
+          },
+          "<0.03",
+        )
+        .to(
+          homePosters,
+          {
+            autoAlpha: 1,
+            duration: 0.74,
+            ease: "power3.out",
+            rotation: (index, target) =>
+              readDataNumber(target, "homeRotation", 0),
+            scale: 1,
+            stagger: { amount: 0.22, from: "center" },
+            x: 0,
+            y: 0,
+          },
+          "<0.02",
+        )
+        .add(() => {
+          gsap.set(homePosters, { clearProps: "transform" });
+        })
+        .to(
+          navTargets,
+          {
+            autoAlpha: 1,
+            duration: 0.42,
+            y: 0,
+          },
+          "-=0.2",
+        )
+        .to(
+          heroTargets,
+          {
+            autoAlpha: 1,
+            duration: 0.54,
+            y: 0,
+          },
+          "-=0.16",
+        );
+    }, page);
+
+    return () => {
+      ctx.revert();
+    };
+  }, [loadingRef, pageRef, setLoadingMounted]);
+}
+
+export default function LoginView() {
+  const pageRef = useRef<HTMLElement | null>(null);
+  const loadingRef = useRef<HTMLDivElement | null>(null);
+  const [loadingMounted, setLoadingMounted] = useState(true);
+
+  useLandingIntroAnimation(pageRef, loadingRef, setLoadingMounted);
+
+  return (
+    <main
+      className="relative min-h-[100svh] w-screen overflow-hidden bg-landing-bg text-landing-text"
+      ref={pageRef}
+    >
+      <PosterField />
+      <LandingNav />
+      <HeroContent />
+      {loadingMounted ? <LoadingSequence loadingRef={loadingRef} /> : null}
     </main>
   );
 }
