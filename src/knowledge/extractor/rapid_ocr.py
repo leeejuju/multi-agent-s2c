@@ -36,6 +36,8 @@ RAPID_OCR_CALL_OPTIONS = (
 
 
 class RapidOCRExtractor(BaseExtractor):
+    """ 集成 RapidOCR 用于API无法运用的情况 """
+    
     def __init__(
         self,
         *,
@@ -70,6 +72,7 @@ class RapidOCRExtractor(BaseExtractor):
         try:
             output = await asyncio.to_thread(self._run_rapidocr, path, params)
         except Exception as exc:
+            
             return _failure_result(
                 self.service_name(),
                 path,

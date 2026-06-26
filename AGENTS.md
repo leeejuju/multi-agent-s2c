@@ -119,6 +119,25 @@ Targeted validation for backend edits:
 uv run --no-sync python -m compileall server/router server/service src/agents src/database/repositories
 ```
 
+## Contribution Rules
+
+- Follow `CONTRIBUTING.md` for repository contribution workflow.
+- Pull requests should include a short summary and motivation.
+- Link the issue or task ID when available.
+- For UI changes in `web/`, include screenshots or video.
+- Include verification notes with the commands run and outcomes.
+
+## Git Commit Rules
+
+- Use Conventional Commits.
+- Commit format: `<type>(<scope>): <subject>`.
+- `type` should be one of: `feat`, `fix`, `refactor`, `doc`, `test`, `chore`, `build`, `ci`.
+- `scope` is recommended and should describe the changed module, such as `agent`, `chat`, `web`, or `deps`.
+- `subject` uses lowercase imperative form and should be concise, recommended <= 72 characters.
+- Git commit messages must be written in English.
+- Do not wrap commit messages, subjects, or scopes with `@` characters.
+- Keep one commit focused on one change.
+
 ## Working Rules
 
 - Prefer existing local patterns over new abstractions.
@@ -127,6 +146,5 @@ uv run --no-sync python -m compileall server/router server/service src/agents sr
 - Keep database reads and writes in repositories.
 - Read project source/config files using UTF-8 encoding unless a different encoding is explicitly required.
 - Preserve user changes in the working tree; never revert unrelated modifications.
-- Git commit messages must be written in English and must not be wrapped with `@` characters.
 - Add tests or compile checks for behavior changes with non-trivial blast radius.
 - If implementing `SearchAgent`, keep it opt-in from `DesignAgent`; do not add automatic pre-retrieval middleware.
