@@ -1,0 +1,84 @@
+@reference "../../assets/css/Global.css";
+
+.app-rail {
+  @apply flex h-screen shrink-0 flex-col border-r border-border bg-surface/90 px-4 py-5 text-on-surface;
+  width: clamp(220px, 18vw, 320px);
+  box-shadow: 18px 0 46px rgba(44, 44, 44, 0.05);
+}
+
+.app-rail-project {
+  @apply border-b border-border pb-5;
+}
+
+.app-rail-eyebrow {
+  @apply block text-[0.68rem] font-semibold tracking-[0.18em] text-on-surface-variant;
+}
+
+.app-rail-project h1 {
+  @apply mt-2 mb-0 text-[1.18rem] font-semibold leading-tight text-on-surface;
+}
+
+.app-rail-project p,
+.app-rail-summary p {
+  @apply mt-2 mb-0 text-[0.78rem] leading-5 text-on-surface-variant;
+}
+
+.app-rail-nav {
+  @apply mt-5 flex min-h-0 flex-1 flex-col gap-1.5;
+}
+
+.app-rail-link {
+  @apply flex min-h-[58px] items-center gap-3 rounded-[8px] border border-transparent px-3 py-2.5 text-on-surface-variant no-underline transition-colors;
+}
+
+.app-rail-link:hover {
+  @apply border-border bg-surface-variant text-on-surface;
+}
+
+.app-rail-link.is-active {
+  @apply border-border-strong bg-accent text-on-surface;
+}
+
+.app-rail-link-icon {
+  @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-card-background text-on-surface;
+}
+
+.app-rail-link-copy {
+  @apply flex min-w-0 flex-col;
+}
+
+.app-rail-link-copy strong {
+  @apply text-[0.88rem] font-semibold leading-5;
+}
+
+.app-rail-link-copy small {
+  @apply mt-0.5 line-clamp-1 text-[0.72rem] leading-4 text-on-surface-variant;
+}
+
+.app-rail-summary {
+  @apply rounded-[8px] border border-border bg-card-background px-3 py-3;
+}
+
+.app-rail-summary strong {
+  @apply mt-2 block text-[0.9rem] font-semibold text-on-surface;
+}
+
+@media (max-width: 760px) {
+  .app-rail {
+    @apply h-auto w-full border-r-0 border-b px-3 py-3;
+    box-shadow: 0 14px 34px rgba(44, 44, 44, 0.06);
+  }
+
+  .app-rail-project,
+  .app-rail-summary {
+    @apply hidden;
+  }
+
+  .app-rail-nav {
+    @apply mt-0 flex-row overflow-x-auto;
+  }
+
+  .app-rail-link {
+    @apply min-h-[48px] min-w-[136px];
+  }
+}

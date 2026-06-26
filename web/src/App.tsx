@@ -2,8 +2,9 @@ import { ConfigProvider } from "antd";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { useAuthStore } from "@/store/auth";
 
-import HomeView from "@/pages/HomeView";
+import AppView from "@/pages/AppView";
 import LoginView from "@/pages/LoginView";
+import RegisterView from "@/pages/RegisterView";
 
 function RequireAuth() {
   const token = useAuthStore((state) => state.token);
@@ -19,7 +20,7 @@ function RedirectIfAuthenticated() {
   const token = useAuthStore((state) => state.token);
 
   if (token) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app/script" replace />;
   }
 
   return <Outlet />;
@@ -68,12 +69,14 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<RequireAuth />}>
-            <Route path="/" element={<Navigate to="/chat" replace />} />
-            <Route path="/chat" element={<HomeView />} />
+            <Route path="/" element={<Navigate to="/app/script" replace />} />
+            <Route path="/app" element={<Navigate to="/app/script" replace />} />
+            <Route path="/app/:sectionId" element={<AppView />} />
           </Route>
 
           <Route element={<RedirectIfAuthenticated />}>
             <Route path="/login" element={<LoginView />} />
+            <Route path="/register" element={<RegisterView />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

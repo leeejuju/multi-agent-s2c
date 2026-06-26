@@ -1,4 +1,4 @@
-import posterArchive01 from "./poster-archive-01.svg";
+import posterArchive01 from "./julia-portal-abyss.webp";
 import posterArchive02 from "./poster-archive-02.svg";
 import posterArchive03 from "./poster-archive-03.svg";
 import posterArchive04 from "./poster-archive-04.svg";
