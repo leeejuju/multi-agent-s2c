@@ -108,7 +108,7 @@ class Config(BaseSettings):
     # ---------- Sandbox ----------
     sandbox_provider = Field(default="provisioner", description="沙箱提供者")
     sandbox_provisioner_url: str = Field(
-        default="", description="Sandbox provisioner service URL"
+        default="", description="沙盒url"
     )
     sandbox_volume_path: str = Field(default="/home/sandbox/data", description="Sandbox provisioner service URL")
     sandbox_execute_timeout: int = Field(default=180, description="执行最长时间")

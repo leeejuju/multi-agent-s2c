@@ -10,6 +10,7 @@ from typing import Any
 
 from markdownify import markdownify
 
+from src.knowledge.cleaner import CleanedChunk, clean_document_text
 from src.knowledge.extractor import ExtractorFactory, ExtractorResult, NoExtractorError
 from src.storage import get_storage
 from src.utils import logger
@@ -48,6 +49,7 @@ IMAGE_OCR_EXTRACTORS = ("rapidocr", "paddleocr")
 class DocumentParseResult:
     success: bool
     markdown: str = ""
+    chunks: list[CleanedChunk] = field(default_factory=list)
     parser: str = "document_processor"
     source_path: str = ""
     error: str | None = None
@@ -66,6 +68,8 @@ async def parser_file_to_markdown(
     extractor_factory: ExtractorFactory | None = None,
     **params: Any,
 ) -> DocumentParseResult:
+    clean_profile = params.pop("clean_profile", None)
+    clean_chunk_size = int(params.pop("clean_chunk_size", 1200) or 1200)
     logger.info(
         "Document parsing started: file_path=%s, file_name=%s, content_type=%s, "
         "file_key=%s, enable_ocr=%s, parser_type=%s.",
@@ -90,6 +94,13 @@ async def parser_file_to_markdown(
                 parser_type=parser_type,
                 extractor_factory=extractor_factory,
                 **params,
+            )
+            result = _clean_parse_result(
+                result,
+                file_name=file_name or local_path.name,
+                content_type=content_type,
+                profile=clean_profile,
+                chunk_size=clean_chunk_size,
             )
             logger.info(
                 "Document parsing completed: success=%s, parser=%s, source_path=%s, "
@@ -371,6 +382,38 @@ def _from_extractor_result(
         source_path=result.file_path,
         error=result.error,
         metadata=dict(result.metadata),
+    )
+
+
+def _clean_parse_result(
+    result: DocumentParseResult,
+    *,
+    file_name: str | None,
+    content_type: str | None,
+    profile: str | None,
+    chunk_size: int,
+) -> DocumentParseResult:
+    if not result.success or not result.markdown.strip():
+        return result
+
+    cleaned = clean_document_text(
+        result.markdown,
+        file_name=file_name,
+        content_type=content_type,
+        profile=profile,
+        chunk_size=chunk_size,
+    )
+    return DocumentParseResult(
+        success=True,
+        markdown=cleaned.markdown,
+        chunks=cleaned.chunks,
+        parser=result.parser,
+        source_path=result.source_path,
+        metadata={
+            **dict(result.metadata),
+            "clean_profile": cleaned.profile,
+            "clean_chunk_count": len(cleaned.chunks),
+        },
     )
 
 

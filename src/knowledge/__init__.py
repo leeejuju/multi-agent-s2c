@@ -3,6 +3,11 @@ from .base import (
     KnowledgeRecord,
     KnowledgeSearch,
 )
+from .cleaner import (
+    CleanedChunk,
+    CleanResult,
+    clean_document_text,
+)
 from .factory import (
     KnowledgeFactory,
     KnowledgeType,
@@ -10,8 +15,11 @@ from .factory import (
 
 __all__ = [
     "BaseKnowledge",
+    "CleanResult",
+    "CleanedChunk",
     "KnowledgeFactory",
     "KnowledgeRecord",
     "KnowledgeSearch",
     "KnowledgeType",
+    "clean_document_text",
 ]
