@@ -1,58 +1,47 @@
 from collections.abc import Sequence
-from uuid import UUID, uuid4
+from uuid import uuid4
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.repositories import AttachmentRepository
 from src.storage import (
-    create_object_access_url,
-    download_object_bytes,
+    get_storage,
     sanitize_filename,
-    upload_object_bytes,
 )
 
-TMP_ATTACHMENT_PREFIX = "tmp/attachment"
+TMP_ATTACHMENT_PREFIX = "tmp"
 CHAT_ATTACHMENT_PREFIX = "save"
-CHAT_ATTACHMENT_SCOPE = "chat/attachment"
 
 
-def safe_path_filter(filename: str | None) -> str:
-    safe_name = sanitize_filename(filename or "file")
-    return safe_name or "file"
-
-
-def build_tmp_attachment_object_key(user_id: str, filename: str) -> str:
+def build_tmp_attachment_file_key(user_id: str, filename: str) -> str:
     return (
-        f"{TMP_ATTACHMENT_PREFIX}/{user_id}/{CHAT_ATTACHMENT_SCOPE}/"
-        f"{uuid4().hex}/{safe_path_filter(filename)}"
+        f"{TMP_ATTACHMENT_PREFIX}/{user_id}/chat/attachment/"
+        f"{uuid4().hex}/{sanitize_filename(filename or 'file')}"
     )
 
 
-def build_conversation_attachment_object_key(
+def build_conversation_attachment_file_key(
     user_id: str,
-    conversation_id: str | UUID,
+    conversation_id: str | int,
+    attachment_id: str | int,
     filename: str,
 ) -> str:
     return (
-        f"{CHAT_ATTACHMENT_PREFIX}/{user_id}/{CHAT_ATTACHMENT_SCOPE}/"
-        f"{conversation_id}/{uuid4().hex}/{safe_path_filter(filename)}"
+        f"{CHAT_ATTACHMENT_PREFIX}/{user_id}/chat/{conversation_id}/"
+        f"attachment/{attachment_id}/{sanitize_filename(filename or 'file')}"
     )
 
 
-def _to_int(value: object) -> int:
-    if isinstance(value, int):
-        return max(0, value)
-    return 0
+def _is_tmp_file_key(user_id: str, file_key: str) -> bool:
+    return file_key.startswith(f"{TMP_ATTACHMENT_PREFIX}/{user_id}/chat/attachment/")
 
 
-def _is_tmp_object_key(user_id: str, object_key: str) -> bool:
-    return object_key.startswith(f"{TMP_ATTACHMENT_PREFIX}/{user_id}/{CHAT_ATTACHMENT_SCOPE}/")
-
-
-async def _copy_attachment(source_object_key: str, destination_object_key: str, content_type: str) -> None:
-    content = await download_object_bytes(source_object_key)
-    await upload_object_bytes(
-        destination_object_key,
+async def _copy_attachment(source_file_key: str, destination_file_key: str, content_type: str) -> None:
+    content = await get_storage().download_file("knowledgebases", source_file_key)
+    await get_storage().upload_file(
+        "knowledgebases",
+        destination_file_key,
         content,
         content_type or "application/octet-stream",
     )
@@ -77,56 +66,68 @@ async def prepare_attachments_for_conversation(
         if not isinstance(attachment_data, dict):
             continue
 
-        source_object_key = str(attachment_data.get("object_key") or "")
-        if not source_object_key:
-            continue
-
-        file_name = str(attachment_data.get("file_name") or "file")
-        safe_file_name = safe_path_filter(file_name)
-        content_type = str(
-            attachment_data.get("content_type") or "application/octet-stream"
+        attachment_id = str(attachment_data.get("id") or "")
+        attachment_record = await repository.get_by_id_for_user(
+            attachment_id,
+            user_id,
         )
-        file_size = _to_int(attachment_data.get("file_size"))
+        if attachment_record is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Attachment not found.",
+            )
+
+        file_name = attachment_record.attachment_name
+        content_type = attachment_record.attachment_type or "application/octet-stream"
+        file_size = attachment_record.attachment_size
         parse_status = attachment_data.get("parse_status")
         parse_error = attachment_data.get("parse_error")
         parser = attachment_data.get("parser")
         category = attachment_data.get("category")
+        if category not in {"image", "document"}:
+            category = "image" if content_type.startswith("image/") else "document"
         parse_metadata = attachment_data.get("parse_metadata")
         parsed_text = attachment_data.get("parsed_text")
 
-        object_key = source_object_key
-        if _is_tmp_object_key(user_id, source_object_key):
-            object_key = build_conversation_attachment_object_key(
-                user_id,
-                conversation_id,
-                safe_file_name,
+        file_key = attachment_record.attachment_path
+        if attachment_record.status == "pending":
+            if _is_tmp_file_key(user_id, file_key):
+                file_key = build_conversation_attachment_file_key(
+                    user_id,
+                    conversation_id,
+                    attachment_record.id,
+                    file_name,
+                )
+                await _copy_attachment(
+                    attachment_record.attachment_path,
+                    file_key,
+                    content_type,
+                )
+            await repository.mark_attached(
+                attachment_record,
+                conversation_id=conversation_id,
+                attachment_path=file_key,
             )
-            await _copy_attachment(source_object_key, object_key, content_type)
+        elif attachment_record.status not in {"pending", "attached"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Attachment status is invalid.",
+            )
 
-        access_url = await create_object_access_url(object_key)
-        thumb_url = attachment_data.get("thumb_url")
-        if thumb_url is not None and not isinstance(thumb_url, str):
-            thumb_url = None
-
-        await repository.create(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            file_name=file_name,
-            content_type=content_type,
-            file_size=file_size,
-            file_path=object_key,
+        access_url = await get_storage().create_file_access_url(
+            "knowledgebases",
+            file_key,
         )
 
         normalized.append(
             {
-                "id": attachment_data.get("id", ""),
+                "id": str(attachment_record.id),
                 "file_name": file_name,
                 "content_type": content_type,
                 "file_size": file_size,
-                "object_key": object_key,
+                "file_key": file_key,
                 "category": category,
                 "access_url": access_url,
-                "thumb_url": thumb_url,
                 "parser": parser,
                 "parse_status": parse_status,
                 "parse_error": parse_error,

@@ -88,11 +88,18 @@ async def execute_agent_run(run_id: str) -> None:
         if run is None:
             logger.warning("Agent run not found: run_id=%s.", run_id)
             return
+        user_message = await run_repository.get_message_for_run(run_id, "user")
+        assistant_message = await run_repository.get_message_for_run(run_id, "assistant")
+        if assistant_message is None:
+            logger.warning("Assistant message not found for run: run_id=%s.", run_id)
+            return
+        user_message_id = str(user_message.id) if user_message is not None else ""
+        assistant_message_id = str(assistant_message.id)
 
         if run.status == "canceling":
             await run_repository.set_status(run, "canceled")
             await conversation_repository.update_message_content(
-                str(run.assistant_message_id),
+                assistant_message_id,
                 "",
                 status="canceled",
             )
@@ -101,7 +108,7 @@ async def execute_agent_run(run_id: str) -> None:
 
         await run_repository.set_status(run, "running")
         await conversation_repository.update_message_content(
-            str(run.assistant_message_id),
+            assistant_message_id,
             "",
             status="streaming",
         )
@@ -128,7 +135,7 @@ async def execute_agent_run(run_id: str) -> None:
                 "type": "metadata",
                 "msg": init_msg,
                 "conversation_id": str(run.conversation_id),
-                "message_id": str(run.assistant_message_id),
+                "message_id": assistant_message_id,
             },
             request_config=run.request_config,
         )
@@ -137,7 +144,7 @@ async def execute_agent_run(run_id: str) -> None:
             user_id=str(run.user_id),
             conversation_id=str(run.conversation_id),
             agent_id=run.agent_id,
-            user_message_id=str(run.user_message_id),
+            user_message_id=user_message_id,
             message_type=message_type,
             attachment_count=attachment_count,
             request_config=dict(run.request_config or {}),
@@ -167,7 +174,7 @@ async def execute_agent_run(run_id: str) -> None:
                 if run.status == "canceling":
                     await run_repository.set_status(run, "canceled")
                     await conversation_repository.set_message_status(
-                        str(run.assistant_message_id),
+                        assistant_message_id,
                         "canceled",
                     )
                     await run_repository.commit()
@@ -186,7 +193,7 @@ async def execute_agent_run(run_id: str) -> None:
                     return
 
                 if mode in {"updates", "values"}:
-                    await _publish_tool_events(session, redis, run_id, run, chunk)
+                    await _publish_tool_events(session, redis, run_id, run, assistant_message_id, chunk)
                     continue
 
                 if mode != "messages":
@@ -197,7 +204,7 @@ async def execute_agent_run(run_id: str) -> None:
                     continue
 
                 await conversation_repository.append_message_content(
-                    str(run.assistant_message_id),
+                    assistant_message_id,
                     str(token),
                     status="streaming",
                 )
@@ -211,14 +218,14 @@ async def execute_agent_run(run_id: str) -> None:
                         "status": "stream",
                         "type": "token",
                         "conversation_id": str(run.conversation_id),
-                        "message_id": str(run.assistant_message_id),
+                        "message_id": assistant_message_id,
                     },
                     request_config=run.request_config,
                 )
 
             await run_repository.set_status(run, "completed")
             await conversation_repository.set_message_status(
-                str(run.assistant_message_id),
+                assistant_message_id,
                 "completed",
             )
             await run_repository.commit()
@@ -231,7 +238,7 @@ async def execute_agent_run(run_id: str) -> None:
                     "status": "done",
                     "type": "done",
                     "conversation_id": str(run.conversation_id),
-                    "message_id": str(run.assistant_message_id),
+                    "message_id": assistant_message_id,
                 },
                 request_config=run.request_config,
             )
@@ -239,7 +246,7 @@ async def execute_agent_run(run_id: str) -> None:
             logger.exception("Agent run failed: run_id=%s.", run_id)
             await run_repository.set_status(run, "failed", error=str(exc))
             await conversation_repository.set_message_status(
-                str(run.assistant_message_id),
+                assistant_message_id,
                 "failed",
             )
             await run_repository.commit()
@@ -253,7 +260,7 @@ async def execute_agent_run(run_id: str) -> None:
                     "type": "error",
                     "message": "Streaming response failed.",
                     "conversation_id": str(run.conversation_id),
-                    "message_id": str(run.assistant_message_id),
+                    "message_id": assistant_message_id,
                 },
                 request_config=run.request_config,
             )
@@ -265,6 +272,7 @@ async def _publish_tool_events(
     redis,
     run_id: str,
     run,
+    assistant_message_id: str,
     chunk: Any,
 ) -> None:
     for activity in _iter_tool_activities(chunk):
@@ -286,7 +294,7 @@ async def _publish_tool_events(
                 "result_items": activity.get("result_items"),
                 "result_count": activity.get("result_count"),
                 "conversation_id": str(run.conversation_id),
-                "message_id": str(run.assistant_message_id),
+                "message_id": assistant_message_id,
             },
             request_config=run.request_config,
         )
@@ -299,13 +307,16 @@ async def _fail_run(run_id: str, message: str) -> None:
         run = await run_repository.get_by_id(run_id)
         if run is None:
             return
+        assistant_message = await run_repository.get_message_for_run(run_id, "assistant")
+        assistant_message_id = str(assistant_message.id) if assistant_message is not None else ""
         redis = get_redis_client() if agent_stream_enabled(run.request_config) else None
         await run_repository.set_status(run, "failed", error=message)
-        await conversation_repository.update_message_content(
-            str(run.assistant_message_id),
-            "",
-            status="failed",
-        )
+        if assistant_message_id:
+            await conversation_repository.update_message_content(
+                assistant_message_id,
+                "",
+                status="failed",
+            )
         await run_repository.commit()
         await publish_run_event(
             session,
@@ -317,7 +328,7 @@ async def _fail_run(run_id: str, message: str) -> None:
                 "type": "error",
                 "message": message,
                 "conversation_id": str(run.conversation_id),
-                "message_id": str(run.assistant_message_id),
+                "message_id": assistant_message_id,
             },
             request_config=run.request_config,
         )

@@ -1,7 +1,6 @@
 from pathlib import Path
 from time import perf_counter
 from typing import Any
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -19,28 +18,23 @@ from server.service import (
     stream_run_events,
 )
 from server.service.conversation_service import (
-    build_tmp_attachment_object_key,
-    safe_path_filter,
+    build_tmp_attachment_file_key,
 )
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.database import get_db
-from src.database.repositories import RunRepository
-from src.storage import (
-    create_object_access_url,
-    delete_object,
-    upload_object_bytes,
-)
+from src.database.repositories import AttachmentRepository
+from src.storage import get_storage
 from src.utils import logger
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# 配置常量
+# 閰嶇疆甯搁噺
 MAX_FILES_PER_REQUEST = 10
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
 MAX_DOCUMENT_SIZE = 25 * 1024 * 1024
 
-# 文件类型限制
+# 鏂囦欢绫诲瀷闄愬埗
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg",
     "image/png",
@@ -90,13 +84,13 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
 
 
 class ChatAttachment(BaseModel):
-    """请求携带的附件信息"""
+    """请求携带的附件信息。"""
 
     id: str
     file_name: str
     content_type: str
     file_size: int | None = None
-    object_key: str | None = None
+    file_key: str | None = None
     access_url: str
     category: str | None = None
     thumb_url: str | None = None
@@ -108,13 +102,13 @@ class ChatAttachment(BaseModel):
 
 
 class UploadedAttachmentResponse(BaseModel):
-    """上传成功后的附件响应"""
+    """上传成功后的附件响应。"""
 
     id: str
     file_name: str
     content_type: str
     file_size: int
-    object_key: str
+    file_key: str
     category: str
     access_url: str
     thumb_url: str | None = None
@@ -126,7 +120,7 @@ class UploadedAttachmentResponse(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """聊天请求负载"""
+    """聊天请求负载。"""
 
     input: str
     conversation_id: str | None = None
@@ -152,12 +146,9 @@ class MessageResponse(BaseModel):
 class AgentRunResponse(BaseModel):
     id: str
     conversation_id: str
-    user_message_id: str
-    assistant_message_id: str
     agent_id: str
     status: str
     error: str | None = None
-    latest_sequence: int = 0
     created_at: str
 
 
@@ -168,7 +159,7 @@ class AgentSummary(BaseModel):
 
 
 def _file_extension(filename: str | None) -> str:
-    """获取文件后缀名（小写）"""
+    """获取文件后缀名。"""
     return Path(filename or "").suffix.lower()
 
 
@@ -179,7 +170,7 @@ def _is_allowed_file(
     allowed_types: set[str],
     allowed_extensions: set[str],
 ) -> bool:
-    """校验文件类型或后缀是否在允许范围内"""
+    """校验文件类型或后缀是否允许。"""
     extension = _file_extension(filename)
     return content_type in allowed_types or extension in allowed_extensions
 
@@ -191,10 +182,11 @@ async def list_agent_summaries(current_user: AuthenticatedUser):
 
 async def _upload_attachments(
     *,
+    db: AsyncSession,
     files: list[UploadFile],
     current_user: AuthenticatedUser,
 ) -> list[UploadedAttachmentResponse]:
-    """通用附件上传逻辑处理（含存储、缩略图生成及元数据组装）"""
+    """通用附件上传处理。"""
     logger.info(
         f"收到上传请求: 用户ID={current_user.user_id}, 文件数量={len(files)}, 类型=tmp_attachment."
     )
@@ -207,11 +199,12 @@ async def _upload_attachments(
     if len(files) > MAX_FILES_PER_REQUEST:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"单次上传文件系统数量不能超过 {MAX_FILES_PER_REQUEST} 个。",
+            detail=f"单次上传文件数量不能超过 {MAX_FILES_PER_REQUEST} 个。",
         )
 
     uploaded_keys: list[str] = []
     responses: list[UploadedAttachmentResponse] = []
+    repository = AttachmentRepository(db)
 
     try:
         for upload in files:
@@ -247,54 +240,66 @@ async def _upload_attachments(
             if len(content) > max_file_size:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件 '{upload.filename or '未知'}' 大小查过了限制。",
+                    detail=f"文件 '{upload.filename or '未知'}' 大小超过限制。",
                 )
 
             original_filename = upload.filename or "file"
-            filename = safe_path_filter(original_filename)
-            object_key = build_tmp_attachment_object_key(
+            file_key = build_tmp_attachment_file_key(
                 current_user.user_id,
-                filename,
+                original_filename,
             )
             upload_started_at = perf_counter()
-            await upload_object_bytes(
-                object_key,
+            await get_storage().upload_file(
+                "knowledgebases",
+                file_key,
                 content,
                 content_type or "application/octet-stream",
             )
             upload_duration_ms = (perf_counter() - upload_started_at) * 1000
             logger.info(
-                "附件上传到 tmp 完成: 用户ID=%s, 文件名=%s, object_key=%s, 文件大小=%s, 耗时=%.2fms.",
+                "附件上传到 tmp 完成: 用户ID=%s, 文件名=%s, file_key=%s, 文件大小=%s, 耗时=%.2fms.",
                 current_user.user_id,
                 original_filename,
-                object_key,
+                file_key,
                 len(content),
                 upload_duration_ms,
             )
-            uploaded_keys.append(object_key)
-            access_url = await create_object_access_url(object_key)
+            uploaded_keys.append(file_key)
+            attachment = await repository.create_pending(
+                user_id=current_user.user_id,
+                attachment_name=original_filename,
+                attachment_type=content_type or "application/octet-stream",
+                attachment_size=len(content),
+                attachment_path=file_key,
+            )
+            access_url = await get_storage().create_file_access_url(
+                "knowledgebases",
+                file_key,
+            )
 
             responses.append(
                 UploadedAttachmentResponse(
-                    id=str(uuid4()),
+                    id=str(attachment.id),
                     file_name=original_filename,
                     content_type=content_type or "application/octet-stream",
                     file_size=len(content),
-                    object_key=object_key,
+                    file_key=file_key,
                     category=category,
                     access_url=access_url,
                     thumb_url=None,
                 )
             )
+        await db.commit()
     except Exception:
+        await db.rollback()
         # 发生异常时回滚存储中的文件
-        for object_key in uploaded_keys:
+        for file_key in uploaded_keys:
             try:
-                await delete_object(object_key)
+                await get_storage().delete_file("knowledgebases", file_key)
             except HTTPException:
                 pass
         logger.exception(
-            "上传失败，已尝试清理相关存储对象: 用户ID=%s, 对话ID=%s, 类型=%s.",
+            "上传失败，已尝试清理相关存储文件: 用户ID=%s, 对话ID=%s, 类型=%s.",
             current_user.user_id,
             None,
             "tmp_attachment",
@@ -311,24 +316,23 @@ async def _upload_attachments(
 async def upload_tmp_attachments(
     current_user: AuthenticatedUser,
     files: list[UploadFile] = File(...),
+    db: AsyncSession = Depends(get_db),
 ):
     """附件上传到临时路径，不触发对话。"""
     return await _upload_attachments(
+        db=db,
         files=files,
         current_user=current_user,
     )
 
 
-def _run_response(run, latest_sequence: int = 0) -> AgentRunResponse:
+def _run_response(run) -> AgentRunResponse:
     return AgentRunResponse(
         id=str(run.id),
         conversation_id=str(run.conversation_id),
-        user_message_id=str(run.user_message_id),
-        assistant_message_id=str(run.assistant_message_id),
         agent_id=run.agent_id,
         status=run.status,
         error=run.error,
-        latest_sequence=latest_sequence,
         created_at=run.created_at.isoformat(),
     )
 
@@ -342,7 +346,7 @@ async def create_chat_run(
 ):
     """创建后台 agent run。"""
     logger.info(
-        f"收到 agent run 请求: 用户ID={current_user.user_id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
+        f"鏀跺埌 agent run 璇锋眰: 鐢ㄦ埛ID={current_user.user_id}, 鏅鸿兘浣揑D={agent_id}, 瀵硅瘽ID={payload.conversation_id}.",
     )
     run = await create_agent_run(
         db,
@@ -418,8 +422,7 @@ async def get_active_conversation_run(
     )
     if run is None:
         return None
-    latest_sequence = await RunRepository(db).latest_sequence(str(run.id))
-    return _run_response(run, latest_sequence=latest_sequence)
+    return _run_response(run)
 
 
 @router.get(

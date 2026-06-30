@@ -15,12 +15,10 @@ from src.utils import logger
 
 from .agent_consumer_service import execute_agent_run
 from .agent_queue_service import (
-    agent_event_persist_enabled,
     agent_queue_enabled,
     agent_stream_enabled,
     get_arq_pool,
     get_redis_client,
-    iter_persisted_run_events,
     json_line_event,
     run_stream_key,
 )
@@ -154,13 +152,13 @@ async def create_agent_run(
     run = await run_repository.create_run(
         conversation_id=resolved_conversation_id,
         user_id=user_id,
-        user_message_id=str(user_message.id),
-        assistant_message_id=str(assistant_message.id),
         agent_id=agent_id,
         input_text=input_text,
         attachments=normalized_attachments,
         request_config=dict(request_config or {}),
     )
+    user_message.agent_run_id = run.id
+    assistant_message.agent_run_id = run.id
     await run_repository.commit()
 
     if agent_queue_enabled(request_config):
@@ -235,35 +233,19 @@ async def stream_run_events(
             detail="Run not found.",
         )
 
-    persist_events = agent_event_persist_enabled(run.request_config)
     stream_events = agent_stream_enabled(run.request_config)
     redis = get_redis_client() if stream_events else None
     stream_key = run_stream_key(run_id)
     last_sequence = after_sequence
-    last_redis_id = "$" if persist_events else "0-0"
+    last_redis_id = "0-0"
     terminal_types = {"done", "error"}
 
     while True:
-        emitted = False
-        if persist_events:
-            async for payload in iter_persisted_run_events(
-                db,
-                run_id=run_id,
-                after_sequence=last_sequence,
-            ):
-                emitted = True
-                last_sequence = int(payload.get("sequence") or last_sequence)
-                yield json_line_event(payload)
-                if payload.get("type") in terminal_types:
-                    return
-
-        if emitted:
-            continue
-
         if not stream_events:
             await db.refresh(run)
-            if not persist_events and run.status in {"completed", "failed", "canceled"}:
+            if run.status in {"completed", "failed", "canceled"}:
                 event_type = "error" if run.status == "failed" else "done"
+                assistant_message = await repository.get_message_for_run(run_id, "assistant")
                 yield json_line_event(
                     {
                         "sequence": last_sequence + 1,
@@ -272,7 +254,7 @@ async def stream_run_events(
                         "type": event_type,
                         "message": run.error,
                         "conversation_id": str(run.conversation_id),
-                        "message_id": str(run.assistant_message_id),
+                        "message_id": str(assistant_message.id) if assistant_message else "",
                     }
                 )
                 return
