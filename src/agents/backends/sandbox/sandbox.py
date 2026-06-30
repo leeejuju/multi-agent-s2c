@@ -22,7 +22,7 @@ MAX_EXECUTE_OUTPUT_BYTES = 100_000
 
 
 class S2CSandbox(BaseSandbox):
-    """DeepAgents sandbox adapter for an already-provisioned remote sandbox."""
+    """继承deepagent创建的sandbox."""
 
     def __init__(
         self,
