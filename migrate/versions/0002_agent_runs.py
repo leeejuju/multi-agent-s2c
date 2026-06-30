@@ -7,7 +7,6 @@ Create Date: 2026-06-03
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision = "0002_agent_runs"
 down_revision = "0001_initial"
@@ -33,42 +32,40 @@ def upgrade() -> None:
     if "agent_runs" not in table_names:
         op.create_table(
             "agent_runs",
-            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-            sa.Column("conversation_id", postgresql.UUID(as_uuid=True), nullable=False),
-            sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-            sa.Column("user_message_id", postgresql.UUID(as_uuid=True), nullable=False),
-            sa.Column("assistant_message_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+            sa.Column("conversation_id", sa.Integer(), nullable=False),
+            sa.Column("user_id", sa.Integer(), nullable=False),
             sa.Column("agent_id", sa.String(length=128), nullable=False),
             sa.Column("input_text", sa.Text(), nullable=False),
-            sa.Column("attachments", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-            sa.Column("request_config", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+            sa.Column("attachments", sa.JSON(), nullable=False),
+            sa.Column("request_config", sa.JSON(), nullable=False),
             sa.Column("status", sa.String(length=16), nullable=False),
             sa.Column("error", sa.Text(), nullable=True),
             sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
             sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-            sa.ForeignKeyConstraint(["assistant_message_id"], ["messages.id"], ondelete="CASCADE"),
             sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
             sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-            sa.ForeignKeyConstraint(["user_message_id"], ["messages.id"], ondelete="CASCADE"),
         )
-    if "run_events" not in table_names:
-        op.create_table(
-            "run_events",
-            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-            sa.Column("run_id", postgresql.UUID(as_uuid=True), nullable=False),
-            sa.Column("sequence", sa.Integer(), nullable=False),
-            sa.Column("type", sa.String(length=32), nullable=False),
-            sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-            sa.ForeignKeyConstraint(["run_id"], ["agent_runs.id"], ondelete="CASCADE"),
-            sa.UniqueConstraint("run_id", "sequence", name="uq_run_events_run_sequence"),
+    message_columns = {column["name"] for column in inspector.get_columns("messages")}
+    if "agent_run_id" not in message_columns:
+        op.add_column(
+            "messages",
+            sa.Column("agent_run_id", sa.Integer(), nullable=True),
         )
-
+        op.create_foreign_key(
+            "fk_messages_agent_run_id_agent_runs",
+            "messages",
+            "agent_runs",
+            ["agent_run_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 def downgrade() -> None:
-    op.drop_table("run_events")
+    op.drop_constraint("fk_messages_agent_run_id_agent_runs", "messages", type_="foreignkey")
+    op.drop_column("messages", "agent_run_id")
     op.drop_table("agent_runs")
     op.drop_column("messages", "updated_at")
     op.drop_column("messages", "status")

@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MIGRATION_DIR = PROJECT_ROOT / "migrate"
 
 BASE_TABLES = {"attachments", "conversations", "messages", "users"}
-RUN_TABLES = {"agent_runs", "run_events"}
+RUN_TABLES = {"agent_runs"}
 MESSAGE_0002_COLUMNS = {"status", "updated_at"}
 
 
