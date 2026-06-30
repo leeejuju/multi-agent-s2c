@@ -1,11 +1,27 @@
 @reference "../../assets/css/Global.css";
 
+.attachment-capsule-list {
+  @apply mb-3 flex flex-wrap gap-2.5;
+}
+
+.attachment-capsule {
+  @apply relative flex max-w-[220px] items-center gap-2 overflow-hidden rounded-[12px] border border-border bg-card-background px-2 py-2 shadow-[0_12px_26px_rgba(44,44,44,0.04)];
+}
+
+.attachment-capsule.is-error {
+  @apply border-[#ff3b30]/40;
+}
+
+.attachment-capsule-remove {
+  @apply flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-[#ff3b30];
+}
+
 .attachment-capsule-upload-progress-overlay {
-  @apply absolute inset-0 z-10 flex items-center justify-center rounded-full bg-card-background/65 backdrop-blur-[1px];
+  @apply absolute inset-0 z-10 flex items-center justify-center rounded-[12px] bg-card-background/65 backdrop-blur-[1px];
 }
 
 .attachment-capsule-upload-progress-ring {
-  @apply relative flex h-6 w-6 items-center justify-center rounded-full shadow-sm;
+  @apply relative flex h-9 w-9 items-center justify-center rounded-full shadow-sm;
   background: conic-gradient(
     var(--accent, #0a84ff) var(--attachment-upload-progress),
     rgb(148 163 184 / 0.35) 0
@@ -18,5 +34,5 @@
 }
 
 .attachment-capsule-upload-progress-text {
-  @apply absolute z-10 text-[10px] font-semibold leading-none text-on-surface;
+  @apply absolute z-10 text-[0.82rem] font-semibold leading-none text-on-surface;
 }

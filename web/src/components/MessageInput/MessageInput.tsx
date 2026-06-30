@@ -6,7 +6,7 @@ import {
   Square,
 } from "lucide-react";
 import { Button, Popover, Switch } from "antd";
-import { KeyboardEvent, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type KeyboardEvent, useMemo, useRef, useState } from "react";
 
 import AttachmentCapsules from "@/components/AttachmentCapsules";
 import "./MessageInput.css";
@@ -16,8 +16,10 @@ type Props = {
   images: any[];
   attachments: any[];
   selectedModelId: string;
+  className?: string;
   disabled?: boolean;
   sending?: boolean;
+  variant?: "default" | "script-start";
   onTextChange: (value: string) => void;
   onSelectedModelChange: (value: string) => void;
   onSend: () => void;
@@ -43,6 +45,7 @@ const models = [
 
 export default function MessageInput({
   attachments,
+  className,
   disabled = false,
   images,
   onRemoveAttachment,
@@ -56,6 +59,7 @@ export default function MessageInput({
   onClickAttachment,
   onFileSelect,
   text,
+  variant = "default",
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [agentEnabled, setAgentEnabled] = useState(false);
@@ -107,12 +111,11 @@ export default function MessageInput({
     onClickAttachment();
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0 && onFileSelect) {
       onFileSelect(Array.from(files));
     }
-    // Reset input value to allow selecting same file again
     event.target.value = "";
   };
 
@@ -142,8 +145,77 @@ export default function MessageInput({
     </div>
   );
 
+  if (variant === "script-start") {
+    return (
+      <div
+        className={[
+          "message-input message-input-script-start glass-effect-sm flex flex-col bg-card-background",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          multiple
+        />
+        <textarea
+          className="message-input-textarea message-script-textarea w-full resize-none border-0 bg-transparent outline-none"
+          disabled={disabled}
+          onChange={(event) => onTextChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="帮您处理剧本格式或从新点子开始？"
+          value={text}
+        />
+
+        {(images.length > 0 || attachments.length > 0) && (
+          <div className="message-script-attachments">
+            <AttachmentCapsules
+              attachments={attachments}
+              images={images}
+              onRemoveAttachment={onRemoveAttachment}
+              onRemoveImage={onRemoveImage}
+            />
+          </div>
+        )}
+
+        <div className="message-script-toolbar">
+          <button
+            className="message-script-file-button"
+            disabled={disabled}
+            onClick={handleAttachmentClick}
+            type="button"
+          >
+            <Paperclip size={16} />
+            <span>添加文件</span>
+          </button>
+
+          <Button
+            className={`message-send-button ${sending ? "is-stopping" : ""}`}
+            disabled={sending ? false : !canSend}
+            icon={sending ? <Square size={13} fill="currentColor" /> : <ArrowUp size={16} />}
+            onClick={sending ? onStop : onSend}
+            shape="default"
+            title={sending ? "停止" : "发送"}
+            type={sending ? "default" : "primary"}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="message-input glass-effect-sm flex px-1.5 py-1.5 flex-col overflow-hidden rounded-[18px] bg-card-background">
+    <div
+      className={[
+        "message-input glass-effect-sm flex flex-col overflow-hidden rounded-[18px] bg-card-background px-3 py-3",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <input
         type="file"
         ref={fileInputRef}
@@ -153,7 +225,7 @@ export default function MessageInput({
       />
 
       {(images.length > 0 || attachments.length > 0) && (
-        <div className="border-b border-border bg-surface-variant px-2 pt-2 pb-0.5">
+        <div className="message-input-attachments">
           <AttachmentCapsules
             attachments={attachments}
             images={images}
@@ -163,29 +235,29 @@ export default function MessageInput({
         </div>
       )}
 
-      <div className="px-2 py-2 pb-1">
+      <div className="px-1">
         <textarea
-          className="message-input-textarea w-full min-h-[68px] max-h-[160px] resize-none border-0 bg-transparent py-1 text-[13px] outline-none"
+          className="message-input-textarea w-full min-h-[112px] max-h-[220px] resize-none border-0 bg-transparent px-1 py-2 text-[1rem] outline-none"
           disabled={disabled}
           onChange={(event) => onTextChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask anything..."
+          placeholder="写下你的创作需求"
           value={text}
         />
       </div>
 
-      <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
-        <div className="flex items-center gap-1">
+      <div className="message-input-toolbar">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
-            className="flex h-7 items-center rounded-lg text-[11px] font-medium"
+            className="message-input-icon-button"
             icon={<Paperclip size={15} />}
             onClick={handleAttachmentClick}
             disabled={disabled}
-            title="Add Attachment"
+            title="添加附件"
             type="text"
           />
 
-          <div className="flex h-7 items-center gap-1 rounded-lg px-1.5 text-[11px] font-medium text-on-surface-variant">
+          <div className="message-agent-toggle">
             <Switch
               checked={agentEnabled}
               disabled={disabled}
@@ -220,7 +292,7 @@ export default function MessageInput({
           icon={sending ? <Square size={13} fill="currentColor" /> : <ArrowUp size={16} />}
           onClick={sending ? onStop : onSend}
           shape="default"
-          title={sending ? "Stop" : "Send"}
+          title={sending ? "停止" : "发送"}
           type={sending ? "default" : "primary"}
         />
       </div>

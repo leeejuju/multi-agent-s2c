@@ -3,17 +3,22 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FormEvent,
   type RefObject,
 } from "react";
+import { Alert, Button, Input } from "antd";
 import { gsap } from "gsap";
-import { Link } from "react-router-dom";
+import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
+import { authApi } from "@/api/auth";
 import {
   landingPosterDecorations,
   landingShapeDecorations,
   type LandingPosterDecoration,
   type LandingShapeDecoration,
 } from "@/assets/landing/posters";
+import { useAuthStore } from "@/store/auth";
 
 type AuthMode = "login" | "register";
 
@@ -65,10 +70,202 @@ function LandingNav() {
   );
 }
 
-function HeroContent() {
+function AuthPanel({
+  authMode,
+  onModeChange,
+}: {
+  authMode: AuthMode;
+  onModeChange: (mode: AuthMode) => void;
+}) {
+  const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const isRegistering = authMode === "register";
+
+  useEffect(() => {
+    setError(null);
+    setConfirmPassword("");
+  }, [authMode]);
+
+  const switchMode = (nextMode: AuthMode) => {
+    onModeChange(nextMode);
+    navigate(nextMode === "register" ? "/register" : "/login", {
+      replace: true,
+    });
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError("请输入邮箱。");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("密码至少需要 6 位。");
+      return;
+    }
+
+    if (isRegistering && password !== confirmPassword) {
+      setError("两次输入的密码不一致。");
+      return;
+    }
+
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      if (isRegistering) {
+        await authApi.register({
+          email: normalizedEmail,
+          password,
+          username: normalizedEmail,
+        });
+      }
+
+      const loginResponse = await authApi.login({
+        password,
+        username: normalizedEmail,
+      });
+      setAuth(loginResponse.access_token, loginResponse.user);
+      navigate("/app/script", { replace: true });
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : "认证请求失败。",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <section
-      className="landing-hero landing-animated-hidden relative z-20 flex min-h-[100svh] w-full items-center justify-center px-5 py-28 text-center"
+      aria-label="邮箱登录"
+      className="landing-auth-panel mt-12 w-full max-w-[26rem] rounded-[24px] border border-landing-text/10 bg-landing-paper/90 p-6 text-left shadow-[0_24px_70px_rgba(41,45,37,0.12)] backdrop-blur-xl max-[520px]:mt-9 max-[520px]:rounded-[20px] max-[520px]:p-5"
+    >
+      <form className="grid gap-4" onSubmit={handleSubmit}>
+        <div>
+          <Input
+            aria-label="邮箱"
+            autoComplete="email"
+            maxLength={64}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="邮箱"
+            prefix={<Mail aria-hidden="true" size={15} strokeWidth={2} />}
+            size="large"
+            type="email"
+            value={email}
+          />
+        </div>
+
+        <div>
+          <Input.Password
+            aria-label="密码"
+            autoComplete={isRegistering ? "new-password" : "current-password"}
+            maxLength={128}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="密码"
+            prefix={
+              <LockKeyhole aria-hidden="true" size={15} strokeWidth={2} />
+            }
+            size="large"
+            value={password}
+          />
+        </div>
+
+        {isRegistering ? (
+          <div>
+            <Input.Password
+              aria-label="确认密码"
+              autoComplete="new-password"
+              maxLength={128}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="确认密码"
+              prefix={
+                <LockKeyhole aria-hidden="true" size={15} strokeWidth={2} />
+              }
+              size="large"
+              value={confirmPassword}
+            />
+          </div>
+        ) : null}
+
+        {error ? (
+          <Alert
+            className="mt-1"
+            message={error}
+            showIcon={false}
+            type="error"
+          />
+        ) : null}
+
+        <Button
+          className="mt-2 w-full border-none bg-landing-action text-landing-paper shadow-none hover:!bg-[#2f3b2b] hover:!text-landing-paper"
+          htmlType="submit"
+          icon={<ArrowRight aria-hidden="true" size={16} strokeWidth={2.2} />}
+          iconPosition="end"
+          loading={submitting}
+          size="large"
+          type="primary"
+        >
+          {isRegistering ? "完成注册" : "登录"}
+        </Button>
+      </form>
+
+      <div className="mt-6 flex items-center justify-center gap-2 border-t border-landing-text/10 pt-5 text-[0.82rem] text-landing-muted">
+        {isRegistering ? (
+          <>
+            <span>已有账号</span>
+            <button
+              className="landing-focus rounded-[8px] border-0 bg-transparent px-2 py-1 font-semibold text-landing-action underline-offset-4 hover:underline"
+              onClick={() => switchMode("login")}
+              type="button"
+            >
+              登录
+            </button>
+          </>
+        ) : (
+          <>
+            <span>还没注册</span>
+            <button
+              className="landing-focus rounded-[8px] border-0 bg-transparent px-2 py-1 font-semibold text-landing-action underline-offset-4 hover:underline"
+              onClick={() => switchMode("register")}
+              type="button"
+            >
+              注册
+            </button>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function HeroContent({ mode }: { mode: AuthMode }) {
+  const navigate = useNavigate();
+  const [authMode, setAuthMode] = useState<AuthMode>(mode);
+  const [panelOpen, setPanelOpen] = useState(mode === "register");
+
+  useEffect(() => {
+    setAuthMode(mode);
+    setPanelOpen(mode === "register");
+  }, [mode]);
+
+  const openLoginPanel = () => {
+    setAuthMode("login");
+    setPanelOpen(true);
+    navigate("/login", { replace: true });
+  };
+
+  return (
+    <section
+      className="landing-hero landing-animated-hidden relative z-20 flex h-[100svh] w-full items-center justify-center overflow-y-auto px-5 py-24 text-center max-[760px]:items-start max-[520px]:py-20"
       aria-labelledby="auth-home-title"
     >
       <div className="relative mx-auto flex w-[min(42rem,86vw)] flex-col items-center">
@@ -81,13 +278,19 @@ function HeroContent() {
         >
           剧画
         </h1>
-        <p className="mt-5 text-[clamp(1.05rem,2vw,1.34rem)] font-medium tracking-[0.1em] text-landing-text/76">
-          漂浮的分镜工作台
-        </p>
-        <p className="mt-4 max-w-[28rem] text-[0.98rem] leading-7 text-landing-muted max-[520px]:text-[0.92rem]">
+        <button
+          className="landing-focus mt-8 rounded-[8px] bg-landing-action px-4 py-2 text-[0.9rem] font-semibold tracking-[0.08em] text-landing-paper shadow-[0_12px_32px_rgba(41,45,37,0.12)] transition hover:bg-[#2f3b2b]"
+          onClick={openLoginPanel}
+          type="button"
+        >
+          登录
+        </button>
+        <p className="mt-9 max-w-[28rem] text-[0.98rem] leading-7 text-landing-muted max-[520px]:mt-7 max-[520px]:text-[0.92rem]">
           把故事，变成看得见的分镜。
         </p>
-
+        {panelOpen ? (
+          <AuthPanel authMode={authMode} onModeChange={setAuthMode} />
+        ) : null}
       </div>
     </section>
   );
@@ -424,7 +627,7 @@ function useLandingIntroAnimation(
   }, [loadingRef, pageRef, setLoadingMounted]);
 }
 
-export default function AuthLanding(_props: { mode: AuthMode }) {
+export default function AuthLanding({ mode }: { mode: AuthMode }) {
   const pageRef = useRef<HTMLElement | null>(null);
   const loadingRef = useRef<HTMLDivElement | null>(null);
   const [loadingMounted, setLoadingMounted] = useState(true);
@@ -438,7 +641,7 @@ export default function AuthLanding(_props: { mode: AuthMode }) {
     >
       <PosterField />
       <LandingNav />
-      <HeroContent />
+      <HeroContent mode={mode} />
       {loadingMounted ? <LoadingSequence loadingRef={loadingRef} /> : null}
     </main>
   );

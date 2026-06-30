@@ -14,6 +14,10 @@ const HTML_IMAGE_PATTERN = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
 const RAW_IMAGE_URL_PATTERN = /\bhttps?:\/\/[^\s<>"')]+?\.(?:bmp|gif|jpe?g|png|svg|webp)(?:\?[^\s<>"')]+)?/gi;
 const AUTO_SCROLL_THRESHOLD = 96;
 
+type AgentChatProps = {
+  docked?: boolean;
+};
+
 function getFileExtension(file: File) {
   return file.name.split(".").pop()?.toLowerCase() || "";
 }
@@ -89,7 +93,7 @@ function getGeneratedImageScanKey(message: ChatMessage, index: number) {
   return message.id ?? `${index}-${hashText(message.content)}`;
 }
 
-export default function AgentChat() {
+export default function AgentChat({ docked = false }: AgentChatProps) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const syncedGeneratedImagesRef = useRef<Set<string>>(new Set());
@@ -205,7 +209,7 @@ export default function AgentChat() {
 
   return (
     <AnimatePresence mode="wait">
-      {isCollapsed ? (
+      {!docked && isCollapsed ? (
         <motion.button
           key="collapsed"
           aria-label="Expand chat"
@@ -225,24 +229,28 @@ export default function AgentChat() {
               </span>
             )}
           </div>
-          <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant transition-colors [writing-mode:vertical-lr] group-hover:text-on-surface">
-            {isSending ? "Active" : "Chat"}
+          <span className="mt-1.5 text-[0.9rem] font-semibold text-on-surface-variant transition-colors [writing-mode:vertical-lr] group-hover:text-on-surface">
+            {isSending ? "进行中" : "对话"}
           </span>
         </motion.button>
       ) : (
         <motion.aside
           key="expanded"
-          className="absolute right-4 top-3 bottom-3 z-40 flex w-[420px] flex-col pointer-events-auto"
-          initial={{ x: 500, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: 500, opacity: 0 }}
+          className={
+            docked
+              ? "relative z-0 flex h-[min(74vh,760px)] min-h-[540px] w-full max-w-[420px] flex-col pointer-events-auto max-[1120px]:max-w-none"
+              : "absolute right-4 top-3 bottom-3 z-40 flex w-[420px] flex-col pointer-events-auto"
+          }
+          initial={docked ? { y: 16, opacity: 0 } : { x: 500, opacity: 0 }}
+          animate={docked ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
+          exit={docked ? { y: 16, opacity: 0 } : { x: 500, opacity: 0 }}
           transition={{ type: "spring", stiffness: 200, damping: 24 }}
         >
           <div className="glass-effect flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border-strong ring-1 ring-border-strong">
-            <header className="flex items-center justify-between border-border px-4 py-3">
+            <header className="flex items-center justify-between border-border px-5 py-4">
               <div className="flex flex-col">
-                <h1 className="m-0 text-[15px] font-medium tracking-tight">
-                  {conversationId ? "Conversation" : "New Chat"}
+                <h1 className="m-0 text-[1.12rem] font-semibold tracking-tight">
+                  {conversationId ? "剧本对话" : "新对话"}
                 </h1>
               </div>
               <div className="flex items-center gap-2">
@@ -257,11 +265,11 @@ export default function AgentChat() {
                         onClick={newConversation}
                         type="text"
                       >
-                        New conversation
+                        新对话
                       </Button>
                       <List
                         dataSource={conversations}
-                        locale={{ emptyText: "No conversations" }}
+                        locale={{ emptyText: "暂无对话" }}
                         renderItem={(conversation) => (
                           <List.Item className="!px-0 !py-1">
                             <Button
@@ -271,7 +279,7 @@ export default function AgentChat() {
                               type="text"
                             >
                               <span className="truncate">
-                                {conversation.title || "Untitled"}
+                                {conversation.title || "未命名"}
                               </span>
                             </Button>
                           </List.Item>
@@ -287,26 +295,28 @@ export default function AgentChat() {
                 >
                   <Button
                     icon={<History size={15} />}
-                    title="History"
+                    title="历史"
                     type="text"
                   />
                 </Popover>
-                <Button
-                  icon={<PanelRightClose size={15} />}
-                  onClick={toggleCollapse}
-                  title="Collapse"
-                  type="text"
-                />
+                {!docked ? (
+                  <Button
+                    icon={<PanelRightClose size={15} />}
+                    onClick={toggleCollapse}
+                    title="收起"
+                    type="text"
+                  />
+                ) : null}
               </div>
             </header>
 
             <div
-              className="scrollbar-hide flex-1 overflow-y-auto p-4"
+              className="scrollbar-hide flex-1 overflow-y-auto px-5 py-4"
               ref={bodyRef}
             >
               {messages.length === 0 ? (
-                <div className="grid h-full place-items-center p-4 text-center text-[12px] leading-relaxed text-on-surface-variant opacity-60">
-                  Start a conversation with the agent.
+                <div className="grid h-full place-items-center p-4 text-center text-[1rem] font-medium leading-relaxed text-on-surface-variant">
+                  开始对话
                 </div>
               ) : (
                 <div className="flex flex-col gap-2.5">
@@ -320,7 +330,7 @@ export default function AgentChat() {
               )}
             </div>
 
-            <footer className="px-1.5 pb-1.5 pt-1">
+            <footer className="px-3 pb-3 pt-2">
               <MessageInput
                 selectedModelId={selectedModelId}
                 onSelectedModelChange={setSelectedModelId}

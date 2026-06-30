@@ -92,28 +92,28 @@ export default function AttachmentCapsules({
   onRemoveImage,
 }: Props) {
   return (
-    <div className="flex flex-wrap gap-2 mb-2">
+    <div className="attachment-capsule-list">
       {images.map((image, index) => (
         <div
-          className={`glass-effect-sm relative flex max-w-[132px] items-center gap-1.5 overflow-hidden rounded-full bg-card-background p-0.5 pr-1.5 ${image.error ? "border border-[#ff3b30]/40" : ""}`}
+          className={`attachment-capsule ${image.error ? "is-error" : ""}`}
           key={image.id || `image-${index}`}
           title={image.error}
         >
           <img
             alt={image.fileName || image.file?.name || "image"}
-            className="h-[22px] w-[22px] rounded-full bg-card-background object-cover"
+            className="h-9 w-9 rounded-[8px] bg-card-background object-cover"
             src={image.src}
           />
-          <span className="min-w-0 flex-1 truncate text-[11px] font-normal text-on-surface">
+          <span className="min-w-0 flex-1 truncate text-[0.95rem] font-medium text-on-surface">
             {image.file?.name || image.fileName || "Image"}
           </span>
           <button
             aria-label="Remove image"
-            className="flex h-[18px] w-[18px] flex-shrink-0 cursor-pointer items-center justify-center rounded-full text-on-surface-variant transition-colors hover:text-[#ff3b30]"
+            className="attachment-capsule-remove"
             onClick={() => onRemoveImage(index)}
             type="button"
           >
-            <X size={12} />
+            <X size={15} />
           </button>
           {image.uploading && <UploadProgressOverlay progress={getProgress(image)} />}
         </div>
@@ -123,23 +123,23 @@ export default function AttachmentCapsules({
         const Icon = resolveFileIcon(file);
         return (
           <div
-            className={`glass-effect-sm relative flex max-w-[132px] items-center gap-1.5 overflow-hidden rounded-full bg-card-background p-0.5 pr-1.5 ${file.error ? "border border-[#ff3b30]/40" : ""}`}
+            className={`attachment-capsule ${file.error ? "is-error" : ""}`}
             key={file.id || `file-${index}`}
             title={file.error}
           >
-            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-surface-variant text-on-surface-variant">
-              <Icon size={12} />
+            <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-surface-variant text-on-surface-variant">
+              <Icon size={17} />
             </span>
-            <span className="min-w-0 flex-1 truncate text-[11px] font-normal text-on-surface">
+            <span className="min-w-0 flex-1 truncate text-[0.95rem] font-medium text-on-surface">
               {file.name || file.file_name || "Attachment"}
             </span>
             <button
               aria-label="Remove attachment"
-              className="flex h-[18px] w-[18px] flex-shrink-0 cursor-pointer items-center justify-center rounded-full text-on-surface-variant transition-colors hover:text-[#ff3b30]"
+              className="attachment-capsule-remove"
               onClick={() => onRemoveAttachment(index)}
               type="button"
             >
-              <X size={12} />
+              <X size={15} />
             </button>
             {file.uploading && <UploadProgressOverlay progress={getProgress(file)} />}
           </div>
