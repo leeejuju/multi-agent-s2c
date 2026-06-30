@@ -18,6 +18,8 @@ def _default_index_params() -> dict[str, Any]:
         "metric_type": DEFAULT_METRIC_TYPE,
         "params": {},
     }
+    
+
 
 
 def _default_search_params() -> dict[str, Any]:

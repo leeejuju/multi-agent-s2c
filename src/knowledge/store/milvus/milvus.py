@@ -1,192 +1,90 @@
-import inspect
 from typing import Any
+
+from pymilvus import (
+    AsyncMilvusClient,
+    Collection,
+    CollectionSchema,
+    DataType,
+    FieldSchema,
+    Function,
+    FunctionType,
+)
+from pymilvus.milvus_client.index import IndexParam
 
 from src.configs.config import config
 from src.knowledge.base import BaseKnowledge, KnowledgeRecord, KnowledgeSearch
-from src.knowledge.store.milvus.config import (
-    DEFAULT_RETRIEVAL_CONFIG,
-    default_search_params,
-)
 
 
 class MilvusKnowledge(BaseKnowledge):
-    def __init__(self) -> None:
-        self._client: Any | None = None
+    name: str = "Milvus数据库"
+    description: str = "test"
 
-    def _verify_required_settings(self) -> None:
-        if not config.milvus.uri:
-            raise RuntimeError("MILVUS_URI is required for Milvus.")
+    def __init__(self, **kwargs) -> None:
+        self.milvus_uri = kwargs.get("milvus_uri", None)
+        self.milvus_token = kwargs.get("milvus_token", None)
+        self.milvus_client: AsyncMilvusClient = None
+        self.milvus_collection: dict[str, Any] = {}
+        self.milvus_db = kwargs.get("milvus_db", None)
+        self._connect_initializer()
 
-    def _load_client_class(self) -> type[Any]:
+    def _connect_initializer(self):
         try:
-            from pymilvus import MilvusClient
-        except ImportError as exc:
-            raise RuntimeError(
-                "Milvus SDK is not installed. Install dependency 'pymilvus'."
-            ) from exc
-        return MilvusClient
+            self.milvus_client = AsyncMilvusClient(uri=self.milvus_uri, token=self.milvus_token)
+            try:
+                if self.milvus_db and self.milvus_client.list_databases():
+                    self.milvus_client.create_database(self.milvus_db)
+                self.milvus_client.using_database(self.milvus_db)
+            except Exception as e:
+                print(f"Error occurred while creating or using database: {e}")
+        except Exception as e:
+            print(f"Error occurred while initializing Milvus client: {e}")
 
-    def get_client(self) -> Any:
-        if self._client is None:
-            self._verify_required_settings()
-            client_cls = self._load_client_class()
-            client_kwargs: dict[str, Any] = {"uri": config.milvus.uri}
-            if config.milvus.token:
-                client_kwargs["token"] = config.milvus.token
-            if config.milvus.db_name:
-                client_kwargs["db_name"] = config.milvus.db_name
-            self._client = client_cls(**client_kwargs)
-        return self._client
+    async def _create_collection(self, collection_name: str, dimension: int) -> Collection:
+        """
+        创建集合.
+        """
+        fields = [
+            FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=100, is_primary=True),
+            FieldSchema(name="chunk", dtype=DataType.VARCHAR, max_length=65535, enable_analyzer=True, analyzer_params={"type": "chinese"}, description="文本"),
+            FieldSchema(name="chunk_sparse", dtype=DataType.SPARSE_FLOAT_VECTOR, description="存储chunk拆分的稀疏vec"),
+            FieldSchema(name="chunk_id", dtype=DataType.VARCHAR, max_length=100, description="chunk归属"),
+            FieldSchema(name="chunk_index", dtype=DataType.INT64, description="chunk在file_id对应的顺序"),
+            FieldSchema(name="file_id", dtype=DataType.VARCHAR, max_length=100, description="文件id"),
+            FieldSchema(name="chunk_embeding", dtype=DataType.FLOAT_VECTOR, dimension=dimension, description="chunk的vec"),
+        ]
+        bm25_function = Function(name="chunk_embeding_bm25", input_field_names=["chunk"], output_field_names=["chunk_sparse"], function_type=FunctionType.BM25)
 
-    async def status(self) -> dict[str, Any]:
-        self._verify_required_settings()
-        return {
-            "ready": True,
-            "database": "milvus",
-            "uri": config.milvus.uri,
-            "db_name": config.milvus.db_name or None,
-            "collection_name": DEFAULT_RETRIEVAL_CONFIG.collection_name,
-            "index_type": DEFAULT_RETRIEVAL_CONFIG.index_type,
-            "metric_type": DEFAULT_RETRIEVAL_CONFIG.metric_type,
-            "top_k": DEFAULT_RETRIEVAL_CONFIG.top_k,
-            "similarity_threshold": DEFAULT_RETRIEVAL_CONFIG.similarity_threshold,
-        }
+        index_param = [
+            IndexParam(
+                field_name="chunk",
+                index_name="chunk_index_params",
+                index_type="IVF_FLAT",
+                metric_type="COSINE",
+            ),
+            IndexParam(field_name="chunk_sparse", index_name="chunk_sparse_index_params", index_type="SPARSE_INVERTED_INDEX", metric_type="BM25", params={"inverted_index_algo": "DAAT_MAXSCORE"}),
+        ]
+        collection_schema = CollectionSchema(fields=fields, functions=[bm25_function], description="定义类型")
+        collection = await self.milvus_client.create_collection(collection_name=collection_name, schema=collection_schema, index_params=index_param)
 
-    async def upsert(self, records: list[KnowledgeRecord], **options: Any) -> Any:
-        if not records:
-            return []
+        return collection
 
-        collection_name = self._resolve_collection_name(options)
+    async def _get_milvus_collection(self, kb_id: str):
 
-        missing_vector_ids = [record.id for record in records if record.vector is None]
-        if missing_vector_ids:
-            raise RuntimeError(
-                "Milvus upsert requires vector for every record: "
-                + ", ".join(missing_vector_ids)
-            )
+        if kb_id in self.milvus_collection:
+            return self.milvus_collection[kb_id]
 
-        data = []
-        for record in records:
-            item = {
-                "id": record.id,
-                DEFAULT_RETRIEVAL_CONFIG.vector_field: record.vector,
-                **record.metadata,
-            }
-            if record.content is not None:
-                item["content"] = record.content
-            data.append(item)
+        if self.milvus_client.has_collection(collection_name=kb_id):
+            return kb_id
+        collection = await self._create_collection(collection_name=kb_id, dimension=1024)
+        return collection
 
-        return self.get_client().upsert(
-            collection_name=collection_name,
-            data=data,
-            **options,
-        )
+    async def build_file_index(self, kb_id: str, file_id: str, params: dict | None = None) -> dict:
+        """
+        根据markdown文件创建文件索引.
+        """
+        if not kb_id:
+            raise ValueError("")
 
-    async def search(self, request: KnowledgeSearch) -> Any:
-        if request.vector is None:
-            raise RuntimeError("Milvus search requires vector.")
-
-        options = dict(request.options)
-        collection_name = self._resolve_collection_name(options)
-        search_params = self._resolve_search_params(options)
-        similarity_threshold = options.pop(
-            "similarity_threshold",
-            DEFAULT_RETRIEVAL_CONFIG.similarity_threshold,
-        )
-        anns_field = options.pop("anns_field", DEFAULT_RETRIEVAL_CONFIG.vector_field)
-        limit = request.limit or DEFAULT_RETRIEVAL_CONFIG.top_k
-
-        result = self.get_client().search(
-            collection_name=collection_name,
-            data=[request.vector],
-            limit=limit,
-            search_params=search_params,
-            anns_field=anns_field,
-            **options,
-        )
-        return self._filter_by_similarity_threshold(result, similarity_threshold)
-
-    async def delete(self, ids: list[str], **options: Any) -> Any:
-        if not ids:
-            return []
-
-        collection_name = self._resolve_collection_name(options)
-        return self.get_client().delete(
-            collection_name=collection_name,
-            ids=ids,
-            **options,
-        )
-
-    async def close(self) -> None:
-        if self._client is None:
-            return
-        close_method = getattr(self._client, "close", None)
-        if close_method is not None:
-            result = close_method()
-            if inspect.isawaitable(result):
-                await result
-        self._client = None
-
-    def _resolve_collection_name(self, options: dict[str, Any]) -> str:
-        collection_name = str(
-            options.pop("collection_name", DEFAULT_RETRIEVAL_CONFIG.collection_name)
-        ).strip()
-        if not collection_name:
-            raise RuntimeError("Milvus operation requires collection_name.")
-        return collection_name
-
-    def _resolve_search_params(self, options: dict[str, Any]) -> dict[str, Any]:
-        search_params = default_search_params()
-        supplied_search_params = options.pop("search_params", None)
-        if supplied_search_params:
-            search_params.update(supplied_search_params)
-
-        metric_type = options.pop("metric_type", None)
-        if metric_type:
-            search_params["metric_type"] = metric_type
-
-        params = options.pop("params", None)
-        if params:
-            search_params["params"] = {
-                **search_params.get("params", {}),
-                **params,
-            }
-
-        return search_params
-
-    def _filter_by_similarity_threshold(
-        self,
-        result: Any,
-        threshold: float | None,
-    ) -> Any:
-        if threshold is None:
-            return result
-        if not isinstance(result, list):
-            return result
-
-        filtered_batches = []
-        for batch in result:
-            if not isinstance(batch, list):
-                filtered_batches.append(batch)
-                continue
-
-            filtered_batches.append(
-                [
-                    item
-                    for item in batch
-                    if self._extract_score(item) is None
-                    or self._extract_score(item) >= threshold
-                ]
-            )
-        return filtered_batches
-
-    def _extract_score(self, item: Any) -> float | None:
-        if not isinstance(item, dict):
-            return None
-        score = item.get("score", item.get("distance"))
-        if score is None:
-            return None
-        try:
-            return float(score)
-        except (TypeError, ValueError):
-            return None
+        collection = await self._get_milvus_collection(kb_id)
+        
+        
