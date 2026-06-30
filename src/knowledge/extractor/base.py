@@ -22,7 +22,9 @@ class ExtractorResult:
 
 
 class BaseExtractor(ABC):
-    """Base 基类，定义extractor的行为."""
+    """定义处理基类."""
+
+    aliases: tuple[str, ...] = ()
 
     @abstractmethod
     async def extractor_file(
@@ -30,25 +32,21 @@ class BaseExtractor(ABC):
         filepath: str | Path,
         **params: Any,
     ) -> ExtractorResult:
-        """从路径提取内容，具体各个子类自行处理."""
+        """执行各自的处理逻辑."""
 
     @abstractmethod
     async def check_status(self, **params: Any) -> dict[str, Any]:
-        """走 API 时检查服务状态."""
+        """Check local model or remote API availability."""
 
-    @abstractmethod
     def service_name(self) -> str:
-         """返回提取器服务名称."""
+        return type(self).__name__.removesuffix("Extractor").lower()
 
-    @abstractmethod
-    def supports_file(
+    def is_supported(
         self,
-        filepath: str | Path,
-        *,
-        content_type: str | None = None,
+        file_suffix: str
     ) -> bool:
-        """检查提取器是否支持指定的文件."""
+        return file_suffix.lower() in self.get_supported_type()
 
     @abstractmethod
-    def supported_file_types(self) -> list[str]:
-        """返回支持的文件类型列表."""
+    def get_supported_type(self) -> list[str]:
+        """Return supported content types and file suffixes."""

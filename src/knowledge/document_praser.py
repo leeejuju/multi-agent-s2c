@@ -11,8 +11,7 @@ from typing import Any
 from markdownify import markdownify
 
 from src.knowledge.extractor import ExtractorFactory, ExtractorResult, NoExtractorError
-from src.knowledge.extractor.docling import DoclingExtractor
-from src.storage import download_object_to_file
+from src.storage import get_storage
 from src.utils import logger
 
 PDF_EXTENSIONS = {".pdf"}
@@ -41,8 +40,8 @@ READ_CONTENT_TYPES = {
 }
 PDF_CONTENT_TYPES = {"application/pdf"}
 
-PDF_OCR_EXTRACTORS = ("paddleocr", "rapidocr", "mineru")
-IMAGE_OCR_EXTRACTORS = ("rapidocr", "paddleocr", "mineru")
+PDF_OCR_EXTRACTORS = ("paddleocr", "rapidocr")
+IMAGE_OCR_EXTRACTORS = ("rapidocr", "paddleocr")
 
 
 @dataclass(slots=True)
@@ -55,38 +54,13 @@ class DocumentParseResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class DocumentProcessor:
-    @classmethod
-    async def apraser(
-        cls,
-        file_path: str | Path,
-        *,
-        content_type: str | None = None,
-        file_name: str | None = None,
-        object_key: str | None = None,
-        enable_ocr: bool = False,
-        parser_type: str | None = None,
-        extractor_factory: ExtractorFactory | None = None,
-        **params: Any,
-    ) -> DocumentParseResult:
-        return await parser_file_to_markdown(
-            file_path,
-            content_type=content_type,
-            file_name=file_name,
-            object_key=object_key,
-            enable_ocr=enable_ocr,
-            parser_type=parser_type,
-            extractor_factory=extractor_factory,
-            **params,
-        )
-
 
 async def parser_file_to_markdown(
     file_path: str | Path,
     *,
     content_type: str | None = None,
     file_name: str | None = None,
-    object_key: str | None = None,
+    file_key: str | None = None,
     enable_ocr: bool = False,
     parser_type: str | None = None,
     extractor_factory: ExtractorFactory | None = None,
@@ -94,11 +68,11 @@ async def parser_file_to_markdown(
 ) -> DocumentParseResult:
     logger.info(
         "Document parsing started: file_path=%s, file_name=%s, content_type=%s, "
-        "object_key=%s, enable_ocr=%s, parser_type=%s.",
+        "file_key=%s, enable_ocr=%s, parser_type=%s.",
         file_path,
         file_name,
         content_type,
-        object_key,
+        file_key,
         enable_ocr,
         parser_type,
     )
@@ -106,7 +80,7 @@ async def parser_file_to_markdown(
         async with _source_to_local_file(
             file_path,
             file_name=file_name,
-            object_key=object_key,
+            file_key=file_key,
         ) as local_path:
             result = await _parser_file_to_markdown(
                 local_path,
@@ -129,11 +103,11 @@ async def parser_file_to_markdown(
     except Exception as exc:
         logger.exception(
             "Document parsing failed: file_path=%s, file_name=%s, content_type=%s, "
-            "object_key=%s.",
+            "file_key=%s.",
             file_path,
             file_name,
             content_type,
-            object_key,
+            file_key,
         )
         return DocumentParseResult(
             success=False,
@@ -201,20 +175,17 @@ async def _parser_file_to_markdown(
             },
         )
 
-    if extension in DOC2IMG_EXTENSIONS:
-        return await _doc2img_async(
-            path,
-            content_type=content_type,
-            file_name=file_name,
-            **params,
-        )
-
-    if extension in DOC_EXTENSIONS:
-        return await _parse_doc_async(
-            path,
-            content_type=content_type,
-            file_name=file_name,
-            **params,
+    if extension in DOC2IMG_EXTENSIONS or extension in DOC_EXTENSIONS:
+        content = await asyncio.to_thread(_convert_with_docling, path)
+        return DocumentParseResult(
+            success=True,
+            markdown=_to_markdown(content, source_type=extension.lstrip(".")),
+            parser="docling",
+            source_path=str(path),
+            metadata={
+                "content_type": normalized_content_type or None,
+                "source_file_name": file_name or path.name,
+            },
         )
 
     raise NoExtractorError(
@@ -233,43 +204,21 @@ async def _parse_pdf_async(
     extractor_factory: ExtractorFactory | None = None,
     **params: Any,
 ) -> DocumentParseResult:
-    return await asyncio.to_thread(
-        _prase_pdf,
-        Path(file_path),
-        content_type=content_type,
-        file_name=file_name,
-        enable_ocr=enable_ocr,
-        parser_type=parser_type,
-        extractor_factory=extractor_factory,
-        params=params,
-    )
-
-
-def _prase_pdf(
-    file_path: Path,
-    *,
-    content_type: str | None,
-    file_name: str | None,
-    enable_ocr: bool,
-    parser_type: str | None,
-    extractor_factory: ExtractorFactory | None,
-    params: dict[str, Any],
-) -> DocumentParseResult:
+    path = Path(file_path)
     if enable_ocr:
-        return asyncio.run(
-            _parse_with_extractors(
-                file_path,
-                PDF_OCR_EXTRACTORS,
-                content_type=content_type,
-                file_name=file_name,
-                parser_type=parser_type,
-                extractor_factory=extractor_factory,
-                **params,
-            )
+        return await _parse_with_extractors(
+            path,
+            PDF_OCR_EXTRACTORS,
+            content_type=content_type,
+            file_name=file_name,
+            parser_type=parser_type,
+            extractor_factory=extractor_factory,
+            **params,
         )
 
-    return _parse_pdf_with_loader(
-        file_path,
+    return await asyncio.to_thread(
+        _parse_pdf_with_loader,
+        path,
         content_type=content_type,
         file_name=file_name,
     )
@@ -284,83 +233,13 @@ async def _parse_image_async(
     extractor_factory: ExtractorFactory | None = None,
     **params: Any,
 ) -> DocumentParseResult:
-    return await asyncio.to_thread(
-        _parse_image,
+    return await _parse_with_extractors(
         Path(file_path),
+        IMAGE_OCR_EXTRACTORS,
         content_type=content_type,
         file_name=file_name,
         parser_type=parser_type,
         extractor_factory=extractor_factory,
-        params=params,
-    )
-
-
-def _parse_image(
-    file_path: Path,
-    *,
-    content_type: str | None,
-    file_name: str | None,
-    parser_type: str | None,
-    extractor_factory: ExtractorFactory | None,
-    params: dict[str, Any],
-) -> DocumentParseResult:
-    return asyncio.run(
-        _parse_with_extractors(
-            file_path,
-            IMAGE_OCR_EXTRACTORS,
-            content_type=content_type,
-            file_name=file_name,
-            parser_type=parser_type,
-            extractor_factory=extractor_factory,
-            **params,
-        )
-    )
-
-
-async def _doc2img_async(
-    file_path: str | Path,
-    *,
-    content_type: str | None = None,
-    file_name: str | None = None,
-    **params: Any,
-) -> DocumentParseResult:
-    return await asyncio.to_thread(
-        _doc2img,
-        Path(file_path),
-        content_type=content_type,
-        file_name=file_name,
-        params=params,
-    )
-
-
-def _doc2img(
-    file_path: Path,
-    *,
-    content_type: str | None,
-    file_name: str | None,
-    params: dict[str, Any],
-) -> DocumentParseResult:
-    return asyncio.run(
-        _parse_with_docling(
-            file_path,
-            content_type=content_type,
-            file_name=file_name,
-            **params,
-        )
-    )
-
-
-async def _parse_doc_async(
-    file_path: str | Path,
-    *,
-    content_type: str | None = None,
-    file_name: str | None = None,
-    **params: Any,
-) -> DocumentParseResult:
-    return await _doc2img_async(
-        file_path,
-        content_type=content_type,
-        file_name=file_name,
         **params,
     )
 
@@ -369,20 +248,13 @@ def _to_markdown(content: str, *, source_type: str | None = None) -> str:
     return markdownify(content, heading_style="ATX").strip()
 
 
-async def _parse_with_docling(
-    file_path: Path,
-    *,
-    content_type: str | None,
-    file_name: str | None,
-    **params: Any,
-) -> DocumentParseResult:
-    result = await DoclingExtractor().extractor_file(
-        file_path,
-        content_type=content_type,
-        file_name=file_name,
-        **params,
-    )
-    return _from_extractor_result(result, source_type=file_path.suffix)
+def _convert_with_docling(file_path: Path) -> str:
+    from docling.document_converter import DocumentConverter
+
+    result = DocumentConverter().convert(str(file_path))
+    document = getattr(result, "document", result)
+    export = getattr(document, "export_to_markdown", None)
+    return export() if callable(export) else str(document)
 
 
 async def _parse_with_extractors(
@@ -406,7 +278,7 @@ async def _parse_with_extractors(
         try:
             extractor = factory.create(candidate)
             parser_name = _extractor_name(extractor)
-            if not extractor.supports_file(file_path, content_type=content_type):
+            if not extractor.is_supported(file_path.suffix, content_type=content_type):
                 failures.append(
                     {
                         "parser": parser_name,
@@ -507,44 +379,33 @@ async def _source_to_local_file(
     file_path: str | Path,
     *,
     file_name: str | None,
-    object_key: str | None,
+    file_key: str | None,
 ) -> AsyncIterator[Path]:
-    """抽取远程文件到本地临时文件
-
-    Args:
-        file_path (str | Path): 文件路径和
-        file_name (str | None): 文件名称
-        object_key (str | None): MinIO对象键
-
-    Raises:
-        ValueError: _description_
-
-    Returns:
-        AsyncIterator[Path]: _description_
-
-    Yields:
-        Iterator[AsyncIterator[Path]]: _description_
-    """
+    """将远程文件下载成本地临时文件，或直接返回本地文件路径。"""
     temp_path: Path | None = None
     try:
         source_text = str(file_path)
-        if object_key:
-            source_path = (file_name or object_key).split("?", 1)[0].split("#", 1)[0]
+        if file_key:
+            source_path = (file_name or file_key).split("?", 1)[0].split("#", 1)[0]
             suffix = Path(source_path).suffix.lower() or ".bin"
             with NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 temp_path = Path(temp_file.name)
             logger.info(
-                "Downloading MinIO object for document parsing: object_key=%s, "
+                "Downloading MinIO file for document parsing: file_key=%s, "
                 "temp_path=%s.",
-                object_key,
+                file_key,
                 temp_path,
             )
-            await download_object_to_file(object_key, str(temp_path))
+            await get_storage().download_file_to_path(
+                "knowledgebases",
+                file_key,
+                str(temp_path),
+            )
             yield temp_path
             return
 
         if source_text.lower().startswith(("http://", "https://")):
-            raise ValueError("不支持当前类型")
+            raise ValueError("不支持当前文件类型。")
 
         logger.debug("Using local document path for parsing: path=%s.", file_path)
         yield Path(file_path)

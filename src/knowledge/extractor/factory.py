@@ -17,8 +17,6 @@ class ExtractorFactory:
 
     @classmethod
     def default(cls) -> ExtractorFactory:
-        from .docling import DoclingExtractor
-        from .mineru import MinerUExtractor
         from .paddle_ocr import PaddleOCRExtractor
         from .rapid_ocr import RapidOCRExtractor
 
@@ -26,8 +24,6 @@ class ExtractorFactory:
             [
                 RapidOCRExtractor(),
                 PaddleOCRExtractor(),
-                DoclingExtractor(),
-                MinerUExtractor(),
             ]
         )
 
@@ -67,7 +63,7 @@ class ExtractorFactory:
     ) -> Any:
         if extractor_type:
             extractor = self.create(extractor_type)
-            if not extractor.supports_file(filepath, content_type=content_type):
+            if not extractor.is_supported(Path(filepath).suffix, content_type=content_type):
                 raise NoExtractorError(
                     f"{self._extractor_name(extractor)} does not support "
                     f"file={Path(filepath).name!r}, content_type={content_type!r}."
@@ -75,7 +71,7 @@ class ExtractorFactory:
             return extractor
 
         for extractor in self._extractors:
-            if extractor.supports_file(filepath, content_type=content_type):
+            if extractor.is_supported(Path(filepath).suffix, content_type=content_type):
                 return extractor
 
         supported = (

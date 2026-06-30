@@ -36,8 +36,8 @@ RAPID_OCR_CALL_OPTIONS = (
 
 
 class RapidOCRExtractor(BaseExtractor):
-    """ 集成 RapidOCR 用于API无法运用的情况 """
-    
+    """集成 RapidOCR 用于 API 无法运用的情况."""
+
     def __init__(
         self,
         *,
@@ -46,7 +46,10 @@ class RapidOCRExtractor(BaseExtractor):
     ) -> None:
         self.config_path = config_path
         self.engine_params = dict(engine_params or {})
-        self._engine: Any | None = None
+        self._engine = RapidOCR(
+            config_path=str(self.config_path) if self.config_path else None,
+            params=self.engine_params or None,
+        )
 
     async def extractor_file(
         self,
@@ -54,7 +57,7 @@ class RapidOCRExtractor(BaseExtractor):
         **params: Any,
     ) -> ExtractorResult:
         path = Path(filepath)
-        if not self.supports_file(path, content_type=params.get("content_type")):
+        if not self.is_supported(path.suffix, content_type=params.get("content_type")):
             raise NoExtractorError(
                 f"{self.service_name()} does not support file={path.name!r}, "
                 f"content_type={params.get('content_type')!r}."
@@ -72,7 +75,6 @@ class RapidOCRExtractor(BaseExtractor):
         try:
             output = await asyncio.to_thread(self._run_rapidocr, path, params)
         except Exception as exc:
-            
             return _failure_result(
                 self.service_name(),
                 path,
@@ -97,69 +99,44 @@ class RapidOCRExtractor(BaseExtractor):
                 "scores": scores,
                 "average_score": _average_score(scores),
             },
-            )
+        )
 
     async def check_status(self, **_: Any) -> dict[str, Any]:
-        if self._engine is None:
-            self._engine = RapidOCR(
-                config_path=str(self.config_path) if self.config_path else None,
-                params=self.engine_params or None,
-            )
         return {"available": True, "service": self.service_name()}
 
     def service_name(self) -> str:
         return "rapidocr"
 
-    def supports_file(
+    def is_supported(
         self,
-        filepath: str | Path,
+        file_suffix: str,
         *,
         content_type: str | None = None,
     ) -> bool:
-        return _supports_file(filepath, content_type=content_type)
+        extension = file_suffix.lower()
+        if extension and extension in SUPPORTED_EXTENSIONS:
+            return True
+
+        normalized_content_type = (content_type or "").lower().strip()
+        for candidate in SUPPORTED_CONTENT_TYPES:
+            if candidate == normalized_content_type:
+                return True
+            if candidate.endswith("/*") and normalized_content_type.startswith(
+                candidate[:-1]
+            ):
+                return True
+        return False
 
     def supported_file_types(self) -> list[str]:
         return [*SUPPORTED_CONTENT_TYPES, *SUPPORTED_EXTENSIONS]
 
     def _run_rapidocr(self, filepath: Path, params: dict[str, Any]) -> Any:
-        engine = self._get_engine(params)
         call_options = {
             key: params[key]
             for key in RAPID_OCR_CALL_OPTIONS
             if key in params and params[key] is not None
         }
-        return engine(str(filepath), **call_options)
-
-    def _get_engine(self, params: dict[str, Any]) -> Any:
-        config_path = params.get("rapidocr_config_path") or params.get("config_path")
-        engine_params = params.get("rapidocr_params") or params.get("params")
-        has_call_config = config_path is not None or engine_params is not None
-        if has_call_config:
-            return RapidOCR(
-                config_path=str(config_path) if config_path else None,
-                params=engine_params if isinstance(engine_params, dict) else None,
-            )
-
-        if self._engine is None:
-            self._engine = RapidOCR(
-                config_path=str(self.config_path) if self.config_path else None,
-                params=self.engine_params or None,
-            )
-        return self._engine
-
-
-def _supports_file(filepath: str | Path, *, content_type: str | None = None) -> bool:
-    extension = Path(filepath).suffix.lower()
-    if extension and extension in SUPPORTED_EXTENSIONS:
-        return True
-
-    normalized_content_type = (content_type or "").lower().strip()
-    for candidate in SUPPORTED_CONTENT_TYPES:
-        if candidate == normalized_content_type:
-            return True
-        if candidate.endswith("/*") and normalized_content_type.startswith(candidate[:-1]):
-            return True
-    return False
+        return self._engine(str(filepath), **call_options)
 
 
 def _failure_result(

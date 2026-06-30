@@ -30,20 +30,10 @@ SUPPORTED_EXTENSIONS = (
 class PaddleOCRExtractor(BaseExtractor):
     aliases = ("paddle_ocr",)
 
-    def __init__(
-        self,
-        *,
-        api_url: str | None = None,
-        api_key: str | None = None,
-        timeout_seconds: float | None = None,
-    ) -> None:
-        self.api_url = config.paddle_ocr_api_url if api_url is None else api_url
-        self.api_key = config.paddle_ocr_api_key if api_key is None else api_key
-        self.timeout_seconds = (
-            config.document_parser_api_timeout_seconds
-            if timeout_seconds is None
-            else timeout_seconds
-        )
+    def __init__(self) -> None:
+        self.api_url = config.paddle_ocr_api_url.strip()
+        self.api_key = config.paddle_ocr_api_key.strip()
+        self.timeout_seconds = float(config.document_parser_api_timeout_seconds)
 
     async def extractor_file(
         self,
@@ -51,7 +41,7 @@ class PaddleOCRExtractor(BaseExtractor):
         **params: Any,
     ) -> ExtractorResult:
         path = Path(filepath)
-        if not self.supports_file(path, content_type=params.get("content_type")):
+        if not self.is_supported(path.suffix, content_type=params.get("content_type")):
             raise NoExtractorError(
                 f"{self.service_name()} does not support file={path.name!r}, "
                 f"content_type={params.get('content_type')!r}."
@@ -68,8 +58,8 @@ class PaddleOCRExtractor(BaseExtractor):
 
         try:
             payload = await _call_paddle_ocr_api(
-                api_url=self._api_url(params),
-                api_key=self._api_key(params),
+                api_url=self.api_url,
+                api_key=self.api_key,
                 filepath=path,
                 file_name=str(params.get("file_name") or path.name),
                 content_type=_resolve_content_type(
@@ -77,7 +67,7 @@ class PaddleOCRExtractor(BaseExtractor):
                     content_type=params.get("content_type"),
                 ),
                 lang=str(params.get("lang", "ch")),
-                timeout=self._timeout(params),
+                timeout=self.timeout_seconds,
             )
         except ImportError as exc:
             return _dependency_failure_result(self.service_name(), path, exc)
@@ -102,7 +92,7 @@ class PaddleOCRExtractor(BaseExtractor):
             metadata={"engine": "paddleocr-api", "line_count": len(lines)},
         )
 
-    async def check_status(self, **params: Any) -> dict[str, Any]:
+    async def check_status(self, **_: Any) -> dict[str, Any]:
         try:
             import httpx  # noqa: F401
         except ImportError as exc:
@@ -110,35 +100,37 @@ class PaddleOCRExtractor(BaseExtractor):
 
         return await _check_http_api(
             service_name="PaddleOCR",
-            api_url=self._api_url(params),
-            headers=_auth_headers(self._api_key(params)),
-            timeout=self._timeout(params),
+            api_url=self.api_url,
+            headers=_auth_headers(self.api_key),
+            timeout=self.timeout_seconds,
             missing_config_key="paddle_ocr_api_url",
         )
 
     def service_name(self) -> str:
         return "paddleocr"
 
-    def supports_file(
+    def is_supported(
         self,
-        filepath: str | Path,
+        file_suffix: str,
         *,
         content_type: str | None = None,
     ) -> bool:
-        return _supports_file(filepath, content_type=content_type)
+        extension = file_suffix.lower()
+        if extension and extension in SUPPORTED_EXTENSIONS:
+            return True
+
+        normalized_content_type = (content_type or "").lower().strip()
+        for candidate in SUPPORTED_CONTENT_TYPES:
+            if candidate == normalized_content_type:
+                return True
+            if candidate.endswith("/*") and normalized_content_type.startswith(
+                candidate[:-1]
+            ):
+                return True
+        return False
 
     def supported_file_types(self) -> list[str]:
         return [*SUPPORTED_CONTENT_TYPES, *SUPPORTED_EXTENSIONS]
-
-    def _api_url(self, params: dict[str, Any]) -> str:
-        return str(params.get("paddle_ocr_api_url") or self.api_url).strip()
-
-    def _api_key(self, params: dict[str, Any]) -> str:
-        return str(params.get("paddle_ocr_api_key") or self.api_key).strip()
-
-    def _timeout(self, params: dict[str, Any]) -> float:
-        return float(params.get("timeout_seconds") or self.timeout_seconds)
-
 
 async def _call_paddle_ocr_api(
     *,
@@ -238,20 +230,6 @@ async def _check_http_api(
         "status_code": status_code,
         "reason": reason,
     }
-
-
-def _supports_file(filepath: str | Path, *, content_type: str | None = None) -> bool:
-    extension = Path(filepath).suffix.lower()
-    if extension and extension in SUPPORTED_EXTENSIONS:
-        return True
-
-    normalized_content_type = (content_type or "").lower().strip()
-    for candidate in SUPPORTED_CONTENT_TYPES:
-        if candidate == normalized_content_type:
-            return True
-        if candidate.endswith("/*") and normalized_content_type.startswith(candidate[:-1]):
-            return True
-    return False
 
 
 def _resolve_content_type(
