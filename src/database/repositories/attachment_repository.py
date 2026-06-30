@@ -1,6 +1,4 @@
-from uuid import UUID
-
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import Attachment
@@ -10,47 +8,55 @@ class AttachmentRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(
+    async def create_pending(
         self,
         *,
-        conversation_id: str,
         user_id: str,
-        file_name: str,
-        content_type: str,
-        file_size: int,
-        file_path: str,
+        attachment_name: str,
+        attachment_type: str,
+        attachment_size: int,
+        attachment_path: str,
     ) -> Attachment:
         attachment = Attachment(
-            conversation_id=UUID(conversation_id),
-            user_id=UUID(user_id),
-            file_name=file_name,
-            content_type=content_type,
-            file_size=file_size,
-            file_path=file_path,
+            user_id=int(user_id),
+            conversation_id=None,
+            status="pending",
+            attachment_name=attachment_name,
+            attachment_type=attachment_type,
+            attachment_size=attachment_size,
+            attachment_path=attachment_path,
         )
         self.session.add(attachment)
         await self.session.flush()
         return attachment
 
-    async def search_for_user(
+    async def get_by_id_for_user(
         self,
-        *,
+        attachment_id: str,
         user_id: str,
-        query: str,
-        limit: int = 5,
-    ) -> list[Attachment]:
-        pattern = f"%{query}%"
+    ) -> Attachment | None:
+        try:
+            attachment_pk = int(attachment_id)
+        except (TypeError, ValueError):
+            return None
+
         result = await self.session.execute(
-            select(Attachment)
-            .where(
-                Attachment.user_id == UUID(user_id),
-                or_(
-                    Attachment.file_name.ilike(pattern),
-                    Attachment.content_type.ilike(pattern),
-                    Attachment.file_path.ilike(pattern),
-                ),
+            select(Attachment).where(
+                Attachment.id == attachment_pk,
+                Attachment.user_id == int(user_id),
             )
-            .order_by(Attachment.created_at.desc())
-            .limit(limit)
         )
-        return list(result.scalars().all())
+        return result.scalar_one_or_none()
+
+    async def mark_attached(
+        self,
+        attachment: Attachment,
+        *,
+        conversation_id: str,
+        attachment_path: str,
+    ) -> Attachment:
+        attachment.status = "attached"
+        attachment.conversation_id = int(conversation_id)
+        attachment.attachment_path = attachment_path
+        await self.session.flush()
+        return attachment

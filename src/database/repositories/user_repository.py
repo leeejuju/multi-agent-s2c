@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +15,7 @@ class UserRepository:
         return await self.session.scalar(select(User).where(User.email == email))
 
     async def get_active_by_id(self, user_id: str) -> User | None:
-        user = await self.session.get(User, UUID(user_id))
+        user = await self.session.get(User, int(user_id))
         if user is None or not user.is_active:
             return None
         return user

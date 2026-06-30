@@ -1,11 +1,10 @@
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import AgentRun, RunEvent
+from src.database.models import AgentRun, Message
 
 ACTIVE_RUN_STATUSES = ("queued", "running", "canceling")
 
@@ -19,19 +18,14 @@ class RunRepository:
         *,
         conversation_id: str,
         user_id: str,
-        user_message_id: str,
-        assistant_message_id: str,
         agent_id: str,
         input_text: str,
         attachments: list[dict[str, Any]],
         request_config: dict[str, Any],
     ) -> AgentRun:
         run = AgentRun(
-            id=uuid4(),
-            conversation_id=UUID(conversation_id),
-            user_id=UUID(user_id),
-            user_message_id=UUID(user_message_id),
-            assistant_message_id=UUID(assistant_message_id),
+            conversation_id=int(conversation_id),
+            user_id=int(user_id),
             agent_id=agent_id,
             input_text=input_text,
             attachments={"items": attachments},
@@ -42,17 +36,29 @@ class RunRepository:
         await self.session.flush()
         return run
 
+    async def get_message_for_run(self, run_id: str, role: str) -> Message | None:
+        result = await self.session.execute(
+            select(Message)
+            .where(
+                Message.agent_run_id == int(run_id),
+                Message.role == role,
+            )
+            .order_by(Message.created_at.asc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_id_for_user(self, run_id: str, user_id: str) -> AgentRun | None:
         result = await self.session.execute(
             select(AgentRun).where(
-                AgentRun.id == UUID(run_id),
-                AgentRun.user_id == UUID(user_id),
+                AgentRun.id == int(run_id),
+                AgentRun.user_id == int(user_id),
             )
         )
         return result.scalar_one_or_none()
 
     async def get_by_id(self, run_id: str) -> AgentRun | None:
-        return await self.session.get(AgentRun, UUID(run_id))
+        return await self.session.get(AgentRun, int(run_id))
 
     async def get_active_for_conversation(
         self,
@@ -63,8 +69,8 @@ class RunRepository:
         result = await self.session.execute(
             select(AgentRun)
             .where(
-                AgentRun.conversation_id == UUID(conversation_id),
-                AgentRun.user_id == UUID(user_id),
+                AgentRun.conversation_id == int(conversation_id),
+                AgentRun.user_id == int(user_id),
                 AgentRun.status.in_(ACTIVE_RUN_STATUSES),
             )
             .order_by(AgentRun.created_at.desc())
@@ -89,52 +95,6 @@ class RunRepository:
             run.error = error
         await self.session.flush()
         return run
-
-    async def add_event(
-        self,
-        *,
-        run_id: str,
-        event_type: str,
-        payload: dict[str, Any],
-    ) -> RunEvent:
-        sequence = await self.next_sequence(run_id)
-        event = RunEvent(
-            id=uuid4(),
-            run_id=UUID(run_id),
-            sequence=sequence,
-            type=event_type,
-            payload={**payload, "sequence": sequence},
-        )
-        self.session.add(event)
-        await self.session.flush()
-        return event
-
-    async def next_sequence(self, run_id: str) -> int:
-        result = await self.session.execute(
-            select(func.coalesce(func.max(RunEvent.sequence), 0)).where(
-                RunEvent.run_id == UUID(run_id)
-            )
-        )
-        return int(result.scalar_one()) + 1
-
-    async def list_events_after(self, run_id: str, sequence: int = 0) -> list[RunEvent]:
-        result = await self.session.execute(
-            select(RunEvent)
-            .where(
-                RunEvent.run_id == UUID(run_id),
-                RunEvent.sequence > sequence,
-            )
-            .order_by(RunEvent.sequence.asc())
-        )
-        return list(result.scalars().all())
-
-    async def latest_sequence(self, run_id: str) -> int:
-        result = await self.session.execute(
-            select(func.coalesce(func.max(RunEvent.sequence), 0)).where(
-                RunEvent.run_id == UUID(run_id)
-            )
-        )
-        return int(result.scalar_one())
 
     async def commit(self) -> None:
         await self.session.commit()

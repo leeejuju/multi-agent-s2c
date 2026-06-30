@@ -1,5 +1,3 @@
-from uuid import UUID, uuid4
-
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,8 +20,8 @@ class ConversationRepository:
     ) -> Conversation | None:
         result = await self.session.execute(
             select(Conversation).where(
-                Conversation.id == UUID(conversation_id),
-                Conversation.user_id == UUID(user_id),
+                Conversation.id == int(conversation_id),
+                Conversation.user_id == int(user_id),
             )
         )
         return result.scalar_one_or_none()
@@ -31,7 +29,7 @@ class ConversationRepository:
     async def list_by_user(self, user_id: str) -> list[Conversation]:
         result = await self.session.execute(
             select(Conversation)
-            .where(Conversation.user_id == UUID(user_id))
+            .where(Conversation.user_id == int(user_id))
             .order_by(Conversation.updated_at.desc())
         )
         return list(result.scalars().all())
@@ -44,8 +42,7 @@ class ConversationRepository:
         summary: str | None = None,
     ) -> Conversation:
         conversation = Conversation(
-            id=uuid4(),
-            user_id=UUID(user_id),
+            user_id=int(user_id),
             title=title,
             summary=summary,
         )
@@ -59,14 +56,14 @@ class ConversationRepository:
         content: str,
         conversation_id: str | None = None,
         user_id: str | None = None,
+        agent_run_id: str | None = None,
         status: str = "completed",
     ) -> tuple[str, Message]:
         if conversation_id:
             conv_id = conversation_id
         else:
             conv = Conversation(
-                id=uuid4(),
-                user_id=UUID(user_id),
+                user_id=int(user_id),
                 title=_make_title(content),
             )
             self.session.add(conv)
@@ -74,8 +71,8 @@ class ConversationRepository:
             conv_id = str(conv.id)
 
         message = Message(
-            id=uuid4(),
-            conversation_id=UUID(conv_id),
+            conversation_id=int(conv_id),
+            agent_run_id=int(agent_run_id) if agent_run_id is not None else None,
             role=role,
             content=content,
             status=status,
@@ -91,7 +88,7 @@ class ConversationRepository:
         *,
         status: str | None = None,
     ) -> Message | None:
-        message = await self.session.get(Message, UUID(message_id))
+        message = await self.session.get(Message, int(message_id))
         if message is None:
             return None
         message.content = content
@@ -107,7 +104,7 @@ class ConversationRepository:
         *,
         status: str | None = None,
     ) -> Message | None:
-        message = await self.session.get(Message, UUID(message_id))
+        message = await self.session.get(Message, int(message_id))
         if message is None:
             return None
         message.content = f"{message.content}{delta}"
@@ -117,7 +114,7 @@ class ConversationRepository:
         return message
 
     async def set_message_status(self, message_id: str, status: str) -> Message | None:
-        message = await self.session.get(Message, UUID(message_id))
+        message = await self.session.get(Message, int(message_id))
         if message is None:
             return None
         message.status = status
@@ -132,8 +129,8 @@ class ConversationRepository:
         result = await self.session.execute(
             select(AgentRun)
             .where(
-                AgentRun.conversation_id == UUID(conversation_id),
-                AgentRun.user_id == UUID(user_id),
+                AgentRun.conversation_id == int(conversation_id),
+                AgentRun.user_id == int(user_id),
                 AgentRun.status.in_(("queued", "running", "canceling")),
             )
             .order_by(AgentRun.created_at.desc())
@@ -144,7 +141,7 @@ class ConversationRepository:
     async def get_messages(self, conversation_id: str) -> list[Message]:
         result = await self.session.execute(
             select(Message)
-            .where(Message.conversation_id == UUID(conversation_id))
+            .where(Message.conversation_id == int(conversation_id))
             .order_by(Message.created_at.asc())
         )
         return list(result.scalars().all())
@@ -161,7 +158,7 @@ class ConversationRepository:
             select(Conversation, Message)
             .join(Message, Message.conversation_id == Conversation.id)
             .where(
-                Conversation.user_id == UUID(user_id),
+                Conversation.user_id == int(user_id),
                 or_(
                     Conversation.title.ilike(pattern),
                     Conversation.summary.ilike(pattern),
