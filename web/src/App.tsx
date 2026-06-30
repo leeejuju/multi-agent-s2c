@@ -47,7 +47,7 @@ export default function App() {
           controlHeightLG: 38,
           controlHeightSM: 28,
           fontFamily:
-            '"Inspire Mono", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", monospace',
+            '"Inspire Mono", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans SC", "PingFang SC", "Noto Sans Ethiopic", "Kefa", "Nyala", sans-serif',
         },
         components: {
           Button: {
@@ -72,6 +72,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/app/script" replace />} />
             <Route path="/app" element={<Navigate to="/app/script" replace />} />
             <Route path="/app/:sectionId" element={<AppView />} />
+            <Route path="/app/:sectionId/:pageId" element={<AppView />} />
           </Route>
 
           <Route element={<RedirectIfAuthenticated />}>
