@@ -56,7 +56,7 @@ class Config(BaseSettings):
     flash_model: str = Field(
         default="deepseek/deepseek-v4-flash", description="快速推断模型名称"
     )
-    image_model: str = Field(default="qwen-image-2.0-pro-2026-04-22", description="图片生成模型名称")
+    image_model: str = Field(default="qwen/qwen-image-2.0-pro-2026-04-22", description="图片生成模型名称")
 
     
     embed_model: str = Field(default="", description="向量生成模型名称")
@@ -68,7 +68,6 @@ class Config(BaseSettings):
     arq_queue_name: str = Field(default="agent-runs", description="ARQ 队列名称")
     arq_max_jobs: int = Field(default=64, description="ARQ worker 最大并发任务数")
     enable_run_queue: bool = Field(default=False, description="是否使用 ARQ/Redis 执行 agent run")
-    agent_event_persist_enabled: bool = Field(default=True, description="是否持久化 agent run 流式事件")
     redis_pool_max_connections: int = Field(default=20, description="Redis 连接池最大连接数")
     run_stream_poll_timeout_ms: int = Field(
         default=15000, description="Redis Stream 阻塞读取超时时间"
@@ -84,12 +83,6 @@ class Config(BaseSettings):
     minio_endpoint: str = Field(default="", description="MinIO 服务地址")
     minio_access_key: str = Field(default="", description="MinIO Access Key")
     minio_secret_key: str = Field(default="", description="MinIO Secret Key")
-    minio_bucket: str = Field(default="", description="MinIO 桶名称")
-    minio_secure: bool = Field(default=False, description="是否使用 HTTPS 访问 MinIO")
-    minio_region: str = Field(default="", description="MinIO 所在的区域")
-    minio_presign_expire_seconds: int = Field(
-        default=600, description="MinIO 预签名 URL 有效期（秒）"
-    )
 
     # ---------- 知识库 ----------
     milvus: MilvusConfig = Field(
@@ -107,15 +100,19 @@ class Config(BaseSettings):
     mineru_api_url: str = Field(default="", description="MinerU parsing API URL")
     mineru_api_key: str = Field(default="", description="MinerU parsing API key")
     paddle_ocr_api_url: str = Field(default="https://paddleocr.aistudio-app.com/api/v2/ocr/jobs", description="PaddleOCR parsing API URL")
-    paddle_ocr_api_key: str = Field(default="a7bbafaf11b02db719bacf50084985f7c6b2b015", description="PaddleOCR parsing API key")
+    paddle_ocr_api_key: str = Field(default="", description="PaddleOCR parsing API key")
     document_parser_api_timeout_seconds: float = Field(
         default=120.0, description="Document parser API request timeout"
     )
 
     # ---------- Sandbox ----------
+    sandbox_provider = Field(default="provisioner", description="沙箱提供者")
     sandbox_provisioner_url: str = Field(
         default="", description="Sandbox provisioner service URL"
     )
+    sandbox_volume_path: str = Field(default="/home/sandbox/data", description="Sandbox provisioner service URL")
+    sandbox_execute_timeout: int = Field(default=180, description="执行最长时间")
+    andbox_keepalive_interval_seconds: int = Field(default=30, description="沙箱生命周期")
 
     # ---------- Langfuse ----------
     langfuse_public_key: str = Field(default="", description="Langfuse Public Key")
