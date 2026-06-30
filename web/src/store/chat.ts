@@ -13,7 +13,7 @@ export type ChatMessageAttachment = {
   file_name: string;
   content_type: string;
   file_size?: number | null;
-  object_key?: string | null;
+  file_key?: string | null;
   category?: "image" | "document" | null;
   access_url?: string;
   thumb_url?: string | null;

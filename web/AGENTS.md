@@ -6,9 +6,13 @@ the React client.
 
 ## Current Frontend Shape
 
-The web client is a React 19 + TypeScript + Vite application. It uses Ant Design
-for common UI primitives, Tailwind CSS through the Vite plugin, Zustand for client
-state, and `react-router-dom` for routing.
+The web client is a React 19 + TypeScript + Vite 7 application. It uses Ant Design
+6 for common UI primitives, Tailwind CSS 4 through the Vite plugin, Zustand 5 for
+client state, and `react-router-dom` 7 for routing.
+
+The current UI also uses `motion/react` for component-level motion, GSAP for the
+auth landing choreography, `lucide-react` for action icons, and
+`markdown-it`/DOMPurify/Shiki/KaTeX for assistant markdown rendering.
 
 The Vite dev server proxies `/api` requests to `http://localhost:5050`. In
 production-style code, API calls should continue to use `VITE_API_BASE_URL` when
@@ -18,8 +22,9 @@ provided and fall back to `/api`.
 
 - `src/App.tsx` owns router setup, route guards, and Ant Design theme tokens.
 - `src/main.tsx` mounts the React app and imports global styles.
-- `src/pages/` contains route-level screens, currently `HomeView.tsx` and
-  `LoginView.tsx`. Do not place CSS files in this directory.
+- `src/pages/` contains route-level screens, currently `AppView.tsx`,
+  `LoginView.tsx`, and `RegisterView.tsx`. Do not place CSS files in this
+  directory.
 - `src/components/` contains reusable UI modules. Most component folders keep
   `ComponentName.tsx`, `ComponentName.css`, and `index.ts` together.
 - `src/components/*/component/` contains component-local submodules where that
@@ -33,12 +38,17 @@ provided and fall back to `/api`.
   declarations, and global base styles.
 - `src/assets/animations/` and `src/assets/icon/` contain animation helpers and
   static visual assets.
+- `src/assets/landing/` contains auth landing visual assets.
 
 Use the `@` alias for imports from `src/`.
 
 ## Routing, Auth, and API Rules
 
-- Keep protected route behavior in `App.tsx` aligned with `RequireAuth`.
+- Keep protected route behavior in `App.tsx` aligned with `RequireAuth` and
+  `RedirectIfAuthenticated`.
+- The authenticated app shell currently lives under `/app/:sectionId`, with `/`
+  and `/app` redirecting to `/app/script`.
+- Login and registration routes are `/login` and `/register`.
 - Do not bypass `useAuthStore` for token handling. API helpers in `src/api/`
   attach `Authorization` and clear auth on `401`.
 - Use the shared helpers from `src/api/index.ts` (`get`, `post`, `put`, `del`,
@@ -71,6 +81,10 @@ Use the `@` alias for imports from `src/`.
   new page-level CSS files; keep `src/pages/` free of CSS.
 - Tailwind CSS is available, but do not rewrite established CSS-module-style files
   into utility-only markup unless the change is already scoped to that component.
+- Use `motion/react` for React component enter/exit, panel, drawer, and canvas
+  item motion when following the existing component pattern.
+- Keep reusable motion configuration in `src/assets/animations/` when it is shared
+  across a component surface.
 - Maintain the existing studio/workspace product feel: dense, practical,
   responsive interfaces over marketing-style sections.
 - Use stable dimensions for toolbars, canvas items, panels, buttons, and dynamic
@@ -78,6 +92,16 @@ Use the `@` alias for imports from `src/`.
 - Check mobile and desktop widths for text overflow, overlapping panels, and
   unreadable controls when changing layout.
 
+## Markdown and Generated Content
+
+- Render assistant/model markdown through `src/components/MarkdownRenderer/`.
+- Preserve the `markdown-it` parser, DOMPurify sanitization, KaTeX math rendering,
+  Shiki code highlighting, and streaming-safe fence/math normalization boundaries
+  unless the change is explicitly about replacing that renderer.
+- Keep raw HTML disabled in markdown parsing. Do not insert model-provided HTML
+  with `dangerouslySetInnerHTML` outside the sanitized renderer boundary.
+- Keep assistant chat rendering wired through `AgentChat` message components
+  instead of adding a parallel rendering path.
 
 ## WebGL / Three.js Strategy
 
@@ -131,17 +155,19 @@ Accessibility rules:
 * Ensure core content and navigation do not depend on WebGL.
 * Provide fallback content when WebGL is unavailable.
 
+## Animation Strategy / Motion And GSAP
 
-## Animation Strategy / GSAP Skill
-
-Do not use GSAP by default for every animation.
+Do not use GSAP or heavy motion libraries by default for every animation.
 
 Default rule:
 
 * Prefer CSS transitions / CSS keyframes / Tailwind animation utilities for simple UI animations.
-* Use GSAP only when animation complexity justifies it.
+* Use `motion/react` when React component state drives enter/exit, layout, drawer,
+  panel, or canvas-item animation and the existing local pattern already uses it.
+* Use GSAP only when animation complexity justifies it, or when extending the
+  existing `AuthLanding` choreography.
 
-Use the GSAP skill when the task involves one or more of the following:
+Use GSAP when the task involves one or more of the following:
 
 * Multi-step timeline choreography across multiple elements.
 * Scroll-driven animation, ScrollTrigger, scrub, pin, snap, parallax, or section-based storytelling.
@@ -154,6 +180,7 @@ Use the GSAP skill when the task involves one or more of the following:
 Avoid GSAP when:
 
 * The animation is a simple hover, focus, opacity, transform, dropdown, modal, tooltip, or button transition.
+* `motion/react` already covers the component-level interaction cleanly.
 * CSS can express the animation clearly with less code.
 * The project already uses another animation library and the requested change fits that library.
 * The animation would add unnecessary dependency, complexity, or accessibility risk.
@@ -178,7 +205,6 @@ Performance rules:
 * Avoid layout-heavy animation of `width`, `height`, `top`, `left`, or frequent DOM measurement unless necessary.
 * Do not introduce ScrollTrigger or heavy plugins for tiny micro-interactions.
 * Keep animation code isolated and readable.
-
 
 ## Code Style
 

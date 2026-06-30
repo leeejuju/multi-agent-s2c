@@ -26,7 +26,7 @@ export interface AttachmentItem {
   file_name: string;
   content_type: string;
   file_size: number;
-  object_key: string;
+  file_key: string;
   category: "image" | "document";
   access_url: string;
   thumb_url?: string | null;

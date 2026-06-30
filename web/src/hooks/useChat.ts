@@ -83,8 +83,8 @@ function normalizeAttachment(value: unknown): ChatMessageAttachment | null {
     content_type: attachment.content_type,
     file_size:
       typeof attachment.file_size === "number" ? attachment.file_size : null,
-    object_key:
-      typeof attachment.object_key === "string" ? attachment.object_key : null,
+    file_key:
+      typeof attachment.file_key === "string" ? attachment.file_key : null,
     category,
     access_url:
       typeof attachment.access_url === "string" ? attachment.access_url : undefined,
