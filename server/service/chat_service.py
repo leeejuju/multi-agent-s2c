@@ -6,30 +6,17 @@ from typing import Any
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.agents import agent_manager
 from src.configs import config
 from src.database import Conversation, Message
 from src.database.models import AgentRun
 from src.database.repositories import ConversationRepository, RunRepository
-from src.utils import logger
 
-from .agent_consumer_service import execute_agent_run
 from .agent_queue_service import (
-    agent_queue_enabled,
     agent_stream_enabled,
-    get_arq_pool,
     get_redis_client,
     json_line_event,
     run_stream_key,
 )
-from .conversation_service import prepare_attachments_for_conversation
-
-
-async def _execute_agent_run_locally(run_id: str) -> None:
-    try:
-        await execute_agent_run(run_id)
-    except Exception:
-        logger.exception("Local agent run task failed: run_id=%s.", run_id)
 
 
 async def get_conversation(
@@ -88,100 +75,10 @@ async def create_agent_run(
     attachments: Sequence[Any] | None = None,
     request_config: Mapping[str, Any] | None = None,
 ) -> AgentRun:
-    try:
-        agent_manager.get_agent(agent_id)
-    except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agent not found: {agent_id}",
-        ) from exc
-
-    conversation_repository = ConversationRepository(session=db)
-    run_repository = RunRepository(session=db)
-    if conversation_id is not None:
-        conversation = await conversation_repository.get_by_id_for_user(
-            conversation_id,
-            user_id,
-        )
-        if conversation is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found.",
-            )
-        active_run = await run_repository.get_active_for_conversation(
-            conversation_id=conversation_id,
-            user_id=user_id,
-        )
-        if active_run is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="This conversation already has a running agent response.",
-            )
-
-    resolved_conversation_id, user_message = await conversation_repository.save_message(
-        "user",
-        input_text,
-        conversation_id=conversation_id,
-        user_id=user_id,
-        status="completed",
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Agent run interface has been removed.",
     )
-    active_run = await run_repository.get_active_for_conversation(
-        conversation_id=resolved_conversation_id,
-        user_id=user_id,
-    )
-    if active_run is not None:
-        await conversation_repository.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This conversation already has a running agent response.",
-        )
-
-    normalized_attachments = await prepare_attachments_for_conversation(
-        db,
-        user_id=user_id,
-        conversation_id=resolved_conversation_id,
-        attachments=attachments,
-    )
-
-    _, assistant_message = await conversation_repository.save_message(
-        "assistant",
-        "",
-        conversation_id=resolved_conversation_id,
-        status="streaming",
-    )
-    run = await run_repository.create_run(
-        conversation_id=resolved_conversation_id,
-        user_id=user_id,
-        agent_id=agent_id,
-        input_text=input_text,
-        attachments=normalized_attachments,
-        request_config=dict(request_config or {}),
-    )
-    user_message.agent_run_id = run.id
-    assistant_message.agent_run_id = run.id
-    await run_repository.commit()
-
-    if agent_queue_enabled(request_config):
-        try:
-            arq = await get_arq_pool()
-            job = await arq.enqueue_job("run_agent", str(run.id), _job_id=str(run.id))
-            if job is None:
-                raise RuntimeError("Agent run job was not enqueued.")
-        except Exception as exc:
-            logger.exception("Failed to enqueue agent run: run_id=%s.", run.id)
-            await run_repository.set_status(run, "failed", error=str(exc))
-            await conversation_repository.set_message_status(
-                str(assistant_message.id),
-                "failed",
-            )
-            await run_repository.commit()
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Agent worker queue is unavailable.",
-            ) from exc
-    else:
-        asyncio.create_task(_execute_agent_run_locally(str(run.id)))
-    return run
 
 
 async def get_active_run(

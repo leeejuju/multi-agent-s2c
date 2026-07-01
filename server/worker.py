@@ -6,7 +6,6 @@ if sys.platform == "win32":
 
 from arq.connections import RedisSettings
 
-from server.service.agent_consumer_service import execute_agent_run
 from server.service.agent_queue_service import close_queue_connections
 from src.configs import config
 
@@ -20,7 +19,7 @@ async def shutdown(ctx) -> None:
 
 
 async def run_agent(ctx, run_id: str) -> None:
-    await execute_agent_run(run_id)
+    raise RuntimeError("Agent consumer service has been removed.")
 
 
 class WorkerSettings:
