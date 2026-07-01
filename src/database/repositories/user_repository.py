@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,10 +28,12 @@ class UserRepository:
         username: str,
         password_hash: str,
         email: str | None = None,
+        uid: str | None = None,
     ) -> User:
         user = User(
             username=username,
             email=email,
+            uid=uid or str(uuid4()),
             password_hash=password_hash,
         )
         self.session.add(user)

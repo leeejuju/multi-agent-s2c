@@ -106,7 +106,7 @@ class Config(BaseSettings):
     )
 
     # ---------- Sandbox ----------
-    sandbox_provider = Field(default="provisioner", description="沙箱提供者")
+    sandbox_provider: str = Field(default="provisioner", description="沙箱提供者")
     sandbox_provisioner_url: str = Field(
         default="", description="沙盒url"
     )
