@@ -13,12 +13,19 @@ from .context import DesignAgentContext
 
 
 class DesignAgent(BaseAgent):
+    """Orchestrator不再持有tool,工具统一封装进subgent中"""
+    
     name = "design_agent"
     description = "总设计师"
     context = DesignAgentContext
 
     def __init__(self):
         pass
+    
+    def _create_middlewares(self, context):
+        """创建中间件"""
+        pass
+    
 
     def get_agent(self, context=None) -> CompiledStateGraph:
         search_agent = SearchAgent().get_agent()

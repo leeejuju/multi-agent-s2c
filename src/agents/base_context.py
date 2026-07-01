@@ -1,33 +1,28 @@
+import uuid
 from dataclasses import dataclass, field
 
 from src.configs import config as sys_config
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BaseContext:
     """
     基础上下文
     """
 
-    system_prompt: str = ""
+    system_prompt: str = field(default="", metadata={"description": "系统提示词"})
+
+    uid: str = field(
+        default=lambda: str(uuid.uuid4()), metadata={"description": "用户id"}
+    )
     
-    tools: list = field(default_factory=list)
+    thread_id: str = field(
+            default=lambda: str(uuid.uuid4()), metadata={"description": "对话id"}
+        )
+    
+    tools: list = field(default_factory=list, metadata={"description": "工具集合"})
 
-    model: str = field(default=sys_config.default_model)
+    model: str = field(default="", metadata={"description": "agent使用的模型"})
+    
+    mcps: list[str] = field(default="", metadata={"description": "mcp工具"})
 
-    def update(self, data: dict):
-        for key, value in data.items():
-            if getattr(self, key):
-                setattr(self, key, value)
-
-    def get_context(self):
-        pass
-
-    def to_json(self):
-        pass
-
-    def sav_to_file(self):
-        pass
-
-    def load_from_file(self):
-        pass
