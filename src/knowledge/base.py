@@ -20,24 +20,5 @@ class KnowledgeSearch:
 
 
 class BaseKnowledge(ABC):
-    """Common database operations for all knowledge stores."""
+    """定义知识库的基本行为和通用函数"""
     ...
-
-    # @abstractmethod
-    # async def status(self) -> dict[str, Any]:
-    #     """Return database readiness and implementation details."""
-
-    # @abstractmethod
-    # async def upsert(self, records: list[KnowledgeRecord], **options: Any) -> Any:
-    #     """Insert or update records in the knowledge store."""
-
-    # @abstractmethod
-    # async def search(self, request: KnowledgeSearch) -> Any:
-    #     """Search or query records from the knowledge store."""
-
-    # @abstractmethod
-    # async def delete(self, ids: list[str], **options: Any) -> Any:
-    #     """Delete records from the knowledge store."""
-
-    # async def close(self) -> None:
-    #     """Release database client resources when supported."""

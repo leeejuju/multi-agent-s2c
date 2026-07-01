@@ -102,13 +102,6 @@ def resolve_profile(
     return "naive"
 
 
-def _demo() -> None:
-    qa = clean_document_text("Q: 角色是谁\nA: April\nQ: 场景在哪\nA: 车站", profile="qa")
-    assert len(qa.chunks) == 2
-    table = clean_document_text("name,role\nApril,writer\nBo,artist", file_name="x.csv")
-    assert table.chunks[0].content == "- name: April\n- role: writer"
-    law = clean_document_text("第一条 总则\n内容\n第二条 定义\n内容", profile="laws")
-    assert len(law.chunks) == 2
 
 
 __all__ = [
