@@ -29,7 +29,9 @@ class AttachmentMiddleware(AgentMiddleware):
         request: ModelRequest[Any],
         handler,
     ) -> ModelResponse | AIMessage | Any:
-        attachement: list[dict] = request.state.get("attachement", [])
+        pass
+    
+        # attachement: list[dict] = request.state.get("attachement", [])
         
         
         
