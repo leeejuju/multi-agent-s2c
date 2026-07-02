@@ -1,12 +1,14 @@
 from fastapi import APIRouter
 
-from .auth import router as auth_router
-from .chat import router as chat_router
-from .knowledge import router as knowledge_router
-from .library import router as library_router
-from .model import router as model_router
+from .agent_router import agent_router
+from .auth_router import router as auth_router
+from .chat_router import router as chat_router
+from .knowledge_router import router as knowledge_router
+from .library_router import router as library_router
+from .model_router import router as model_router
 
 api_router = APIRouter()
+api_router.include_router(agent_router)
 api_router.include_router(auth_router)
 api_router.include_router(chat_router)
 api_router.include_router(knowledge_router)

@@ -36,15 +36,20 @@ class ConversationRepository:
 
     async def create_conversation(
         self,
-        *,
-        user_id: str,
-        title: str,
+        uid: str,
+        thread_id: str,
+        agent_id:str,
+        title: str | None = None,
         summary: str | None = None,
+        conversation_metadata: dict | None = None
     ) -> Conversation:
         conversation = Conversation(
-            user_id=int(user_id),
+            uid=uid,
+            thread_id=thread_id,
+            agent_id=agent_id,
             title=title,
             summary=summary,
+            conversation_metadata = conversation_metadata
         )
         self.session.add(conversation)
         await self.session.flush()

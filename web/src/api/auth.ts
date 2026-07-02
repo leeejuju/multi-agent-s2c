@@ -1,9 +1,10 @@
 import { get, post } from "./index";
 
 export interface UserResponse {
-  id: string;
+  id: number;
+  uid: string;
   username: string;
-  email?: string;
+  email?: string | null;
   is_active?: boolean;
 }
 

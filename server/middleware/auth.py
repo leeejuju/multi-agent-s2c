@@ -3,7 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from server.utils.auth import CurrentUser, decode_access_token
+from server.utils.auth import decode_access_token
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -16,7 +16,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if scheme.lower() != "bearer" or not token:
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": "Invalid authorization header."},
+                content={"detail": "登录啊解解！！！."},
             )
 
         try:
@@ -27,9 +27,5 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 content={"detail": exc.detail},
             )
 
-        request.state.user = CurrentUser(
-            user_id=str(payload["sub"]),
-            email=str(payload.get("email") or ""),
-            username=str(payload.get("username") or ""),
-        )
+        request.state.auth_payload = payload
         return await call_next(request)

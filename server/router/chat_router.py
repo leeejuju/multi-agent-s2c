@@ -1,3 +1,4 @@
+﻿import uuid
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -5,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.service import (
@@ -23,18 +25,99 @@ from server.service.conversation_service import (
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.database import get_db
-from src.database.repositories import AttachmentRepository
+from src.database.models import User
+from src.database.repositories import AgentRepository, AttachmentRepository, ConversationRepository
 from src.storage import get_storage
 from src.utils import logger
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat会话"])
 
-# 閰嶇疆甯搁噺
+
+
+class ThreadRequest(BaseModel):
+    title: str | None = None
+    summary: str | None 
+    agent_id: str
+    metadata: dict | None = None
+    
+class ThreadResponse(BaseModel):
+    uid: str
+    title: str
+    thread_id: str
+    agent_id:str
+    created_at: str
+    updated_at: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    
+    
+    
+
+@router.post("/thread", response_model=ThreadResponse)
+async def create_thread(
+    thread: ThreadRequest,
+    current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """ARQ实现异步的方式，首先创建对话空间， 然后创建thread之后，再当前会话创建agentrun事件，
+        ARQ拿着id入队，redis执行生成任务。前端只需要拿事件id去队列消费就可以了，就是完全的解耦
+    """
+    # TODO
+    user_result = await db.execute(select(User).where(User.uid == current_user.uid))
+    
+    if not user_result:
+        logger.exception(f"用户：{user_result}，不存在")
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    # OPTIMIZE
+    agent_repo = AgentRepository(db)
+    agent_result = await agent_repo.get_by_slug(thread.agent_id)
+    
+    if not agent_result:
+        logger.exception(f"智能体：{agent_result} 不存在")
+        raise HTTPException(status_code=404, detail="智能体不存在")
+    
+    title = thread.title
+    summary = thread.summary
+    
+    thread_id = str(uuid.uuid4())
+    agent_id = agent_result.slug
+    thead_meatadata = thread.metadata or {}
+    
+    # 每个agent带有自己的可能配备自己的 虚拟文件系统，这个后续会做成
+    thead_meatadata["backend_id"] = agent_result.backend_id 
+    
+    
+    conv_repo = ConversationRepository(db)
+    conversation = await conv_repo.create_conversation(uid=current_user.uid,
+                                  thread_id=thread_id,
+                                  agent_id=agent_id,
+                                  title = title,
+                                  summary=summary,
+                                  conversation_metadata=thead_meatadata)
+    
+    return {
+      "id": conversation.thread_id,
+      "uid": conversation.uid,
+      "agent_id": conversation.agent_id,
+      "title": conversation.title,
+      "metadata": conversation.conversation_metadata or {},
+      "created_at": conversation.created_at.isoformat(),
+      "updated_at": conversation.updated_at.isoformat(),
+  }
+    
+    
+    
+    
+    
+    
+    
+
+# 配置常量
 MAX_FILES_PER_REQUEST = 10
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
 MAX_DOCUMENT_SIZE = 25 * 1024 * 1024
 
-# 鏂囦欢绫诲瀷闄愬埗
+# 文件类型限制
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg",
     "image/png",
@@ -188,7 +271,7 @@ async def _upload_attachments(
 ) -> list[UploadedAttachmentResponse]:
     """通用附件上传处理。"""
     logger.info(
-        f"收到上传请求: 用户ID={current_user.user_id}, 文件数量={len(files)}, 类型=tmp_attachment."
+        f"收到上传请求: 用户ID={current_user.id}, 文件数量={len(files)}, 类型=tmp_attachment."
     )
 
     if not files:
@@ -245,7 +328,7 @@ async def _upload_attachments(
 
             original_filename = upload.filename or "file"
             file_key = build_tmp_attachment_file_key(
-                current_user.user_id,
+                current_user.id,
                 original_filename,
             )
             upload_started_at = perf_counter()
@@ -258,7 +341,7 @@ async def _upload_attachments(
             upload_duration_ms = (perf_counter() - upload_started_at) * 1000
             logger.info(
                 "附件上传到 tmp 完成: 用户ID=%s, 文件名=%s, file_key=%s, 文件大小=%s, 耗时=%.2fms.",
-                current_user.user_id,
+                current_user.id,
                 original_filename,
                 file_key,
                 len(content),
@@ -266,7 +349,7 @@ async def _upload_attachments(
             )
             uploaded_keys.append(file_key)
             attachment = await repository.create_pending(
-                user_id=current_user.user_id,
+                user_id=current_user.id,
                 attachment_name=original_filename,
                 attachment_type=content_type or "application/octet-stream",
                 attachment_size=len(content),
@@ -300,7 +383,7 @@ async def _upload_attachments(
                 pass
         logger.exception(
             "上传失败，已尝试清理相关存储文件: 用户ID=%s, 对话ID=%s, 类型=%s.",
-            current_user.user_id,
+            current_user.id,
             None,
             "tmp_attachment",
         )
@@ -346,14 +429,14 @@ async def create_chat_run(
 ):
     """创建后台 agent run。"""
     logger.info(
-        f"鏀跺埌 agent run 璇锋眰: 鐢ㄦ埛ID={current_user.user_id}, 鏅鸿兘浣揑D={agent_id}, 瀵硅瘽ID={payload.conversation_id}.",
+        f"收到 agent run 请求: 用户ID={current_user.id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
     )
     run = await create_agent_run(
         db,
         agent_id=agent_id,
         input_text=payload.input,
         conversation_id=payload.conversation_id,
-        user_id=current_user.user_id,
+        user_id=current_user.id,
         attachments=payload.attachments,
         request_config=payload.config,
     )
@@ -371,7 +454,7 @@ async def chat_run_stream(
     return StreamingResponse(
         stream_run_events(
             db,
-            user_id=current_user.user_id,
+            user_id=current_user.id,
             run_id=run_id,
             after_sequence=after_sequence,
         ),
@@ -385,7 +468,7 @@ async def cancel_chat_run(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
 ):
-    run = await cancel_run(db, run_id=run_id, user_id=current_user.user_id)
+    run = await cancel_run(db, run_id=run_id, user_id=current_user.id)
     return _run_response(run)
 
 
@@ -394,7 +477,7 @@ async def list_conversation_summaries(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
 ):
-    conversations = await list_conversations(db, current_user.user_id)
+    conversations = await list_conversations(db, current_user.id)
     return [
         ConversationSummary(
             id=str(c.id),
@@ -418,7 +501,7 @@ async def get_active_conversation_run(
     run = await get_active_run(
         db,
         conversation_id=conversation_id,
-        user_id=current_user.user_id,
+        user_id=current_user.id,
     )
     if run is None:
         return None
@@ -434,7 +517,7 @@ async def get_conversation_messages(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
 ):
-    await get_conversation(db, conversation_id, current_user.user_id)
+    await get_conversation(db, conversation_id, current_user.id)
     messages = await get_messages(db, conversation_id)
     return [
         MessageResponse(
@@ -454,4 +537,8 @@ async def remove_conversation(
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(dependency=get_db),
 ):
-    await delete_conversation(db, conversation_id, current_user.user_id)
+    await delete_conversation(db, conversation_id, current_user.id)
+
+
+
+

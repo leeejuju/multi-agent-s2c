@@ -7,10 +7,10 @@ from .base import Base
 class User(Base):
     __tablename__ = "user"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, comment="用户ID")
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="用户自增ID")
     username = Column(String(64), unique=True, nullable=False, comment="用户名")
-    email = Column(String(255), unique=True, nullable=True, )
-    uid = Column(String, nullable=False, unique=True, index=True, comment="邮箱")  
+    email = Column(String(255), unique=True, nullable=True, comment="邮箱")
+    uid = Column(String, nullable=False, unique=True, index=True, comment="登录标识")  
 
     password_hash = Column(String(255), nullable=False, comment="密码哈希")
     is_active = Column(Boolean, nullable=False, default=True, comment="是否启用")
@@ -22,8 +22,10 @@ class User(Base):
 class Conversation(Base):
     __tablename__ = "conversation"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, comment="会话ID")
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="会话表主键")
+    uid = Column(String(64), index=True, nullable=False, comment="uid")
+    thread_id = Column(String(64), unique=True, index=True, nullable=False, comment="会话的thread_id")
+    agent_id = Column(String(64), index=True, nullable=False, comment="当前会话绑定的agent")
     title = Column(String(255), nullable=False, comment="会话标题")
     summary = Column(Text, nullable=True, comment="会话摘要")
     conversation_metadata = Column(JSON, nullable=False, default=dict, comment="会话元数据")
@@ -71,7 +73,7 @@ class AgentRun(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="运行ID")
     conversation_id = Column(Integer, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False, comment="会话ID")
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
+    uid = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
     agent_id = Column(String(128), nullable=False, comment="智能体ID")
     input_text = Column(Text, nullable=False, default="", comment="输入文本")
     attachments = Column(JSON, nullable=False, default=dict, comment="附件")
@@ -91,8 +93,8 @@ class Agent(Base):
     __tablename__ = "agent"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="智能体ID")
-    slug = Column(String(128), unique=True, index=True, nullable=False, comment="URL 友好的稳定标识")
-    backend_id = Column(String(128), nullable=False, comment="后端运行实现ID")
+    slug = Column(String(128), unique=True, index=True, nullable=False, comment="URL 标识")
+    backend_id = Column(String(128), nullable=False, comment="虚拟文件系统")
     name = Column(String(128), nullable=False, comment="智能体名称")
     role = Column(String(32), nullable=False, default="orchestrator", comment="智能体角色")
     description = Column(Text, nullable=False, default="", comment="智能体描述")
@@ -107,29 +109,25 @@ class StylePortfolio(Base):
     __tablename__ = "style_portfolio"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="风格资产包ID")
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="创建用户ID")
-    slug = Column(String(128), unique=True, index=True, nullable=False, comment="URL 友好的稳定标识")
-    name = Column(String(128), nullable=False, comment="风格资产包名称")
-    description = Column(Text, nullable=False, default="", comment="风格资产包描述")
+    skill_id = Column(Integer, ForeignKey("skill.id", ondelete="CASCADE"), unique=True, nullable=False, comment="所属技能ID")
     style_text = Column(Text, nullable=False, default="", comment="风格说明")
     reference_cases = Column(JSON, nullable=False, default=list, comment="参考案例")
     visual_language = Column(JSON, nullable=False, default=dict, comment="色彩、镜头、构图、元素等视觉语言")
     narrative_patterns = Column(JSON, nullable=False, default=dict, comment="叙事结构与场景推进模式")
     style_assets = Column(JSON, nullable=False, default=dict, comment="示例、规则、禁忌等风格资产")
-    skill_refs = Column(JSON, nullable=False, default=list, comment="关联的技能引用")
-    visibility = Column(String(16), nullable=False, default="private", comment="可见范围")
-    enabled = Column(Boolean, nullable=False, default=True, comment="是否启用")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="更新时间")
 
-    user = relationship("User")
+    created_by = Column(String(64), nullable=True, comment="资源包创建记录")
+    updated_by = Column(String(64), nullable=True, comment="资源包修改记录")
+    skill = relationship("Skill", back_populates="style_portfolio")
 
 
 class Skill(Base):
     __tablename__ = "skill"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="技能ID")
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="创建用户ID")
+    uid = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="创建用户ID")
     slug = Column(String(128), unique=True, index=True, nullable=False, comment="URL 友好的稳定标识")
     name = Column(String(128), nullable=False, comment="技能名称")
     skill_type = Column(String(32), nullable=False, default="general", comment="技能类型")
@@ -140,15 +138,18 @@ class Skill(Base):
     enabled = Column(Boolean, nullable=False, default=True, comment="是否启用")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="更新时间")
-
+    created_by = Column(String(64), nullable=True, comment="skill创建记录")
+    updated_by = Column(String(64), nullable=True, comment="skill修改记录")
+        
     user = relationship("User")
+    style_portfolio = relationship("StylePortfolio", back_populates="skill", uselist=False, cascade="all, delete-orphan")
 
 
 class Attachment(Base):
     __tablename__ = "attachment"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="附件ID")
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
+    uid = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
     conversation_id = Column(Integer, ForeignKey("conversation.id", ondelete="SET NULL"), nullable=True, comment="来源会话ID")
     status = Column(String(16), nullable=False, default="pending", comment="附件状态")
     attachment_name = Column(String(255), nullable=False, comment="文件名")
@@ -163,7 +164,7 @@ class Knowledge(Base):
     __tablename__ = "knowledge"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="知识库ID")
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
+    uid = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
     kind = Column(String(32), nullable=False, default="screenplay", comment="知识库类型")
     title = Column(String(255), nullable=False, comment="标题")
     summary = Column(Text, nullable=False, default="", comment="摘要")

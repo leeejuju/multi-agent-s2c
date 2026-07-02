@@ -8,7 +8,7 @@ from server.utils.auth import (
     hash_password,
     verify_password,
 )
-from src.database import User, get_db
+from src.database import get_db
 from src.database.repositories import UserRepository
 from src.utils import logger
 
@@ -30,6 +30,7 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    uid: str
     username: str
     email: EmailStr | None = None
     is_active: bool
@@ -39,18 +40,6 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
-
-
-async def _get_user_by_id(session: AsyncSession, user_id: str) -> User:
-    user_repository = UserRepository(session)
-    user = await user_repository.get_active_by_id(user_id)
-    if user is None:
-        logger.warning("Authenticated user lookup failed: user_id=%s.", user_id)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authenticated user was not found.",
-        )
-    return user
 
 
 @router.post(
@@ -114,7 +103,7 @@ async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
             detail="Account is disabled.",
         )
 
-    token = create_access_token(str(user.id), user.email or "", user.username)
+    token = create_access_token(user.id)
     logger.info("Login succeeded: user_id=%s.", user.id)
     return TokenResponse(
         access_token=token,
@@ -123,7 +112,6 @@ async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(current_user: AuthenticatedUser, session: AsyncSession = Depends(get_db)):
-    logger.info("Current user requested: user_id=%s.", current_user.user_id)
-    user = await _get_user_by_id(session, current_user.user_id)
-    return UserResponse.model_validate(user)
+async def me(current_user: AuthenticatedUser):
+    logger.info("Current user requested: user_id=%s.", current_user.id)
+    return UserResponse.model_validate(current_user)
