@@ -61,7 +61,6 @@ async def create_thread(
     """ARQ实现异步的方式，首先创建对话空间， 然后创建thread之后，再当前会话创建agentrun事件，
         ARQ拿着id入队，redis执行生成任务。前端只需要拿事件id去队列消费就可以了，就是完全的解耦
     """
-    # TODO
     user_result = await db.execute(select(User).where(User.uid == current_user.uid))
     
     if not user_result:
@@ -83,17 +82,18 @@ async def create_thread(
     agent_id = agent_result.slug
     thead_meatadata = thread.metadata or {}
     
-    # 每个agent带有自己的可能配备自己的 虚拟文件系统，这个后续会做成
+    # 每个agent带有自己的可能配备自己的 虚拟文件系统，这个后续会做成单独的
     thead_meatadata["backend_id"] = agent_result.backend_id 
     
     
     conv_repo = ConversationRepository(db)
-    conversation = await conv_repo.create_conversation(uid=current_user.uid,
-                                  thread_id=thread_id,
-                                  agent_id=agent_id,
-                                  title = title,
-                                  summary=summary,
-                                  conversation_metadata=thead_meatadata)
+    conversation = await conv_repo.create_conversation(
+        uid=current_user.uid,
+        thread_id=thread_id,
+        agent_id=agent_id,
+        title = title,
+        summary=summary,
+        conversation_metadata=thead_meatadata)
     
     return {
       "id": conversation.thread_id,

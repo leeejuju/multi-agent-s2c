@@ -34,6 +34,15 @@ class ConversationRepository:
         )
         return list(result.scalars().all())
 
+    async def get_conversation_by_thead_id(
+        self,
+        thread_id: str,
+    ) -> Conversation | None:
+        result = await self.session.execute(
+            select(Conversation).where(Conversation.thread_id == thread_id)
+        )
+        return result.scalar_one_or_none()
+
     async def create_conversation(
         self,
         uid: str,
@@ -150,30 +159,6 @@ class ConversationRepository:
             .order_by(Message.created_at.asc())
         )
         return list(result.scalars().all())
-
-    async def search_messages_for_user(
-        self,
-        *,
-        user_id: str,
-        query: str,
-        limit: int = 5,
-    ) -> list[tuple[Conversation, Message]]:
-        pattern = f"%{query}%"
-        result = await self.session.execute(
-            select(Conversation, Message)
-            .join(Message, Message.conversation_id == Conversation.id)
-            .where(
-                Conversation.user_id == int(user_id),
-                or_(
-                    Conversation.title.ilike(pattern),
-                    Conversation.summary.ilike(pattern),
-                    Message.content.ilike(pattern),
-                ),
-            )
-            .order_by(Message.created_at.desc())
-            .limit(limit)
-        )
-        return list(result.all())
 
     async def delete(self, conversation: Conversation) -> None:
         await self.session.delete(conversation)

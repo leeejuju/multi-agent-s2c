@@ -18,12 +18,12 @@ async def shutdown(ctx) -> None:
     await close_queue_connections()
 
 
-async def run_agent(ctx, run_id: str) -> None:
+async def process_run_agent(ctx, run_id: str) -> None:
     raise RuntimeError("Agent consumer service has been removed.")
 
 
 class WorkerSettings:
-    functions = [run_agent]
+    functions = [process_run_agent]
     queue_name = config.arq_queue_name
     redis_settings = RedisSettings.from_dsn(config.redis_url)
     max_jobs = config.arq_max_jobs
