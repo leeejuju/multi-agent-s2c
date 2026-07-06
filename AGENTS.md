@@ -4,21 +4,36 @@ This file is the single source of repository guidance for Claude/Codex-style cod
 
 ## Current Project Shape
 
-`multi-agent-s2c` is a script-driven visual creation system. The backend is a FastAPI service built around LangChain/LangGraph agents, SQLAlchemy repositories, PostgreSQL, and MinIO-backed uploads. The frontend is a React + TypeScript + Vite app under `web/`.
+`multi-agent-s2c` is a script-driven visual creation system. The backend is a FastAPI service built around LangChain/LangGraph agents, SQLAlchemy repositories, PostgreSQL, Redis/ARQ queue work, and MinIO-backed uploads. The frontend is a React + TypeScript + Vite app under `web/`.
 
-The concrete business agents in `src/agents/` are `DesignAgent`, `SearchAgent`, and `LayoutAgent`.
+Current top-level layout:
+
+- `server/`: FastAPI app, middleware, routers, services, lifespan startup, and ARQ worker entrypoint.
+- `src/agents/`: LangGraph agent base classes, manager, concrete agents, subagents, middlewares, and sandbox backend helpers.
+- `src/configs/`: project configuration loaded from environment and `.env`.
+- `src/database/`: SQLAlchemy models, PostgreSQL manager/session helpers, and repository classes.
+- `src/knowledge/`: knowledge extraction, cleanup, and vector-store related code.
+- `src/storage/`: MinIO and Redis storage/queue helpers.
+- `web/`: React client.
+- `sandbox_server/`, `docker/`, and `scripts/`: local runtime support and helper scripts.
+
+Current concrete agents are `DesignAgent` in `src/agents/designagent/`, plus `SearchAgent` and `LayoutAgent` under `src/agents/subagents/`.
 
 ## Backend Architecture
 
 - Agent code lives in `src/agents/`.
-- Shared agent primitives live in `src/agents/common/`.
-- Each agent should live in `src/agents/<agentname>/` and expose its class from that package's `__init__.py`.
-- `AgentManager` in `src/agents/manager.py` auto-discovers agent packages and instantiates `BaseAgent` subclasses.
+- Shared agent primitives live in `src/agents/base_agent.py` and `src/agents/base_context.py`.
+- Agent middlewares live in `src/agents/middlewares/`.
+- Top-level agents live in `src/agents/<agentname>/`; subagents live in `src/agents/subagents/<agentname>/`. Each agent package should expose its class from that package's `__init__.py`.
+- `AgentManager` in `src/agents/manager.py` auto-discovers top-level agent packages and `src/agents/subagents/*`, then instantiates `BaseAgent` subclasses.
 - `BaseAgent.stream_messages(...)` wraps LangGraph streaming and yields normalized `("messages", message)` chunks for token streaming.
-- Chat HTTP routes live in `server/router/chat.py`.
+- FastAPI app setup lives in `server/main.py`; startup/shutdown lives in `server/lifespan.py`.
+- HTTP routes live under `server/router/`: `auth_router.py`, `chat_router.py`, `agent_router.py`, `knowledge_router.py`, `library_router.py`, and `model_router.py`.
 - Chat orchestration and persistence live in `server/service/chat_service.py`.
+- Agent run and queue-related service work lives in `server/service/agent_run_service.py` and `server/service/arq_queue_servcie.py`; ARQ worker settings live in `server/worker.py`.
 - Database access should go through repository classes in `src/database/repositories/`; do not put raw SQL or persistence logic inside agents.
-- Uploaded files are stored through `src/storage/`; current upload responses are assembled in memory and are not fully persisted as attachment rows yet.
+- PostgreSQL engine/session lifecycle lives in `src/database/manger.py`; compatibility helpers live in `src/database/session.py`.
+- Uploaded files and queue/storage helpers live under `src/storage/`, currently split into `src/storage/minio/` and `src/storage/redis/`.
 
 ## Current Chat Flow
 
@@ -88,11 +103,18 @@ Current frontend stack:
 - React 19
 - TypeScript
 - Vite
+- Ant Design
 - Tailwind CSS
 - Zustand
 - `react-router-dom`
 
-Frontend code lives under `web/src/`.
+Frontend code lives under `web/src/`:
+
+- `web/src/App.tsx` owns routes, auth guards, and Ant Design theme setup.
+- `web/src/pages/` contains route-level screens, currently `AppView`, `LoginView`, and `RegisterView`.
+- `web/src/components/` contains reusable UI, currently centered around `AuthLanding` and `Sidebar`.
+- `web/src/api/`, `web/src/store/`, and `web/src/hooks/` contain client API helpers, Zustand stores, and reusable hooks.
+- `web/src/assets/` contains global CSS, fonts, icons, landing assets, and animation helpers.
 
 ## Development Commands
 
