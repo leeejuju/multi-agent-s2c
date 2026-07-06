@@ -1,7 +1,7 @@
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import AgentRun, Conversation, Message
+from src.database.models import Conversation, Message
 
 
 def _make_title(text: str, max_length: int = 80) -> str:
@@ -21,7 +21,7 @@ class ConversationRepository:
         result = await self.session.execute(
             select(Conversation).where(
                 Conversation.id == int(conversation_id),
-                Conversation.user_id == int(user_id),
+                Conversation.uid == int(user_id),
             )
         )
         return result.scalar_one_or_none()
@@ -29,7 +29,7 @@ class ConversationRepository:
     async def list_by_user(self, user_id: str) -> list[Conversation]:
         result = await self.session.execute(
             select(Conversation)
-            .where(Conversation.user_id == int(user_id))
+            .where(Conversation.uid == int(user_id))
             .order_by(Conversation.updated_at.desc())
         )
         return list(result.scalars().all())
@@ -105,7 +105,7 @@ class ConversationRepository:
         message = await self.session.get(Message, int(message_id))
         if message is None:
             return None
-        message.content = content
+        message.content = content  # ty:ignore[invalid-assignment]
         if status is not None:
             message.status = status
         await self.session.flush()
@@ -134,23 +134,6 @@ class ConversationRepository:
         message.status = status
         await self.session.flush()
         return message
-
-    async def get_active_run_for_conversation(
-        self,
-        conversation_id: str,
-        user_id: str,
-    ) -> AgentRun | None:
-        result = await self.session.execute(
-            select(AgentRun)
-            .where(
-                AgentRun.conversation_id == int(conversation_id),
-                AgentRun.user_id == int(user_id),
-                AgentRun.status.in_(("queued", "running", "canceling")),
-            )
-            .order_by(AgentRun.created_at.desc())
-            .limit(1)
-        )
-        return result.scalar_one_or_none()
 
     async def get_messages(self, conversation_id: str) -> list[Message]:
         result = await self.session.execute(

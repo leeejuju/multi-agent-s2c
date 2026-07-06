@@ -40,13 +40,13 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="消息ID")
     conversation_id = Column(Integer, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False, comment="会话ID")
-    agent_run_id = Column(Integer, ForeignKey("agent_run.id", ondelete="SET NULL"), nullable=True, comment="运行ID")
+    agent_run_id = Column(String(64), ForeignKey("agent_run.id", ondelete="SET NULL"), nullable=True, comment="运行ID")
     role = Column(String(16), nullable=False, comment="消息角色")
     content = Column(Text, nullable=False, default="", comment="消息内容")
     status = Column(String(16), nullable=False, default="completed", comment="消息状态，是刚开始，还是执行中还是结束啥的")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="更新时间")
-    # message_type = Column(String(30), default="text", comment="消息类型，是普通文本还是工具调用")
+    message_type = Column(String(30), default="text", comment="消息类型，是普通文本还是工具调用")
 
     request_id = Column(String(64), nullable=True, index=True, comment="Request ID for idempotency")
 
@@ -74,15 +74,17 @@ class ToolCall(Base):
 class AgentRun(Base):
     __tablename__ = "agent_run"
 
-    id = Column(Integer, primary_key=True, comment="运行ID")
+    id = Column(String(64), primary_key=True, comment="运行ID")
     thread_id = Column(String(64), index=True, nullable=False, comment="会话ID")
-    conversation_id = Column(Integer, ForeignKey("WEISH.id", ondelete="CASCADE"), nullable=False, comment="会话ID")
-    uid = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, comment="用户ID")
+    conversation_id = Column(Integer, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False, comment="会话ID")
+    uid = Column(String(64), ForeignKey("user.uid", ondelete="CASCADE"), nullable=False, comment="用户ID")
     agent_id = Column(String(128), nullable=False, comment="智能体ID")
     agent_status = Column(String(32), nullable=False, default="queued", comment="运行状态")
     request_id = Column(String(128), unique=True, index=True, nullable=True, comment="请求ID")
     parent_run_id = Column(String(64), nullable=True, index=True, comment="当前runid的父id")
     
+    status = Column(String(16), nullable=False, default="completed", comment="Agent运行状态")
+
     error = Column(Text, nullable=True, comment="错误信息")
     error_type = Column(String(64), nullable=True, comment="错误信息类型")
     started_at = Column(DateTime(timezone=True), nullable=True, comment="开始时间")
@@ -132,7 +134,7 @@ class Skill(Base):
     __tablename__ = "skill"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="技能ID")
-    uid = Column(Integer, ForeignKey("user.uid", ondelete="SET NULL"), nullable=True, comment="创建用户ID")
+    uid = Column(String(64), ForeignKey("user.uid", ondelete="SET NULL"), nullable=True, comment="创建用户ID")
     slug = Column(String(128), unique=True, index=True, nullable=False, comment="URL 友好的稳定标识")
     name = Column(String(128), nullable=False, comment="技能名称")
     skill_type = Column(String(32), nullable=False, default="general", comment="技能类型")

@@ -1,5 +1,5 @@
 from .base import Base
-from .initializer import PostgreSQLInitializer
+from .manger import PostgreManger, postgres_manager
 from .models import (
     Agent,
     AgentRun,
@@ -22,7 +22,7 @@ __all__ = [
     "Conversation",
     "Knowledge",
     "Message",
-    "PostgreSQLInitializer",
+    "PostgreManger",
     "Skill",
     "StylePortfolio",
     "ToolCall",
@@ -30,5 +30,6 @@ __all__ = [
     "get_db",
     "get_engine",
     "get_session_maker",
+    "postgres_manager",
     "session_context",
 ]

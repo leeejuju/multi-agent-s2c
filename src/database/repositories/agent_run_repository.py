@@ -12,8 +12,9 @@ class AgentRunRepository:
         self,
         *,
         run_id: str,
-        thread_id: int | str,
-        uid: int | str,
+        thread_id: str,
+        conversation_id: int | str,
+        uid: str,
         agent_id: str,
         request_id: str,
         agent_status: str = "queued",
@@ -21,7 +22,8 @@ class AgentRunRepository:
     ) -> AgentRun:
         run = AgentRun(
             id=run_id,
-            thread_id=int(thread_id),
+            thread_id=thread_id,
+            conversation_id=int(conversation_id),
             uid=uid,
             agent_id=agent_id,
             request_id=request_id,
@@ -37,4 +39,3 @@ class AgentRunRepository:
             select(AgentRun).where(AgentRun.request_id == request_id)
         )
         return result.scalar_one_or_none()
-
