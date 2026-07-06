@@ -6,7 +6,6 @@ if sys.platform == "win32":
 
 from arq.connections import RedisSettings
 
-from server.service.agent_queue_service import close_queue_connections
 from src.configs import config
 
 
@@ -15,15 +14,16 @@ async def startup(ctx) -> None:
 
 
 async def shutdown(ctx) -> None:
-    await close_queue_connections()
+    return
 
 
-async def process_run_agent(ctx, run_id: str) -> None:
-    raise RuntimeError("Agent consumer service has been removed.")
+async def process_agent_run(ctx, run_id: str) -> None:
+    pass
+
 
 
 class WorkerSettings:
-    functions = [process_run_agent]
+    functions = [process_agent_run]
     queue_name = config.arq_queue_name
     redis_settings = RedisSettings.from_dsn(config.redis_url)
     max_jobs = config.arq_max_jobs

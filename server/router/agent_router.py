@@ -5,7 +5,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from langchain.messages import HumanMessage
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,7 +50,6 @@ async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
     """
     
     query = agentrun_request.query
-    image_content = agentrun_request.image_content
     thread_id = agentrun_request.thread_id
     agent_id = agentrun_request.agent_id 
     thread_meatadata = agentrun_request.thread_metadata
@@ -62,16 +60,8 @@ async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
     
     conv_repo = ConversationRepository(db)
     
-    # 构建输入消息
-    input_msg = HumanMessage(content=[
-        {"type":"text", "text":query},
-        {"type":"image_url", "image_url":
-            {"url": f"data:image/jpeg;base64,{image_content}"}
-            }
-        ])
-    
     if thread_meatadata.get("reuqest_id"):
-        reuqest_id = thread_meatadata.get("reuqest_id")  
+        reuqest_id: str = thread_meatadata.get("reuqest_id")  
     else:
         reuqest_id = str(uuid.uuid4())
         
@@ -91,12 +81,10 @@ async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
         raise HTTPException(status_code=404, detail="用户不存在")
     
     # TODO 这里需要去解决创建事件的竞态问题，但是原型阶段不做任何防御和解决
-    # run_repo = AgentRunRepository(db)
-    
     msg = Message(
         conversation_id=conv_result.id,
         role="user",
-        content=input_msg.content,
+        content=query or "",
         status="completed"
     )
     db.add(msg)
@@ -110,15 +98,33 @@ async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
         run = await run_repo.create_agent_run(
             run_id=run_id,
             thread_id=thread_id,
+            conversation_id=conv_result.id,
             uid=current_uid,
             agent_id=agent_id,
+            request_id=reuqest_id,
             parent_run_id=parent_run_id
             
         )
-        db.flush()
-    return run
-        
-        
+    await db.commit()
+
+    return {
+        "run_id": run.id,
+        "thread_id": run.thread_id,
+        "status": run.status,
+        "request_id": run.request_id,
+        "stream_url": f"/api/agent/runs/{run.id}/events",
+    }
+
+    
+@agent_router.get("/runs/{run_id}/events")        
+async def stream_run_event(
+    run_id: str,
+    current_user: AuthenticatedUser,
+):
+    return StreamingResponse()
+
+    
+
     
     
 

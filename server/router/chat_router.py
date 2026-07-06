@@ -4,20 +4,15 @@ from time import perf_counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.service import (
-    cancel_run,
-    create_agent_run,
     delete_conversation,
-    get_active_run,
     get_conversation,
     get_messages,
     list_conversations,
-    stream_run_events,
 )
 from server.service.conversation_service import (
     build_tmp_attachment_file_key,
@@ -166,24 +161,6 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
 }
 
 
-class ChatAttachment(BaseModel):
-    """请求携带的附件信息。"""
-
-    id: str
-    file_name: str
-    content_type: str
-    file_size: int | None = None
-    file_key: str | None = None
-    access_url: str
-    category: str | None = None
-    thumb_url: str | None = None
-    parser: str | None = None
-    parse_status: str | None = None
-    parse_error: str | None = None
-    parsed_text: str | None = None
-    parse_metadata: dict[str, Any] = Field(default_factory=dict)
-
-
 class UploadedAttachmentResponse(BaseModel):
     """上传成功后的附件响应。"""
 
@@ -202,15 +179,6 @@ class UploadedAttachmentResponse(BaseModel):
     parse_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class ChatRequest(BaseModel):
-    """聊天请求负载。"""
-
-    input: str
-    conversation_id: str | None = None
-    attachments: list[ChatAttachment] = Field(default_factory=list)
-    config: dict[str, Any] = Field(default_factory=dict)
-
-
 class ConversationSummary(BaseModel):
     id: str
     title: str
@@ -223,15 +191,6 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     status: str = "completed"
-    created_at: str
-
-
-class AgentRunResponse(BaseModel):
-    id: str
-    conversation_id: str
-    agent_id: str
-    status: str
-    error: str | None = None
     created_at: str
 
 
@@ -409,69 +368,6 @@ async def upload_tmp_attachments(
     )
 
 
-def _run_response(run) -> AgentRunResponse:
-    return AgentRunResponse(
-        id=str(run.id),
-        conversation_id=str(run.conversation_id),
-        agent_id=run.agent_id,
-        status=run.status,
-        error=run.error,
-        created_at=run.created_at.isoformat(),
-    )
-
-
-@router.post("/agent/{agent_id}/runs", response_model=AgentRunResponse)
-async def create_chat_run(
-    agent_id: str,
-    payload: ChatRequest,
-    current_user: AuthenticatedUser,
-    db: AsyncSession = Depends(get_db),
-):
-    """创建后台 agent run。"""
-    logger.info(
-        f"收到 agent run 请求: 用户ID={current_user.id}, 智能体ID={agent_id}, 对话ID={payload.conversation_id}.",
-    )
-    run = await create_agent_run(
-        db,
-        agent_id=agent_id,
-        input_text=payload.input,
-        conversation_id=payload.conversation_id,
-        user_id=current_user.id,
-        attachments=payload.attachments,
-        request_config=payload.config,
-    )
-    return _run_response(run)
-
-
-@router.get("/runs/{run_id}/stream")
-async def chat_run_stream(
-    run_id: str,
-    current_user: AuthenticatedUser,
-    after_sequence: int = 0,
-    db: AsyncSession = Depends(get_db),
-):
-    """可恢复的 run 事件流。"""
-    return StreamingResponse(
-        stream_run_events(
-            db,
-            user_id=current_user.id,
-            run_id=run_id,
-            after_sequence=after_sequence,
-        ),
-        media_type="text/event-stream",
-    )
-
-
-@router.post("/runs/{run_id}/cancel", response_model=AgentRunResponse)
-async def cancel_chat_run(
-    run_id: str,
-    current_user: AuthenticatedUser,
-    db: AsyncSession = Depends(get_db),
-):
-    run = await cancel_run(db, run_id=run_id, user_id=current_user.id)
-    return _run_response(run)
-
-
 @router.get("/conversations", response_model=list[ConversationSummary])
 async def list_conversation_summaries(
     current_user: AuthenticatedUser,
@@ -487,25 +383,6 @@ async def list_conversation_summaries(
         )
         for c in conversations
     ]
-
-
-@router.get(
-    "/conversations/{conversation_id}/runs/active",
-    response_model=AgentRunResponse | None,
-)
-async def get_active_conversation_run(
-    conversation_id: str,
-    current_user: AuthenticatedUser,
-    db: AsyncSession = Depends(get_db),
-):
-    run = await get_active_run(
-        db,
-        conversation_id=conversation_id,
-        user_id=current_user.id,
-    )
-    if run is None:
-        return None
-    return _run_response(run)
 
 
 @router.get(
@@ -538,7 +415,6 @@ async def remove_conversation(
     db: AsyncSession = Depends(dependency=get_db),
 ):
     await delete_conversation(db, conversation_id, current_user.id)
-
 
 
 
