@@ -1,1 +1,0 @@
-export { ScriptionComponent } from "./ScriptionComponent";
