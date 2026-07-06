@@ -1,6 +1,6 @@
-import re
 import asyncio
 import mimetypes
+import re
 import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -32,7 +32,11 @@ class MinIOUploadResult:
 
 def sanitize_filename(filename: str) -> str:
     """将文件名转换为适合存储的 ASCII 名称。"""
-    normalized = unicodedata.normalize("NFKD", filename or "").encode("ascii", "ignore").decode("ascii")
+    normalized = (
+        unicodedata.normalize("NFKD", filename or "")
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
     sanitized = _unsafe_filename_pattern.sub("_", normalized).strip("._")
     return sanitized or "file"
 
@@ -69,8 +73,19 @@ class MinioStorage:
         if bucket_name not in PUBLIC_BUCKET_KEY:
             return
 
-        policy = {"Version": "2012-10-17", "Statement": [{"Sid": "PublicReadGetObject", "Effect": "Allow", "Principal": "*", "Action": ["s3:GetObject"], "Resource": [f"arn:aws:s3:::{bucket_name}/*"]}]}
-        self._client.set_bucket_policy(policy)
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "PublicReadGetObject",
+                    "Effect": "Allow",
+                    "Principal": "*",
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{bucket_name}/*"],
+                }
+            ],
+        }
+        self._client.set_bucket_policy(bucket_name=bucket_name, policy=policy)
 
     def _check_file_type(self, object_name: str) -> str:
 
@@ -107,13 +122,15 @@ class MinioStorage:
 
         if bucket_name in PUBLIC_BUCKET_KEY and flag:
             logger.info(f"buket name:{bucket_name} 可访问")
-            
-    def check_file_exist(self, bucket_name: str, object_name: str)-> bool:
-        if result := self._client.stat_object(bucket_name=bucket_name, object_name=object_name):
+
+    def check_file_exist(self, bucket_name: str, object_name: str) -> bool:
+        if result := self._client.stat_object(
+            bucket_name=bucket_name, object_name=object_name
+        ):
             return True
         else:
             return False
-        
+
     def upload_file(
         self,
         bucket_name: str,
@@ -127,13 +144,21 @@ class MinioStorage:
 
         object_type = content_type or self._check_file_type(object_name)
         content_data_stream = BytesIO(content_data)
-        result = self._client.put_object(bucket_name=bucket_name, object_name=object_name, data=content_data_stream, length=len(content_data), content_type=object_type)
+        result = self._client.put_object(
+            bucket_name=bucket_name,
+            object_name=object_name,
+            data=content_data_stream,
+            length=len(content_data),
+            content_type=object_type,
+        )
 
         assert result is not None
 
         object_url = f"http://{self.minio_endpoint}/{bucket_name}/{object_name}"
 
-        return MinIOUploadResult(object_url=object_url, bucket_name=bucket_name, object_name=object_name)
+        return MinIOUploadResult(
+            object_url=object_url, bucket_name=bucket_name, object_name=object_name
+        )
 
     async def aupload_file(
         self,
@@ -159,7 +184,9 @@ class MinioStorage:
 
     async def adelete_file(self, bucket_name: str, object_name: str) -> bool:
         """异步删除方案"""
-        result = await asyncio.to_thread(self.delete_file, bucket_name=bucket_name, object_name=object_name)
+        result = await asyncio.to_thread(
+            self.delete_file, bucket_name=bucket_name, object_name=object_name
+        )
         return result
 
     async def create_file_access_url(self, bucket_name: str, object_name: str) -> str:
@@ -180,7 +207,9 @@ class MinioStorage:
 
     def download_file(self, bucket_name: str, object_name: str) -> bytes:
         """下载文档"""
-        result = self._client.get_object(bucket_name=bucket_name, object_name=object_name)
+        result = self._client.get_object(
+            bucket_name=bucket_name, object_name=object_name
+        )
         data = result.read()
         result.close()
         logger.info(f"{bucket_name} 下的：{object_name}，已下载")
@@ -189,12 +218,17 @@ class MinioStorage:
     async def adownload_file(self, bucket_name: str, object_name: str) -> bytes:
         """从存储下载文件内容。"""
 
-        data = await asyncio.to_thread(self.download_file, bucket_name=bucket_name, object_name=object_name)
+        data = await asyncio.to_thread(
+            self.download_file, bucket_name=bucket_name, object_name=object_name
+        )
         return data
 
-    async def delete_file_by_prefix(self, bucket_name: str, ):
+    async def delete_file_by_prefix(
+        self,
+        bucket_name: str,
+    ):
         pass
-    
+
 
 def get_storage() -> MinioStorage:
     """获取单例存储管理器。"""
