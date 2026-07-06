@@ -82,7 +82,6 @@ class AgentRun(Base):
     agent_status = Column(String(32), nullable=False, default="queued", comment="运行状态")
     request_id = Column(String(128), unique=True, index=True, nullable=True, comment="请求ID")
     parent_run_id = Column(String(64), nullable=True, index=True, comment="当前runid的父id")
-    # input_me = Column(Text, nullable=False, default="", comment="输入文本")
     
     error = Column(Text, nullable=True, comment="错误信息")
     error_type = Column(String(64), nullable=True, comment="错误信息类型")
