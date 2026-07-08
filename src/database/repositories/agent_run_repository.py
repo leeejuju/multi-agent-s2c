@@ -39,3 +39,8 @@ class AgentRunRepository:
             select(AgentRun).where(AgentRun.request_id == request_id)
         )
         return result.scalar_one_or_none()
+
+    async def get_run_event_by_id(self, run_id: str) -> AgentRun | None:
+        """看当前的run_id是否落库了"""
+        result = await self.session.execute(select(AgentRun).where(AgentRun.id == run_id))
+        return result.scalar_one_or_none()
