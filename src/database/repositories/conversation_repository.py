@@ -43,6 +43,19 @@ class ConversationRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_conversation_by_thread_id_for_user(
+        self,
+        thread_id: str,
+        user_id: str,
+    ) -> Conversation | None:
+        result = await self.session.execute(
+            select(Conversation).where(
+                Conversation.thread_id == thread_id,
+                Conversation.uid == str(user_id),
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def create_conversation(
         self,
         uid: str,

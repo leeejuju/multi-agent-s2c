@@ -8,12 +8,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.service import (
-    delete_conversation,
-    get_conversation,
-    get_messages,
-    list_conversations,
-)
 from server.service.conversation_service import (
     build_tmp_attachment_file_key,
 )
@@ -99,9 +93,8 @@ async def create_thread(
       "created_at": conversation.created_at.isoformat(),
       "updated_at": conversation.updated_at.isoformat(),
   }
-    
-    
-    
+
+
     
     
     
@@ -177,21 +170,6 @@ class UploadedAttachmentResponse(BaseModel):
     parse_error: str | None = None
     parsed_text: str | None = None
     parse_metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ConversationSummary(BaseModel):
-    id: str
-    title: str
-    created_at: str
-    updated_at: str
-
-
-class MessageResponse(BaseModel):
-    id: str
-    role: str
-    content: str
-    status: str = "completed"
-    created_at: str
 
 
 class AgentSummary(BaseModel):
@@ -366,55 +344,5 @@ async def upload_tmp_attachments(
         files=files,
         current_user=current_user,
     )
-
-
-@router.get("/conversations", response_model=list[ConversationSummary])
-async def list_conversation_summaries(
-    current_user: AuthenticatedUser,
-    db: AsyncSession = Depends(get_db),
-):
-    conversations = await list_conversations(db, current_user.id)
-    return [
-        ConversationSummary(
-            id=str(c.id),
-            title=c.title,
-            created_at=c.created_at.isoformat(),
-            updated_at=c.updated_at.isoformat(),
-        )
-        for c in conversations
-    ]
-
-
-@router.get(
-    "/conversations/{conversation_id}/messages",
-    response_model=list[MessageResponse],
-)
-async def get_conversation_messages(
-    conversation_id: str,
-    current_user: AuthenticatedUser,
-    db: AsyncSession = Depends(get_db),
-):
-    await get_conversation(db, conversation_id, current_user.id)
-    messages = await get_messages(db, conversation_id)
-    return [
-        MessageResponse(
-            id=str(m.id),
-            role=m.role,
-            content=m.content,
-            status=m.status,
-            created_at=m.created_at.isoformat(),
-        )
-        for m in messages
-    ]
-
-
-@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_conversation(
-    conversation_id: str,
-    current_user: AuthenticatedUser,
-    db: AsyncSession = Depends(dependency=get_db),
-):
-    await delete_conversation(db, conversation_id, current_user.id)
-
 
 
