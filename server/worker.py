@@ -1,8 +1,11 @@
 import asyncio
 import sys
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 from arq.connections import RedisSettings
 
+from server.service.thread_service import AgentInputMsg
 from src.configs import config
 from src.database import postgres_manager
 from src.database.models import AgentRun
@@ -19,6 +22,24 @@ async def startup(ctx) -> None:
 
 async def shutdown(ctx) -> None:
     return
+
+
+
+
+def build_agent_input_msg(
+    *, content: str, image_content: str | None, msg_metadata: dict
+)->AgentInputMsg:
+    """构建输入消息
+
+    Args:
+        content (str): 文本消息
+        image_content (str | None): 图像数据
+        msg_metadata (dict): 随对话附带的信息
+    """
+    # TODO 构建输入消息
+    pass
+
+
 
 
 async def _get_agent_run_id(run_id: str):

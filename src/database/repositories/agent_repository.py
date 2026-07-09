@@ -1,9 +1,10 @@
-from typing import Any
+from sqlalchemy.engine.result import Result
+from typing import Any, Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import Agent
+from src.database.models import Agent, User
 
 
 class AgentRepository:
@@ -16,12 +17,36 @@ class AgentRepository:
         except (TypeError, ValueError):
             return None
 
-    async def get_by_slug(self, slug: str) -> Agent | None:
-        """获取当前agent是否存在"""
-        result = await self.session.execute(select(Agent).where(Agent.slug == slug))
-        return result
+    async def get_slug(self, agent_slug: str) -> Agent | None:
+        agent_slug: Result[tuple[Agent]] = await self.session.execute(
+            select(Agent).where(Agent.slug == agent_slug)
+        )
+        return agent_slug.scalar_one_or_none()
 
-    async def list_items(
+    async def get_agent_by_slug(
+        self,
+        agent_slug: str,
+        agent_type: Literal["father", "son"] = "father",
+    ) -> Agent | None:
+        """根据 agent 指定键值返回
+
+        Args:
+            agent_slug (str): agent内部标志
+            agent_type : agent 类型
+
+        Returns:
+            Agent | None: _description_
+        """
+
+        agent = await self.get_slug(agent_slug=agent_slug)
+
+        if not agent:
+            return None
+
+        if agent_type == "father":
+            return agent
+
+    async def list_agent_items(
         self,
         *,
         enabled_only: bool = True,
@@ -35,38 +60,37 @@ class AgentRepository:
         result = await self.session.execute(statement.order_by(Agent.id.asc()))
         return list(result.scalars().all())
 
-    async def create(
-        self,
-        *,
-        slug: str,
-        backend_id: str,
-        name: str,
-        role: str = "orchestrator",
-        description: str = "",
-        agent_config: dict[str, Any] | None = None,
-        internal_only: bool = True,
-        enabled: bool = True,
-    ) -> Agent:
-        agent = Agent(
-            slug=slug,
-            backend_id=backend_id,
-            name=name,
-            role=role,
-            description=description,
-            agent_config=agent_config or {},
-            internal_only=internal_only,
-            enabled=enabled,
-        )
-        self.session.add(agent)
-        await self.session.flush()
-        return agent
+    # async def create(
+    #     self,
+    #     *,
+    #     slug: str,
+    #     backend_id: str,
+    #     name: str,
+    #     role: str = "orchestrator",
+    #     description: str = "",
+    #     agent_config: dict[str, Any] | None = None,
+    #     internal_only: bool = True,
+    #     enabled: bool = True,
+    # ) -> Agent:
+    #     agent = Agent(
+    #         slug=slug,
+    #         backend_id=backend_id,
+    #         name=name,
+    #         role=role,
+    #         description=description,
+    #         agent_config=agent_config or {},
+    #         internal_only=internal_only,
+    #         enabled=enabled,
+    #     )
+    #     self.session.add(agent)
+    #     await self.session.flush()
+    #     return agent
 
-    async def set_enabled(self, agent: Agent, enabled: bool) -> Agent:
-        agent.enabled = enabled
-        await self.session.flush()
-        return agent
+    # async def set_enabled(self, agent: Agent, enabled: bool) -> Agent:
+    #     agent.enabled = enabled
+    #     await self.session.flush()
+    #     return agent
 
-    async def delete(self, agent: Agent) -> None:
-        await self.session.delete(agent)
-        await self.session.flush()
-
+    # async def delete(self, agent: Agent) -> None:
+    #     await self.session.delete(agent)
+    #     await self.session.flush()

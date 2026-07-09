@@ -1,131 +1,127 @@
+import asyncio
 import json
+import uuid
 from collections.abc import AsyncIterator
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.agents.base_agent import BaseAgent
-from src.database import Message
-from src.database.repositories import ConversationRepository
+from src.database import Agent, Message, User
+from src.database.repositories import AgentRepository, ConversationRepository
+
+
+@dataclass(frozen=True)
+class AgentInputMsg:
+    content: str
+    msg_type: str
+    image_content: str | None
+    msg_metadata: dict[str, Any] = field(default_factory=dict)
+
+async def _build_agent_runtime(
+    agent_slug: str,
+    user: User,
+    thread_id: str | None,
+    db: AsyncSession,
+    agent_type: Literal["father", "son"] = "father",
+) -> tuple[Any, Any]:
+    """根据传递的参数，构建 agent 环境
+
+    Args:
+        agent_id (str): agent name
+        user (User): 当前用户可访问的agent
+        thread_id (str | None): _description_
+        agent_type (Literal["father";, "sub"]): 父agent还是子agennt
+
+    Returns:
+        tuple[Any, Any, Any]: _description_
+    """
+    agent_repo = AgentRepository(db)
+
+    if not agent_slug:
+        raise ValueError("未配置agent")
+
+    agent = await agent_repo.get_agent_by_slug(
+        agent_slug=agent_slug, agent_type=agent_type
+    )
+
+    if not agent:
+        raise ValueError("当前智能体不存在")
+
+    agent_instance = agent_manager.get_agent(
+        agent_id=agent.backend_id  # ty:ignore[invalid-argument-type]
+    )
+
+    if not agent_instance:
+        raise ValueError("当前Agent实例不存在")
+
+    return agent, agent_instance
 
 
 async def stream_thread_response(
     *,
-    db: AsyncSession,
-    agent_id: str,
+    agent_slug: str,
     thread_id: str,
-    metadata: dict[str, Any] | None = None,
-    thread_input_message: str,
-    user_id: str,
+    runtime_metadata: dict[str, Any] | None = None,
+    thread_input_message: AgentInputMsg,
+    current_user: AuthenticatedUser,
+    db: AsyncSession,
 ) -> AsyncIterator[bytes]:
-    repository = ConversationRepository(session=db)
-    conversation = await repository.get_conversation_by_thread_id_for_user(
+    """前端发送的内容产生消息流
+
+    Args:
+        agent_id (str): agent的名称
+        thread_id (str): 当前会话的id
+        thread_input_message (str): 输入的消息
+        current_user (AuthenticatedUser): 当前用户
+        db (AsyncSession): 数据库session
+        metadata (dict[str, Any] | None, optional): 附带的信息，如agent类型，本此请求的等
+
+    Returns:
+        AsyncIterator[bytes]: _description_
+    """
+
+    # 记录执行事件
+    start_time = asyncio.get_event_loop().time()
+
+    # guard
+    if not thread_id:
+        thread_id = str(uuid.uuid4())
+
+    runtime_metadata = dict(runtime_metadata or {})
+
+    # 设置单次 request_id 作为单次断联的标志以及附件的隔离归属
+    if not runtime_metadata.get("request_id"):
+        runtime_metadata["request_id"] = str(uuid.uuid4())
+
+    # 抽取agent执行的元数据
+    query: str = thread_input_message.content
+    image_content: str | None = thread_input_message.image_content
+    msg_type: str = thread_input_message.msg_type
+
+    # 根据agent_id解析 agent 的运行配置
+
+    agent_item, agent_instacne = await _build_agent_runtime(
+        agent_slug=agent_slug,
+        user=current_user,
         thread_id=thread_id,
-        user_id=user_id,
+        db=db,
+        agent_type=runtime_metadata.get("run_type", ""),
     )
-    if conversation is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found.",
-        )
-    agent = _resolve_agent(agent_id)
-    if not _agent_matches_conversation(agent, agent_id, conversation.agent_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Agent does not match conversation.",
-        )
-    if not thread_input_message:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Thread input message is required.",
-        )
 
-    history = await repository.get_messages(str(conversation.id))
-    _, user_message = await repository.save_message(
-        role="user",
-        content=thread_input_message,
-        conversation_id=str(conversation.id),
-        status="completed",
-    )
-    await repository.commit()
-
-    messages = _build_agent_messages(history, thread_input_message)
-    run_config = _build_run_config(
-        agent_id,
-        thread_id,
-        user_id,
-        metadata,
-    )
-    assistant_chunks: list[str] = []
-
-    yield _jsonl_bytes(
+    runtime_metadata.update(
         {
-            "type": "start",
-            "agent_id": agent_id,
+            "query": query,
+            "agent_slug": agent_item.slug,
+            "agent_instance": agent_instacne,
             "thread_id": thread_id,
-            "message_id": str(user_message.id),
+            "uid": current_user.uid,
+            "has_image":bool(image_content)
         }
-    )
-
-    try:
-        async for _, chunk in agent.stream_messages(
-            {"messages": messages},
-            config=run_config,
-        ):
-            delta = _message_delta_text(chunk)
-            if not delta:
-                continue
-            assistant_chunks.append(delta)
-            yield _jsonl_bytes(
-                {
-                    "type": "token",
-                    "agent_id": agent_id,
-                    "thread_id": thread_id,
-                    "delta": delta,
-                }
-            )
-
-        assistant_content = "".join(assistant_chunks)
-        _, assistant_message = await repository.save_message(
-            role="assistant",
-            content=assistant_content,
-            conversation_id=str(conversation.id),
-            status="completed",
-        )
-        await repository.commit()
-        yield _jsonl_bytes(
-            {
-                "type": "done",
-                "agent_id": agent_id,
-                "thread_id": thread_id,
-                "message_id": str(assistant_message.id),
-            }
-        )
-    except Exception as exc:
-        await repository.rollback()
-        yield _jsonl_bytes(
-            {
-                "type": "error",
-                "agent_id": agent_id,
-                "thread_id": thread_id,
-                "error_type": exc.__class__.__name__,
-                "error": str(exc),
-            }
-        )
-
-
-def _resolve_agent(agent_id: str) -> BaseAgent:
-    try:
-        return agent_manager.get_agent(agent_id)
-    except KeyError:
-        for agent_summary in agent_manager.list_agents():
-            if agent_summary["name"] == agent_id:
-                return agent_manager.get_agent(agent_summary["id"])
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Agent not found.",
     )
 
 
