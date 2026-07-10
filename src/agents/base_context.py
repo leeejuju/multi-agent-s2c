@@ -25,4 +25,12 @@ class BaseContext:
     model: str = field(default="", metadata={"description": "agent使用的模型"})
     
     mcps: list[str] = field(default="", metadata={"description": "mcp工具"})
+    
+    style_profolio: dict = field(default_factory=dict, metadata={"description": "素材，算是吧"})
+    
+    def update_context(self, context:dict):
+        "更新前端覆盖的参数"
+        for k, v in context.items():
+            if hasattr(self, k):
+                setattr(self, k, v)
 

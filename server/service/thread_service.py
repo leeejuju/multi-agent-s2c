@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from fastapi import HTTPException, status
+from langchain.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.utils.auth import AuthenticatedUser
@@ -22,13 +22,34 @@ class AgentInputMsg:
     image_content: str | None
     msg_metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def langchain_msg(self) -> HumanMessage:
+        """构建输入消息转化为langchain标准格式"""
+        if not self.image_content:
+            return HumanMessage(content=self.content)
+        return HumanMessage(
+            content=[
+                {
+                    "type": "text",
+                    "text": self.content,
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": self.image_content,
+                    },
+                },
+            ]
+        )
+
+
 async def _build_agent_runtime(
     agent_slug: str,
     user: User,
     thread_id: str | None,
     db: AsyncSession,
     agent_type: Literal["father", "son"] = "father",
-) -> tuple[Any, Any]:
+) -> tuple[Any, BaseAgent]:
     """根据传递的参数，构建 agent 环境
 
     Args:
@@ -52,7 +73,7 @@ async def _build_agent_runtime(
     if not agent:
         raise ValueError("当前智能体不存在")
 
-    agent_instance = agent_manager.get_agent(
+    agent_instance: BaseAgent = agent_manager.get_agent(
         agent_id=agent.backend_id  # ty:ignore[invalid-argument-type]
     )
 
@@ -60,6 +81,39 @@ async def _build_agent_runtime(
         raise ValueError("当前Agent实例不存在")
 
     return agent, agent_instance
+
+
+async def _build_agent_runtime_context(
+    uid: str, run_id: str, thread_id: str, request_id: str
+):
+    agent_runtime_context = {}
+    agent_system_prompt = "test_Agent_prompt"
+    agent_runtime_context.update(
+        {
+            "uid": uid,
+            "run_id": run_id,
+            "thread_id": thread_id,
+            "request_id": request_id,
+            "system_prompt": agent_system_prompt,
+        }
+    )
+
+
+async def _check_conv_status(
+    *, conv_repo: ConversationRepository, thread_id: str, uid: str, agent_item: Agent
+):
+    """确保当前的conv存在"""
+    current_conv = conv_repo.get_conversation_by_thead_id(thread_id)
+    if not current_conv:
+        conv_repo.create_conversation(
+            uid=uid,
+            thread_id=thread_id,
+            agent_id=agent_item.slug,
+            conversation_metadata={"backend_id": agent_item.backend_id},
+        )
+        return
+    
+    # TODO 其他的错点
 
 
 async def stream_thread_response(
@@ -102,6 +156,7 @@ async def stream_thread_response(
     query: str = thread_input_message.content
     image_content: str | None = thread_input_message.image_content
     msg_type: str = thread_input_message.msg_type
+    human_msg: HumanMessage = thread_input_message.langchain_msg
 
     # 根据agent_id解析 agent 的运行配置
 
@@ -120,9 +175,34 @@ async def stream_thread_response(
             "agent_instance": agent_instacne,
             "thread_id": thread_id,
             "uid": current_user.uid,
-            "has_image":bool(image_content)
+            "has_image": bool(image_content),
         }
     )
+
+    messages = [human_msg]
+    agent_runtime_context = _build_agent_runtime_context()
+    agent_context = agent_instacne.agent_context()
+    agent_context.update(agent_runtime_context)
+
+    # 确保当前的会话存在
+    conv_repo = ConversationRepository(db)
+
+    await _check_conv_status(
+        conv_repo=conv_repo,
+        thread_id=thread_id,
+        uid=current_user.uid,
+        agent_item=agent_item,
+    )
+    
+    # TODO确保文件相关存在，此处按下不表
+    
+    # 增加langraph的可配置参数，用于给运行中添加有用的参数，无论是模型还是参数，都可以，会直接归纳到configurable **kwargs
+    langgrah_config = {"configurable":{"uid": current_user.uid, "thread_id":thread_id}}
+    
+    # 配置完毕后，引入agent执行
+    agent_instacne.stream_messages(messages, context=agent_context)
+    
+    
 
 
 def _agent_matches_conversation(
@@ -152,22 +232,22 @@ def _build_agent_messages(
     return messages
 
 
-def _build_run_config(
-    agent_id: str,
-    thread_id: str,
-    user_id: str | None,
-    metadata: dict[str, Any] | None,
-) -> dict[str, Any]:
-    configurable: dict[str, Any] = {
-        "agent_id": agent_id,
-        "thread_id": thread_id,
-    }
-    if user_id is not None:
-        configurable["uid"] = str(user_id)
-    return {
-        "configurable": configurable,
-        "metadata": metadata or {},
-    }
+# def _build_run_config(
+#     agent_id: str,
+#     thread_id: str,
+#     user_id: str | None,
+#     metadata: dict[str, Any] | None,
+# ) -> dict[str, Any]:
+#     configurable: dict[str, Any] = {
+#         "agent_id": agent_id,
+#         "thread_id": thread_id,
+#     }
+#     if user_id is not None:
+#         configurable["uid"] = str(user_id)
+#     return {
+#         "configurable": configurable,
+#         "metadata": metadata or {},
+#     }
 
 
 def _message_delta_text(chunk: Any) -> str:

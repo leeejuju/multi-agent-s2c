@@ -1,18 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
+import type { DragEvent, FormEvent, KeyboardEvent } from "react";
 import {
-  AlertCircle,
-  Check,
-  Download,
   FileText,
   Film,
-  Play,
-  Plus,
-  RefreshCw,
   Send,
   Sparkles,
   User,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
@@ -32,7 +25,17 @@ import {
 import CommunityPage from "./components/CommunityPage";
 import NewPromptPage from "./components/NewPromptPage";
 import RecentPage from "./components/RecentPage";
+import ScriptEditorPage, {
+  type AiPanelTab,
+  type EditorQuickAction,
+} from "./components/ScriptEditorPage";
 import ScriptsListPage from "./components/ScriptsListPage";
+import StoryboardEditorPage from "./components/StoryboardEditorPage";
+import {
+  ProfileModal,
+  SlideshowModal,
+  UpdatesModal,
+} from "./components/StudioModals";
 import TrashPage from "./components/TrashPage";
 
 type StudioTab =
@@ -50,8 +53,6 @@ type PromptMode =
   | "writing"
   | "plot"
   | "character";
-
-type AiPanelTab = "tools" | "chat" | "characters";
 
 const sectionInitialTabs: Record<SidebarSectionId, StudioTab> = {
   script: "recent",
@@ -260,33 +261,6 @@ ${prompt}${referenceLine}`;
 ${prompt}${referenceLine}`;
 }
 
-function ModalFrame({
-  children,
-  maxWidth = "max-w-xl",
-  onClose,
-}: {
-  children: ReactNode;
-  maxWidth?: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div
-        className={`bg-white rounded-3xl border border-[#dadad9] p-6 ${maxWidth} w-full relative max-h-[90vh] overflow-y-auto`}
-      >
-        <button
-          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-900 rounded-xl hover:bg-gray-100"
-          onClick={onClose}
-          type="button"
-        >
-          <X size={18} />
-        </button>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 export default function AppView() {
   const navigate = useNavigate();
   const { pageId, sectionId } = useParams<{
@@ -338,8 +312,6 @@ export default function AppView() {
   const [showSlideshow, setShowSlideshow] = useState(false);
   const [slideshowIndex, setSlideshowIndex] = useState(0);
   const [slideshowPlaying, setSlideshowPlaying] = useState(false);
-  const [newProjectAspect, setNewProjectAspect] =
-    useState<VideoProject["aspectRatio"]>("16:9");
 
   const activeVideo = useMemo(
     () => videoProjects.find((project) => project.id === activeVideoId),
@@ -477,7 +449,7 @@ export default function AppView() {
       id: `video-${Date.now()}`,
       title: "未命名影像项目",
       description: "以制作AI影像为目的",
-      aspectRatio: newProjectAspect,
+      aspectRatio: "16:9",
       scenes: [
         {
           id: "scene-1",
@@ -693,7 +665,7 @@ export default function AppView() {
     }, 450);
   };
 
-  const runEditorQuickTool = (action: "continue" | "format" | "character") => {
+  const runEditorQuickTool = (action: EditorQuickAction) => {
     if (!activeScriptId) return;
 
     setEditorGenerating(true);
@@ -728,6 +700,29 @@ export default function AppView() {
 
       setEditorGenerating(false);
     }, 450);
+  };
+
+  const addManualCharacter = () => {
+    const name = window.prompt("输入新角色姓名：");
+    if (!name) return;
+
+    setScriptCharacters((previous) => [
+      ...previous,
+      {
+        id: `char-manual-${Date.now()}`,
+        name,
+        role: window.prompt("输入角色剧作定位 (如：配角、主角)：") || "定位",
+        motivation: window.prompt("核心动机：") || "动机描述",
+        conflict: window.prompt("面临的矛盾冲突：") || "戏剧矛盾",
+        description: window.prompt("外貌或性格描述：") || "暂无详细描述",
+      },
+    ]);
+  };
+
+  const removeCharacter = (id: string) => {
+    setScriptCharacters((previous) =>
+      previous.filter((character) => character.id !== id),
+    );
   };
 
   const generateStoryboardImg = (sceneId: string) => {
@@ -886,681 +881,87 @@ export default function AppView() {
           ) : null}
 
           {activeScriptId ? (
-            <section className="studio-page-script-editor flex-1 min-h-0 overflow-hidden">
-              <div className="flex h-full w-full bg-brand-surface">
-                <div className="flex-1 flex flex-col border-r border-[#e2e2e2] bg-white h-full relative min-w-0">
-                <div className="h-12 border-b border-[#eeeeed] px-4 flex items-center justify-between bg-[#fcfcfc] gap-4">
-                  <div className="flex items-center gap-2 min-w-0 w-1/2">
-                    <input
-                      className="text-base font-bold text-gray-900 border-b border-transparent hover:border-gray-300 focus:border-brand-primary focus:outline-none px-1 py-0.5 w-full bg-transparent"
-                      onChange={(event) => setScriptTitle(event.target.value)}
-                      type="text"
-                      value={scriptTitle}
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {[
-                      ["场景", "\n场景：[INT/EXT. 地点 - 时间]\n"],
-                      ["动作", "\n动作段落...\n"],
-                      ["对话", "\n角色名\n（神态姿势）\n【对话】\n"],
-                    ].map(([label, insert]) => (
-                      <button
-                        className="px-2.5 py-1 text-[11px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
-                        key={label}
-                        onClick={() =>
-                          setScriptContent((previous) => previous + insert)
-                        }
-                        type="button"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    <span className="w-px h-5 bg-gray-200 mx-1" />
-                    <button
-                      className="p-1.5 hover:bg-gray-100 text-gray-600 hover:text-gray-900 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold"
-                      onClick={exportAsTxt}
-                      type="button"
-                    >
-                      <Download size={15} />
-                      <span className="hidden sm:inline">导出</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 p-8 overflow-y-auto screenplay-editor bg-[#fdfdfc] flex justify-center">
-                  <div className="w-full max-w-[650px] relative">
-                    <textarea
-                      className="w-full h-[85vh] bg-transparent border-none outline-none focus:ring-0 font-mono text-sm leading-relaxed text-gray-800 resize-none placeholder-gray-400"
-                      onChange={(event) => setScriptContent(event.target.value)}
-                      placeholder={"/* 在此输入标准好莱坞格式剧本 */\n\n场景：INT. 鼓楼小剧场 - 深夜\n\n一阵干冰白雾渐渐消退。陈野在微弱聚光灯下俯身捡起一只纸飞机。"}
-                      value={scriptContent}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <aside className="w-80 flex-shrink-0 flex flex-col bg-[#f3f4f3] border-l border-[#e2e2e2] h-full">
-                <div className="flex border-b border-[#eeeeed]">
-                  {[
-                    ["tools", "AI 诊治工具"],
-                    ["chat", "创意对话"],
-                    ["characters", `角色卡 (${scriptCharacters.length})`],
-                  ].map(([tab, label]) => (
-                    <button
-                      className={`flex-1 py-3 text-xs font-bold border-b-2 transition-all ${
-                        aiPanelTab === tab
-                          ? "border-brand-primary text-brand-primary bg-white"
-                          : "border-transparent text-gray-500 hover:bg-gray-100"
-                      }`}
-                      key={tab}
-                      onClick={() => setAiPanelTab(tab as AiPanelTab)}
-                      type="button"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                {aiPanelTab === "tools" ? (
-                  <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                    <div className="bg-white rounded-xl border border-gray-200 p-4">
-                      <h4 className="text-xs font-bold text-gray-900 mb-2 flex items-center gap-1">
-                        <Sparkles size={14} className="text-amber-500" />
-                        <span>即时 AI 剧作助理</span>
-                      </h4>
-                      <p className="text-[11px] text-gray-500 leading-normal mb-3">
-                        基于双子星模型。我们将提取您的当前剧情并执行智能补完或修正。
-                      </p>
-                      <div className="space-y-2">
-                        <EditorToolButton
-                          busy={editorGenerating}
-                          icon={Plus}
-                          label="续写下一幕"
-                          onClick={() => runEditorQuickTool("continue")}
-                          primary
-                        />
-                        <EditorToolButton
-                          busy={editorGenerating}
-                          icon={FileText}
-                          label="智能格式化整顿"
-                          onClick={() => runEditorQuickTool("format")}
-                        />
-                        <EditorToolButton
-                          busy={editorGenerating}
-                          icon={User}
-                          label="提炼本剧场角色设定"
-                          onClick={() => runEditorQuickTool("character")}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="bg-amber-50/70 rounded-xl border border-amber-200 p-3 flex gap-2">
-                      <AlertCircle
-                        className="text-amber-600 flex-shrink-0 mt-0.5"
-                        size={16}
-                      />
-                      <div className="text-[10px] text-amber-800 leading-normal">
-                        <strong>排版提示：</strong>
-                        好莱坞标准格式通常包含 SCENE SLUGLINE
-                        (大写)、CHARACTER NAMES
-                        居中、以及动作段落的精炼描写。点击上面“智能格式化”可一键整容。
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                {aiPanelTab === "chat" ? (
-                  <div className="flex-grow flex flex-col justify-between overflow-hidden">
-                    <div className="flex-1 p-4 overflow-y-auto space-y-3">
-                      {aiMessages.map((message, index) => (
-                        <div
-                          className={`max-w-[85%] rounded-xl p-3 text-xs leading-relaxed shadow-sm ${
-                            message.sender === "user"
-                              ? "bg-brand-primary text-white ml-auto rounded-tr-none"
-                              : "bg-white text-gray-800 rounded-tl-none border border-gray-200"
-                          }`}
-                          key={`${message.sender}-${index}`}
-                        >
-                          {message.text}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-3 bg-white border-t border-[#eeeeed] flex items-center gap-2">
-                      <input
-                        className="flex-1 text-xs bg-[#f3f4f3] px-3 py-2 rounded-lg border border-transparent focus:border-gray-300 focus:outline-none"
-                        onChange={(event) => setAiChatInput(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") handleSendEditorChat();
-                        }}
-                        placeholder="给智能剧本助手提建议..."
-                        type="text"
-                        value={aiChatInput}
-                      />
-                      <button
-                        className="p-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/95 transition-colors"
-                        onClick={handleSendEditorChat}
-                        type="button"
-                      >
-                        <Send size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {aiPanelTab === "characters" ? (
-                  <div className="flex-grow p-4 overflow-y-auto space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-gray-500">
-                        剧场演员 / 角色库
-                      </span>
-                      <button
-                        className="text-[10px] bg-brand-primary text-white hover:bg-brand-primary/90 px-2 py-1 rounded-lg font-bold"
-                        onClick={() => {
-                          const name = window.prompt("输入新角色姓名：");
-                          if (!name) return;
-                          const newCharacter: Character = {
-                            id: `char-manual-${Date.now()}`,
-                            name,
-                            role:
-                              window.prompt("输入角色剧作定位 (如：配角、主角)：") ||
-                              "定位",
-                            motivation: window.prompt("核心动机：") || "动机描述",
-                            conflict:
-                              window.prompt("面临的矛盾冲突：") || "戏剧矛盾",
-                            description:
-                              window.prompt("外貌或性格描述：") || "暂无详细描述",
-                          };
-                          setScriptCharacters((previous) => [
-                            ...previous,
-                            newCharacter,
-                          ]);
-                        }}
-                        type="button"
-                      >
-                        + 手动新增
-                      </button>
-                    </div>
-                    {scriptCharacters.length === 0 ? (
-                      <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-200 text-xs text-gray-400">
-                        当前尚无角色，可以前往“AI 诊治工具”一键分析提炼！👤
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {scriptCharacters.map((character) => (
-                          <div
-                            className="bg-white rounded-xl border border-gray-200 p-3 text-xs relative group"
-                            key={character.id}
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="font-bold text-gray-900">
-                                {character.name}
-                              </span>
-                              <span className="text-[10px] text-brand-secondary bg-brand-secondary/10 px-1.5 py-0.5 rounded-full font-bold">
-                                {character.role}
-                              </span>
-                            </div>
-                            <div className="text-gray-600 mt-1 space-y-1">
-                              <p>
-                                <strong className="text-gray-800">动机:</strong>{" "}
-                                {character.motivation}
-                              </p>
-                              <p>
-                                <strong className="text-gray-800">冲突:</strong>{" "}
-                                {character.conflict}
-                              </p>
-                              <p className="text-gray-400 border-t border-[#f3f4f3] pt-1 mt-1 text-[11px] leading-relaxed">
-                                {character.description}
-                              </p>
-                            </div>
-                            <button
-                              className="absolute top-2 right-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() =>
-                                setScriptCharacters((previous) =>
-                                  previous.filter(
-                                    (item) => item.id !== character.id,
-                                  ),
-                                )
-                              }
-                              type="button"
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-                </aside>
-              </div>
-            </section>
+            <ScriptEditorPage
+              aiChatInput={aiChatInput}
+              aiMessages={aiMessages}
+              aiPanelTab={aiPanelTab}
+              characters={scriptCharacters}
+              content={scriptContent}
+              editorGenerating={editorGenerating}
+              onAddCharacter={addManualCharacter}
+              onAiChatInputChange={setAiChatInput}
+              onAiPanelTabChange={setAiPanelTab}
+              onContentChange={setScriptContent}
+              onExport={exportAsTxt}
+              onQuickTool={runEditorQuickTool}
+              onRemoveCharacter={removeCharacter}
+              onSendEditorChat={handleSendEditorChat}
+              onTitleChange={setScriptTitle}
+              title={scriptTitle}
+            />
           ) : null}
 
           {activeVideoId && activeVideo ? (
-            <section className="studio-page-storyboard flex-1 min-h-0 overflow-hidden">
-              <div className="flex flex-col h-full bg-brand-surface">
-                <div className="flex-1 flex flex-col md:flex-row h-full">
-                  <div className="flex-1 p-6 overflow-y-auto space-y-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <span className="text-xs font-mono text-brand-secondary uppercase tracking-widest font-bold">
-                        VISION STORYBOARD BOARD
-                      </span>
-                      <h2 className="text-xl font-bold text-gray-900 mt-0.5">
-                        {activeVideo.title}
-                      </h2>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="bg-brand-primary hover:bg-brand-primary/95 text-white text-xs px-4 py-2 rounded-xl font-bold transition-all shadow-sm flex items-center gap-1.5"
-                        onClick={() => {
-                          setShowSlideshow(true);
-                          setSlideshowIndex(0);
-                          setSlideshowPlaying(true);
-                        }}
-                        type="button"
-                      >
-                        <Play size={13} fill="currentColor" />
-                        <span>播放分镜预告</span>
-                      </button>
-                      <button
-                        className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 text-xs px-3 py-2 rounded-xl font-bold shadow-sm flex items-center gap-1"
-                        onClick={addSceneToActiveVideo}
-                        type="button"
-                      >
-                        <Plus size={14} />
-                        <span>添加幕节</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {currentScene ? (
-                    <div className="bg-white rounded-3xl border border-[#dadad9] p-6 shadow-md grid grid-cols-1 lg:grid-cols-12 gap-6 relative overflow-hidden">
-                      <div className="lg:col-span-7 flex flex-col justify-between">
-                        <div className="relative bg-black rounded-2xl border border-gray-200 overflow-hidden group aspect-video">
-                          {currentScene.imageUrl ? (
-                            <img
-                              alt=""
-                              className="w-full h-full object-cover"
-                              src={currentScene.imageUrl}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-center text-gray-400 p-4">
-                              <Film size={40} className="text-gray-300 mb-2" />
-                              <p className="text-xs font-semibold">无分镜示意图</p>
-                              <p className="text-[10px] text-gray-500 mt-1">
-                                输入右侧场景描述，让 AI 生成专属故事底版
-                              </p>
-                            </div>
-                          )}
-
-                          {storyboardGenerating ? (
-                            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
-                              <RefreshCw
-                                className="animate-spin text-brand-secondary mb-2"
-                                size={32}
-                              />
-                              <p className="text-xs font-semibold">
-                                AI 故事板极速生成中...
-                              </p>
-                              <p className="text-[10px] text-gray-400 mt-1">
-                                使用双子星图像矩阵芯片渲染
-                              </p>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-3">
-                          <span className="text-[11px] text-gray-400 font-bold block mb-1">
-                            精美电影感预设图片底稿：
-                          </span>
-                          <div className="flex gap-2">
-                            {presetStoryboardImages.map((url) => (
-                              <button
-                                className="w-12 h-9 rounded overflow-hidden border border-gray-200 hover:border-brand-secondary transition-all"
-                                key={url}
-                                onClick={() =>
-                                  updateActiveScene((scene) => ({
-                                    ...scene,
-                                    imageUrl: url,
-                                  }))
-                                }
-                                type="button"
-                              >
-                                <img
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                  src={url}
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="lg:col-span-5 flex flex-col justify-between">
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-[10px] text-gray-400 font-bold block mb-1">
-                              分镜幕节标题
-                            </label>
-                            <input
-                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:border-brand-secondary focus:bg-white transition-all"
-                              onChange={(event) =>
-                                updateActiveScene((scene) => ({
-                                  ...scene,
-                                  title: event.target.value,
-                                }))
-                              }
-                              type="text"
-                              value={currentScene.title}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-gray-400 font-bold block mb-1">
-                              画面视觉提示 / 导演指导（AI绘图参考）
-                            </label>
-                            <textarea
-                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs leading-relaxed text-gray-700 focus:outline-none focus:border-brand-secondary focus:bg-white transition-all resize-none"
-                              onChange={(event) =>
-                                updateActiveScene((scene) => ({
-                                  ...scene,
-                                  scriptText: event.target.value,
-                                }))
-                              }
-                              rows={5}
-                              value={currentScene.scriptText}
-                            />
-                          </div>
-                        </div>
-                        <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-between gap-4">
-                          <button
-                            className="text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                            onClick={removeActiveScene}
-                            type="button"
-                          >
-                            删除本幕
-                          </button>
-                          <button
-                            className="bg-brand-secondary hover:bg-brand-secondary/95 text-white text-xs px-4 py-2 rounded-xl font-bold shadow-sm flex items-center gap-1.5 cursor-pointer"
-                            disabled={storyboardGenerating}
-                            onClick={() => generateStoryboardImg(currentScene.id)}
-                            type="button"
-                          >
-                            <Sparkles size={13} />
-                            <span>AI 智能绘图</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div>
-                    <h3 className="text-xs font-bold text-gray-500 mb-3">
-                      分镜幕节列表 ({activeVideo.scenes.length})
-                    </h3>
-                    <div className="flex gap-4 overflow-x-auto pb-4">
-                      {activeVideo.scenes.map((scene, index) => (
-                        <button
-                          className={`flex-shrink-0 w-44 bg-white rounded-2xl border-2 p-3 cursor-pointer transition-all text-left ${
-                            activeSceneIndex === index
-                              ? "border-brand-secondary shadow-md scale-[1.02]"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
-                          key={scene.id}
-                          onClick={() => setActiveSceneIndex(index)}
-                          type="button"
-                        >
-                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2 border border-gray-200">
-                            {scene.imageUrl ? (
-                              <img
-                                alt=""
-                                className="w-full h-full object-cover"
-                                src={scene.imageUrl}
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
-                                未渲染
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-brand-secondary font-mono block font-bold">
-                            ACT {index + 1}
-                          </span>
-                          <h4 className="text-xs font-bold text-gray-900 truncate mt-0.5">
-                            {scene.title}
-                          </h4>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                </div>
-              </div>
-            </section>
+            <StoryboardEditorPage
+              activeSceneIndex={activeSceneIndex}
+              currentScene={currentScene}
+              generating={storyboardGenerating}
+              onActiveSceneChange={setActiveSceneIndex}
+              onAddScene={addSceneToActiveVideo}
+              onGenerateScene={generateStoryboardImg}
+              onPlay={() => {
+                setShowSlideshow(true);
+                setSlideshowIndex(0);
+                setSlideshowPlaying(true);
+              }}
+              onRemoveScene={removeActiveScene}
+              onSceneChange={(scene) => updateActiveScene(() => scene)}
+              presetImages={presetStoryboardImages}
+              project={activeVideo}
+            />
           ) : null}
         </>
       </main>
 
       {showUpdatesModal ? (
-        <ModalFrame onClose={() => setShowUpdatesModal(false)}>
-          <h3 className="text-lg font-bold text-gray-900 font-display mb-4">
-            📢 剧画研发部发布：产品更新公告
-          </h3>
-          <div className="space-y-6">
-            {initialUpdateNotes.map((note) => (
-              <div
-                className="border-b border-gray-100 pb-5 last:border-none last:pb-0"
-                key={note.id}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-brand-primary font-mono bg-brand-primary/10 px-2 py-0.5 rounded-full">
-                    {note.version}
-                  </span>
-                  <span className="text-xs text-gray-400 font-mono">
-                    {note.date}
-                  </span>
-                </div>
-                <h4 className="text-sm font-bold text-gray-800 mt-2">
-                  {note.title}
-                </h4>
-                <ul className="mt-3 space-y-2">
-                  {note.highlights.map((item) => (
-                    <li
-                      className="text-xs text-gray-600 flex gap-2 items-start leading-relaxed"
-                      key={item}
-                    >
-                      <Check
-                        className="text-brand-secondary flex-shrink-0 mt-0.5"
-                        size={14}
-                      />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </ModalFrame>
+        <UpdatesModal
+          notes={initialUpdateNotes}
+          onClose={() => setShowUpdatesModal(false)}
+        />
       ) : null}
 
       {showProfileModal ? (
-        <ModalFrame maxWidth="max-w-sm" onClose={() => setShowProfileModal(false)}>
-          <div className="text-center mb-5">
-            <div className="w-16 h-16 rounded-full bg-brand-secondary text-white text-2xl font-bold flex items-center justify-center mx-auto mb-3 shadow-md">
-              LE
-            </div>
-            <h3 className="text-base font-bold text-gray-900">个人账户设置</h3>
-            <p className="text-xs text-gray-400">管理您的编剧笔名和创作偏好</p>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-gray-500 block mb-1 font-semibold">
-                编剧笔名
-              </label>
-              <input
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand-primary focus:bg-white transition-all"
-                onChange={(event) => setUsername(event.target.value)}
-                type="text"
-                value={username}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 block mb-1 font-semibold">
-                开发者 API Key
-              </label>
-              <div className="p-2.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between text-xs text-gray-500">
-                <span>已通过 AI Studio 安全注入</span>
-                <span className="text-[10px] bg-green-500/10 text-green-700 px-1.5 py-0.5 rounded-full font-bold">
-                  已就绪
-                </span>
-              </div>
-            </div>
-            <div className="bg-[#fcfcfc] rounded-xl border border-gray-100 p-3 text-[11px] text-gray-500 space-y-1">
-              <p>
-                <strong>当前身份:</strong> 实习编剧 (Junior)
-              </p>
-              <p>
-                <strong>注册邮箱:</strong> QQ1224307033@gmail.com
-              </p>
-              <p>
-                <strong>物理节点:</strong> 中国 湖北 武汉
-              </p>
-            </div>
-            <button
-              className="w-full py-2 bg-brand-primary text-white hover:bg-brand-primary/95 text-xs font-bold rounded-xl shadow-sm transition-all text-center cursor-pointer"
-              onClick={() => setShowProfileModal(false)}
-              type="button"
-            >
-              保存并退出
-            </button>
-          </div>
-        </ModalFrame>
+        <ProfileModal
+          onClose={() => setShowProfileModal(false)}
+          onUsernameChange={setUsername}
+          username={username}
+        />
       ) : null}
 
       {showSlideshow && activeVideo ? (
-        <div className="fixed inset-0 bg-black/95 z-50 flex flex-col justify-between p-6 text-white animate-fade-in">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-xs text-brand-secondary font-mono uppercase tracking-widest font-bold">
-                CINEMATIC PREVIEW SLIDESHOW
-              </span>
-              <h3 className="text-lg font-bold mt-0.5">{activeVideo.title}</h3>
-            </div>
-            <button
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
-              onClick={() => {
-                setShowSlideshow(false);
-                setSlideshowPlaying(false);
-              }}
-              type="button"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto my-8 relative w-full">
-            <div className="w-full aspect-video rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative bg-black">
-              {activeVideo.scenes[slideshowIndex]?.imageUrl ? (
-                <img
-                  alt=""
-                  className="w-full h-full object-cover animate-pulse-slow transition-all duration-700"
-                  src={activeVideo.scenes[slideshowIndex].imageUrl}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-500">
-                  无此幕预览图
-                </div>
-              )}
-              <div className="absolute bottom-6 left-6 right-6 bg-black/70 backdrop-blur-md p-4 rounded-2xl border border-white/10 text-center animate-slide-up">
-                <p className="text-[11px] text-brand-secondary font-mono tracking-widest uppercase font-bold mb-1">
-                  ACT {slideshowIndex + 1} / {activeVideo.scenes.length} •{" "}
-                  {activeVideo.scenes[slideshowIndex]?.title}
-                </p>
-                <p className="text-sm leading-relaxed text-gray-100 font-sans select-none max-w-2xl mx-auto">
-                  {activeVideo.scenes[slideshowIndex]?.scriptText}
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="absolute top-1/2 -translate-y-1/2 left-4 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              onClick={() => {
-                setSlideshowIndex((previous) =>
-                  previous === 0 ? activeVideo.scenes.length - 1 : previous - 1,
-                );
-                setSlideshowPlaying(false);
-              }}
-              type="button"
-            >
-              ←
-            </button>
-            <button
-              className="absolute top-1/2 -translate-y-1/2 right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              onClick={() => {
-                setSlideshowIndex((previous) =>
-                  previous === activeVideo.scenes.length - 1 ? 0 : previous + 1,
-                );
-                setSlideshowPlaying(false);
-              }}
-              type="button"
-            >
-              →
-            </button>
-          </div>
-
-          <div className="flex items-center justify-center gap-4 py-2 border-t border-white/10">
-            <button
-              className="px-6 py-2 bg-brand-secondary text-white rounded-full text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
-              onClick={() => setSlideshowPlaying(!slideshowPlaying)}
-              type="button"
-            >
-              {slideshowPlaying ? (
-                <>
-                  <span className="w-2 h-2 rounded bg-white inline-block animate-ping" />
-                  <span>正在播放幻灯分镜</span>
-                </>
-              ) : (
-                <span>继续自动轮播</span>
-              )}
-            </button>
-          </div>
-        </div>
+        <SlideshowModal
+          index={slideshowIndex}
+          onClose={() => {
+            setShowSlideshow(false);
+            setSlideshowPlaying(false);
+          }}
+          onNext={() => {
+            setSlideshowIndex((previous) =>
+              previous === activeVideo.scenes.length - 1 ? 0 : previous + 1,
+            );
+            setSlideshowPlaying(false);
+          }}
+          onPrevious={() => {
+            setSlideshowIndex((previous) =>
+              previous === 0 ? activeVideo.scenes.length - 1 : previous - 1,
+            );
+            setSlideshowPlaying(false);
+          }}
+          onTogglePlaying={() => setSlideshowPlaying((previous) => !previous)}
+          playing={slideshowPlaying}
+          project={activeVideo}
+        />
       ) : null}
     </div>
-  );
-}
-
-function EditorToolButton({
-  busy,
-  icon: Icon,
-  label,
-  onClick,
-  primary = false,
-}: {
-  busy: boolean;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-  primary?: boolean;
-}) {
-  return (
-    <button
-      className={`w-full py-2 text-xs font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-        primary
-          ? "bg-brand-primary text-white hover:bg-brand-primary/95"
-          : "bg-white hover:bg-gray-50 border border-gray-200 text-gray-800"
-      }`}
-      disabled={busy}
-      onClick={onClick}
-      type="button"
-    >
-      {busy ? (
-        <RefreshCw size={13} className="animate-spin" />
-      ) : (
-        <Icon size={14} className={primary ? "" : "text-gray-500"} />
-      )}
-      <span>{label}</span>
-    </button>
   );
 }
