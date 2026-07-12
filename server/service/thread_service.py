@@ -1,4 +1,3 @@
-import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -11,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.agents.base_agent import BaseAgent
-from src.database import Agent, Message, User
+from src.database import Agent, User
 from src.database.repositories import AgentRepository, ConversationRepository
 
 
@@ -85,7 +84,7 @@ async def _build_agent_runtime(
 
 async def _build_agent_runtime_context(
     uid: str, run_id: str, thread_id: str, request_id: str
-):
+) -> dict[str, str]:
     agent_runtime_context = {}
     agent_system_prompt = "test_Agent_prompt"
     agent_runtime_context.update(
@@ -97,34 +96,36 @@ async def _build_agent_runtime_context(
             "system_prompt": agent_system_prompt,
         }
     )
+    # FIXME: 调用方需要拿到该字典来构造 Agent 的运行上下文。
+    return agent_runtime_context
 
 
 async def _check_conv_status(
     *, conv_repo: ConversationRepository, thread_id: str, uid: str, agent_item: Agent
 ):
     """确保当前的conv存在"""
-    current_conv = conv_repo.get_conversation_by_thead_id(thread_id)
+    # FIXME: run 只能使用已经创建且属于当前用户的 Conversation。
+    current_conv = await conv_repo.get_conversation_by_thread_id_for_user(
+        thread_id=thread_id,
+        user_id=uid,
+    )
     if not current_conv:
-        conv_repo.create_conversation(
-            uid=uid,
-            thread_id=thread_id,
-            agent_id=agent_item.slug,
-            conversation_metadata={"backend_id": agent_item.backend_id},
-        )
-        return
-    
+        raise ValueError(f"当前会话不存在：{thread_id}")
+    if current_conv.agent_id != agent_item.slug:
+        raise ValueError(f"当前会话未绑定智能体：{agent_item.slug}")
+
     # TODO 其他的错点
 
 
-async def stream_thread_response(
+async def stream_agent_response(
     *,
     agent_slug: str,
     thread_id: str,
-    runtime_metadata: dict[str, Any] | None = None,
+    runtime_metadata: dict,
     thread_input_message: AgentInputMsg,
     current_user: AuthenticatedUser,
     db: AsyncSession,
-) -> AsyncIterator[bytes]:
+) -> AsyncIterator[Any]:
     """前端发送的内容产生消息流
 
     Args:
@@ -138,13 +139,20 @@ async def stream_thread_response(
     Returns:
         AsyncIterator[bytes]: _description_
     """
-
-    # 记录执行事件
-    start_time = asyncio.get_event_loop().time()
-
     # guard
     if not thread_id:
         thread_id = str(uuid.uuid4())
+
+    def stream_agent_chunk(content = None, **kwargs):
+        """封装agent产生的chunk"""
+        return (json.dumps(
+            obj={
+                "thread_id":thread_id,
+                "request_id":runtime_metadata.get("request_id", "")
+                **kwargs
+            },
+            ensure_ascii=False).encode("utf-8"))
+
 
     runtime_metadata = dict(runtime_metadata or {})
 
@@ -155,7 +163,6 @@ async def stream_thread_response(
     # 抽取agent执行的元数据
     query: str = thread_input_message.content
     image_content: str | None = thread_input_message.image_content
-    msg_type: str = thread_input_message.msg_type
     human_msg: HumanMessage = thread_input_message.langchain_msg
 
     # 根据agent_id解析 agent 的运行配置
@@ -165,7 +172,8 @@ async def stream_thread_response(
         user=current_user,
         thread_id=thread_id,
         db=db,
-        agent_type=runtime_metadata.get("run_type", ""),
+        # FIXME: 当前 Worker 只执行顶层 Agent；缺省值必须能命中 father 查询分支。
+        agent_type=runtime_metadata.get("run_type") or "father",
     )
 
     runtime_metadata.update(
@@ -180,9 +188,12 @@ async def stream_thread_response(
     )
 
     messages = [human_msg]
-    agent_runtime_context = _build_agent_runtime_context()
-    agent_context = agent_instacne.agent_context()
-    agent_context.update(agent_runtime_context)
+    agent_runtime_context = await _build_agent_runtime_context(
+        uid=current_user.uid,  # ty:ignore[invalid-argument-type]
+        run_id=runtime_metadata.get("run_id"),# ty:ignore[invalid-argument-type]
+        thread_id=thread_id,
+        request_id=runtime_metadata.get("request_id")  # ty:ignore[invalid-argument-type]
+    )
 
     # 确保当前的会话存在
     conv_repo = ConversationRepository(db)
@@ -190,82 +201,19 @@ async def stream_thread_response(
     await _check_conv_status(
         conv_repo=conv_repo,
         thread_id=thread_id,
-        uid=current_user.uid,
+        uid=current_user.uid,  # ty:ignore[invalid-argument-type]
         agent_item=agent_item,
     )
-    
+
     # TODO确保文件相关存在，此处按下不表
-    
-    # 增加langraph的可配置参数，用于给运行中添加有用的参数，无论是模型还是参数，都可以，会直接归纳到configurable **kwargs
-    langgrah_config = {"configurable":{"uid": current_user.uid, "thread_id":thread_id}}
-    
-    # 配置完毕后，引入agent执行
-    agent_instacne.stream_messages(messages, context=agent_context)
-    
-    
 
-
-def _agent_matches_conversation(
-    agent: BaseAgent,
-    requested_agent_id: str,
-    conversation_agent_id: str,
-) -> bool:
-    accepted_ids = {
-        requested_agent_id,
-        agent.name,
-        agent.module_name,
-        agent.id(),
-    }
-    return conversation_agent_id in accepted_ids
-
-
-def _build_agent_messages(
-    history: list[Message],
-    thread_input_message: str,
-) -> list[dict[str, str]]:
-    messages = [
-        {"role": message.role, "content": message.content}
-        for message in history
-        if message.role in {"user", "assistant", "system"} and message.content
-    ]
-    messages.append({"role": "user", "content": thread_input_message})
-    return messages
-
-
-# def _build_run_config(
-#     agent_id: str,
-#     thread_id: str,
-#     user_id: str | None,
-#     metadata: dict[str, Any] | None,
-# ) -> dict[str, Any]:
-#     configurable: dict[str, Any] = {
-#         "agent_id": agent_id,
-#         "thread_id": thread_id,
-#     }
-#     if user_id is not None:
-#         configurable["uid"] = str(user_id)
-#     return {
-#         "configurable": configurable,
-#         "metadata": metadata or {},
-#     }
-
-
-def _message_delta_text(chunk: Any) -> str:
-    content = getattr(chunk, "content", chunk)
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                text = item.get("text") or item.get("content")
-                if isinstance(text, str):
-                    parts.append(text)
-        return "".join(parts)
-    return ""
-
-
-def _jsonl_bytes(payload: dict[str, Any]) -> bytes:
-    return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+    # FIXME: 通过 runtime_context 传值，避免把 context 重复透传给 astream_events。
+    async for method, payload in agent_instacne.stream_messages_with_event(
+        messages,  # ty:ignore[invalid-argument-type]
+        runtime_context=agent_runtime_context,
+    ):
+        print(method, payload)
+        # if method == "messages":
+        #     # FIXME: 原型阶段直接透传真实的 v3 messages payload，供 Worker 打印验证。
+        #     logger.info(f"messages 模式下输出为{payload}")
+        #     yield payload

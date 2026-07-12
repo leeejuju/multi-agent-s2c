@@ -25,7 +25,8 @@ router = APIRouter(prefix="/chat", tags=["chat会话"])
 
 class ThreadRequest(BaseModel):
     title: str | None = None
-    summary: str | None 
+    # FIXME: 可空字段必须提供默认值，否则 Pydantic 仍会把它当成必填参数。
+    summary: str | None = None
     agent_id: str
     metadata: dict | None = None
     
@@ -51,20 +52,26 @@ async def create_thread(
         ARQ拿着id入队，redis执行生成任务。前端只需要拿事件id去队列消费就可以了，就是完全的解耦
     """
     user_result = await db.execute(select(User).where(User.uid == current_user.uid))
-    
-    if not user_result:
-        logger.exception(f"用户：{user_result}，不存在")
+    # FIXME: Result 对象本身恒为真，必须检查实际查询出的 User。
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        logger.error(f"用户：{current_user.uid}，不存在")
         raise HTTPException(status_code=404, detail="用户不存在")
     
     # OPTIMIZE
     agent_repo = AgentRepository(db)
-    agent_result = await agent_repo.get_by_slug(thread.agent_id)
+    # FIXME: 创建顶层对话时显式按 father 类型解析 Agent。
+    agent_result = await agent_repo.get_agent_by_slug(
+        agent_slug=thread.agent_id,
+        agent_type="father",
+    )
     
     if not agent_result:
         logger.exception(f"智能体：{agent_result} 不存在")
         raise HTTPException(status_code=404, detail="智能体不存在")
     
-    title = thread.title
+    # FIXME: Conversation.title 不允许为空，原型阶段提供最小默认标题。
+    title = thread.title or "新对话"
     summary = thread.summary
     
     thread_id = str(uuid.uuid4())
@@ -84,8 +91,9 @@ async def create_thread(
         summary=summary,
         conversation_metadata=thead_meatadata)
     
+    # FIXME: 返回字段必须与 ThreadResponse.thread_id 对齐。
     return {
-      "id": conversation.thread_id,
+      "thread_id": conversation.thread_id,
       "uid": conversation.uid,
       "agent_id": conversation.agent_id,
       "title": conversation.title,
@@ -197,7 +205,8 @@ def _is_allowed_file(
 
 @router.get("/agents", response_model=list[AgentSummary])
 async def list_agent_summaries(current_user: AuthenticatedUser):
-    return [AgentSummary(**agent) for agent in agent_manager.list_agents()]
+    # FIXME: 公开列表只返回已由启动流程写入数据库的顶层 Agent。
+    return [AgentSummary(**agent) for agent in agent_manager.list_top_level_agents()]
 
 
 async def _upload_attachments(
@@ -344,5 +353,3 @@ async def upload_tmp_attachments(
         files=files,
         current_user=current_user,
     )
-
-

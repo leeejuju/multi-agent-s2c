@@ -9,6 +9,8 @@ from src.agents.base_agent import BaseAgent
 class AgentManager:
     def __init__(self) -> None:
         self._instances: dict[str, BaseAgent] = {}
+        # FIXME: 单独记录顶层 Agent，避免把内部 subagent 暴露为可创建会话的 Agent。
+        self._top_level_ids: set[str] = set()
         self._setup_agent()
 
     def _setup_agent(self) -> None:
@@ -26,13 +28,18 @@ class AgentManager:
                     module = importlib.import_module(
                         f"src.agents.subagents.{sub_path.name}"
                     )
-                    self._register_agents_from_module(module)
+                    self._register_agents_from_module(module, is_subagent=True)
                 continue
 
             module = importlib.import_module(f"src.agents.{path.name}")
-            self._register_agents_from_module(module)
+            self._register_agents_from_module(module, is_subagent=False)
 
-    def _register_agents_from_module(self, module: ModuleType) -> None:
+    def _register_agents_from_module(
+        self,
+        module: ModuleType,
+        *,
+        is_subagent: bool,
+    ) -> None:
         for name, obj in inspect.getmembers(module):
             if (
                 inspect.isclass(obj)
@@ -40,6 +47,8 @@ class AgentManager:
                 and issubclass(obj, BaseAgent)
             ):
                 self._instances[name] = obj()
+                if not is_subagent:
+                    self._top_level_ids.add(name)
 
     def get_agent(self, agent_id: str) -> BaseAgent:
         if agent_id in self._instances:
@@ -54,6 +63,17 @@ class AgentManager:
                 "description": agent.description,
             }
             for agent_id, agent in sorted(self._instances.items())
+        ]
+
+    def list_top_level_agents(self) -> list[dict[str, str]]:
+        # FIXME: 数据库初始化和公开列表必须使用同一份顶层 Agent 清单。
+        return [
+            {
+                "id": agent_id,
+                "name": self._instances[agent_id].name,
+                "description": self._instances[agent_id].description,
+            }
+            for agent_id in sorted(self._top_level_ids)
         ]
 
 

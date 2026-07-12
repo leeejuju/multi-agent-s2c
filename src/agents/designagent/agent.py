@@ -18,6 +18,8 @@ class DesignAgent(BaseAgent):
     name = "design_agent"
     description = "总设计师"
     context = DesignAgentContext
+    # FIXME: BaseAgent 当前通过 agent_context 构造运行上下文，先与现有子类字段对齐。
+    agent_context = DesignAgentContext
 
     def __init__(self):
         pass
@@ -28,12 +30,14 @@ class DesignAgent(BaseAgent):
     
 
     def get_agent(self, context=None) -> CompiledStateGraph:
+        # FIXME: create_agent 需要 context schema 类型，而不是本次运行的 context 实例。
+        runtime_context = context or self.context()
         search_agent = SearchAgent().get_agent()
         agent = create_agent(
             model=load_model(sys_config.default_model),
             tools=[],
-            system_prompt=self.context.system_prompt,
-            context_schema=context,
+            system_prompt=runtime_context.system_prompt,
+            context_schema=type(runtime_context),
             checkpointer=self.get_checkpointer(),
             middleware=[
                 SubAgentMiddleware(
