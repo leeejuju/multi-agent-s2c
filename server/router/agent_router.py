@@ -3,13 +3,15 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.service.agent_run_service import enqueue_agent_run, stream_agent_run_events
 from server.utils.auth import AuthenticatedUser
+from src.configs import config
 from src.database import get_db
 from src.database.models import Message, User
 from src.database.repositories import AgentRunRepository, ConversationRepository
@@ -34,14 +36,14 @@ class AgentRunCreateRequest(BaseModel):
     
 
 @agent_router.post("")
-def create_agen():
+def create_agent():
     """用户自己的创建智能体"""
     # TODO 待做，不需要也可，因为很多人不知道怎么才算合格
     pass
 
 
 @agent_router.post("/runs")
-async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
+async def create_agent_run(agentrun_request: AgentRunCreateRequest,
                     current_user: AuthenticatedUser,
                     db:AsyncSession = Depends(get_db)):
     """解耦对话的设计，这里创建消息事件流，前端只需拿着事件流去消费就可以。记住每次的新消息(上一事件完结后)
@@ -49,21 +51,29 @@ async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
     
     """
     
+    # FIXME: /agent/runs 当前只实现 ARQ 的 run_id 驱动闭环，禁用队列时不要留下无法执行的 run。
+    if not config.enable_run_queue:
+        raise HTTPException(
+            status_code=503,
+            detail="请开启ARQ队列模式",
+        )
+
     query = agentrun_request.query
     thread_id = agentrun_request.thread_id
     agent_id = agentrun_request.agent_id 
     thread_meatadata = agentrun_request.thread_metadata
-    is_resume = agentrun_request.is_resume
     parent_run_id = agentrun_request.parent_run_id
     
     current_uid = current_user.uid
     
     conv_repo = ConversationRepository(db)
     
-    if thread_meatadata.get("reuqest_id"):
-        reuqest_id: str = thread_meatadata.get("reuqest_id")  
-    else:
-        reuqest_id = str(uuid.uuid4())
+    # FIXME: 统一使用 request_id；兼容旧拼写键，避免现有调用立即失效。
+    request_id = (
+        thread_meatadata.get("request_id")
+        or thread_meatadata.get("reuqest_id")
+        or str(uuid.uuid4())
+    )
         
     
     # TODO 创建 agent run 的
@@ -85,7 +95,9 @@ async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
         conversation_id=conv_result.id,
         role="user",
         content=query or "",
-        status="completed"
+        image_content=agentrun_request.image_content,
+        request_id=request_id,
+        status="completed",
     )
     db.add(msg)
     await db.flush()
@@ -98,19 +110,24 @@ async def crete_agent_run(agentrun_request: AgentRunCreateRequest,
         run = await run_repo.create_agent_run(
             run_id=run_id,
             thread_id=thread_id,
-            conversation_id=conv_result.id,
-            uid=current_uid,
+            conversation_id=conv_result.id,  # ty:ignore[invalid-argument-type]
+            uid=current_uid,  # ty:ignore[invalid-argument-type]
             agent_id=agent_id,
-            request_id=reuqest_id,
-            parent_run_id=parent_run_id
-            
+            request_id=request_id,
+            trigger_message_id=msg.id,  # ty:ignore[invalid-argument-type]
+            parent_run_id=parent_run_id,
         )
+        # FIXME: 同时建立 Message -> AgentRun 关联，便于按 run 查询本次输入消息。
+        msg.agent_run_id = run.id
     await db.commit()
+
+    # FIXME: PostgreSQL 落库成功后再入队，确保 Worker 能按 run_id 恢复完整输入。
+    await enqueue_agent_run(run.id)  # ty:ignore[invalid-argument-type]
 
     return {
         "run_id": run.id,
         "thread_id": run.thread_id,
-        "status": run.status,
+        "status": run.agent_status,
         "request_id": run.request_id,
         "stream_url": f"/api/agent/runs/{run.id}/events",
     }
@@ -121,7 +138,20 @@ async def stream_run_event(
     run_id: str,
     current_user: AuthenticatedUser,
 ):
-    return StreamingResponse()
+    """读取后端Redis生产的agent数据
+
+    Args:
+        run_id (str): 当权run_event
+        current_user (AuthenticatedUser): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    return StreamingResponse(stream_agent_run_events(
+        run_id=run_id,
+        current_uid=current_user.uid  # ty:ignore[invalid-argument-type]
+    ),
+    media_type="text/event-stream")
 
     
 

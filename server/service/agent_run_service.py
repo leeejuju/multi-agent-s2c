@@ -11,7 +11,9 @@ from server.service.arq_queue_servcie import (
     read_queue_events,
     write_queue_event,
 )
+from src.configs import config
 from src.storage import get_async_redis_client
+from src.utils import logger
 
 RUN_REDIS_TTL_SECONDS = 24 * 60 * 60
 _TERMINAL_EVENT_TYPES = {"done", "error", "cancelled"}
@@ -19,7 +21,14 @@ _TERMINAL_EVENT_TYPES = {"done", "error", "cancelled"}
 
 async def enqueue_agent_run(run_id: str) -> None:
     queue = await get_arq_pool()
-    await queue.enqueue_job("process_agent_run", run_id, _job_id=f"run:{run_id}")
+    # FIXME: enqueue 必须写入与 WorkerSettings.queue_name 相同的 ARQ 队列。
+    logger.info("创价队列中...")
+    await queue.enqueue_job(
+        "process_agent_run",
+        run_id,
+        _job_id=f"run:{run_id}",
+        _queue_name=config.arq_queue_name,
+    )
 
 
 async def publish_agent_run_event(run_id: str, event: dict[str, Any]) -> str:
@@ -50,7 +59,7 @@ async def read_agent_run_events(
     return events
 
 
-async def stream_agent_run_event(
+async def stream_agent_run_events(
     *,
     run_id: str,
     current_uid: str,
