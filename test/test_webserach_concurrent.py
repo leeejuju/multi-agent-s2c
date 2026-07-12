@@ -7,7 +7,6 @@ import json
 import urllib.error
 import urllib.request
 
-
 DEFAULT_BASE_URL = "http://127.0.0.1:5050"
 DEFAULT_AGENT_ID = "design_agent"
 
@@ -19,7 +18,7 @@ def test_design_agent_stream_smoke() -> None:
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--agent-id", default=DEFAULT_AGENT_ID)
     parser.add_argument("--token")
-    parser.add_argument("--username")
+    parser.add_argument("--email")
     parser.add_argument("--password")
     parser.add_argument(
         "--query",
@@ -30,18 +29,18 @@ def test_design_agent_stream_smoke() -> None:
     base_url = args.base_url.rstrip("/")
     agent_id = args.agent_id
     token = args.token
-    username = args.username
+    email = args.email
     password = args.password
     query = args.query
 
     if not token:
-        if not username or not password:
-            raise AssertionError("请传入 --token，或同时传入 --username 和 --password。")
+        if not email or not password:
+            raise AssertionError("请传入 --token，或同时传入 --email 和 --password。")
 
         login_request = urllib.request.Request(
             f"{base_url}/api/auth/login",
             data=json.dumps(
-                {"username": username, "password": password},
+                {"email": email, "password": password},
             ).encode("utf-8"),
             headers={
                 "Accept": "application/json",

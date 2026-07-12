@@ -36,8 +36,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 def create_access_token(
     user_id: int | str,
     uid: str,
-    email: str | None,
-    username: str,
+    email: str,
     is_active: bool = True,
 ) -> str:
     verify_required_auth_settings()
@@ -47,7 +46,6 @@ def create_access_token(
         "sub": str(user_id),
         "uid": uid,
         "email": email,
-        "username": username,
         "is_active": is_active,
         "exp": expire_at,
     }
@@ -69,7 +67,8 @@ def decode_access_token(token: str) -> dict[str, Any]:
             detail="Access token is invalid or expired.",
         ) from exc
 
-    if "sub" not in payload or "uid" not in payload or "username" not in payload:
+    # FIXME: 邮箱是唯一登录账号，JWT 只校验 sub、uid、email 三个身份字段。
+    if "sub" not in payload or "uid" not in payload or "email" not in payload:
         logger.warning("Access token payload validation failed.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -104,7 +103,8 @@ async def get_current_user(
 
     user = await db.get(User, user_id)
     
-    if user is None or not user.is_active or user.id != str(payload.get("id") or ""):
+    # FIXME: JWT 的数据库用户主键存放在 sub；旧代码读取不存在的 id，导致所有登录用户都被拒绝。
+    if user is None or not user.is_active or str(user.id) != str(payload["sub"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authenticated user was not found.",

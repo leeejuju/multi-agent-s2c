@@ -16,14 +16,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class RegisterRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=5, max_length=5)
-    email: EmailStr | None = None
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=6, max_length=128)
 
 
 class LoginRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=5, max_length=5)
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=6, max_length=128)
 
 
 class UserResponse(BaseModel):
@@ -31,8 +30,7 @@ class UserResponse(BaseModel):
 
     id: int
     uid: str
-    username: str
-    email: EmailStr | None = None
+    email: EmailStr
     is_active: bool
 
 
@@ -48,34 +46,22 @@ class TokenResponse(BaseModel):
     status_code=status.HTTP_201_CREATED,
 )
 async def register(payload: RegisterRequest, session: AsyncSession = Depends(get_db)):
-    logger.info("Registration requested: username=%s.", payload.username)
+    email = str(payload.email).lower()
+    logger.info("Registration requested: email=%s.", email)
     user_repository = UserRepository(session)
-    existing_user = await user_repository.get_by_username(payload.username)
+    existing_user = await user_repository.get_by_email(email)
     if existing_user is not None:
         logger.warning(
-            "Registration rejected; username already exists: %s.",
-            payload.username,
+            "Registration rejected; email already exists: %s.",
+            email,
         )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Username already exists.",
+            detail="Email already exists.",
         )
 
-    if payload.email is not None:
-        existing_email = await user_repository.get_by_email(str(payload.email))
-        if existing_email is not None:
-            logger.warning(
-                "Registration rejected; email already exists: %s.",
-                payload.email,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already exists.",
-            )
-
     user = await user_repository.create(
-        username=payload.username,
-        email=str(payload.email) if payload.email is not None else None,
+        email=email,
         password_hash=hash_password(payload.password),
     )
     await session.commit()
@@ -86,14 +72,15 @@ async def register(payload: RegisterRequest, session: AsyncSession = Depends(get
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
-    logger.info("Login requested: username=%s.", payload.username)
+    email = str(payload.email).lower()
+    logger.info("Login requested: email=%s.", email)
     user_repository = UserRepository(session)
-    user = await user_repository.get_by_username(payload.username)
+    user = await user_repository.get_by_email(email)
     if user is None or not verify_password(payload.password, user.password_hash):
-        logger.warning("Login failed: username=%s.", payload.username)
+        logger.warning("Login failed: email=%s.", email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password.",
+            detail="Invalid email or password.",
         )
 
     if not user.is_active:
@@ -103,7 +90,13 @@ async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)):
             detail="Account is disabled.",
         )
 
-    token = create_access_token(user.id)
+    # FIXME: JWT 需要完整用户身份字段，不能只传数据库主键。
+    token = create_access_token(
+        user_id=user.id,
+        uid=user.uid,
+        email=user.email,
+        is_active=user.is_active,
+    )
     logger.info("Login succeeded: user_id=%s.", user.id)
     return TokenResponse(
         access_token=token,
