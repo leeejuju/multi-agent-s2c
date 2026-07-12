@@ -1,10 +1,9 @@
-from sqlalchemy.engine.result import Result
-from typing import Any, Literal
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import Agent, User
+from src.database.models import Agent
 
 
 class AgentRepository:
@@ -18,10 +17,45 @@ class AgentRepository:
             return None
 
     async def get_slug(self, agent_slug: str) -> Agent | None:
-        agent_slug: Result[tuple[Agent]] = await self.session.execute(
+        result = await self.session.execute(
             select(Agent).where(Agent.slug == agent_slug)
         )
-        return agent_slug.scalar_one_or_none()
+        return result.scalar_one_or_none()
+
+    async def ensure_agent_exists(
+        self,
+        *,
+        slug: str,
+        backend_id: str,
+        name: str,
+        description: str,
+        role: str = "orchestrator",
+        internal_only: bool = False,
+    ) -> Agent:
+        # FIXME: 启动时幂等写入代码中已注册的顶层 Agent，避免首次创建会话时查不到。
+        agent = await self.get_slug(slug)
+        if agent is None:
+            agent = Agent(
+                slug=slug,
+                backend_id=backend_id,
+                name=name,
+                role=role,
+                description=description,
+                agent_config={},
+                internal_only=internal_only,
+                enabled=True,
+            )
+            self.session.add(agent)
+        else:
+            # FIXME: 代码拥有这些注册信息，启动时同步更新，但保留数据库中的 agent_config。
+            agent.backend_id = backend_id
+            agent.name = name
+            agent.role = role
+            agent.description = description
+            agent.internal_only = internal_only
+
+        await self.session.flush()
+        return agent
 
     async def get_agent_by_slug(
         self,

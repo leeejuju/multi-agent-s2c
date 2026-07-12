@@ -10,9 +10,6 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_username(self, username: str) -> User | None:
-        return await self.session.scalar(select(User).where(User.username == username))
-
     async def get_by_email(self, email: str) -> User | None:
         return await self.session.scalar(select(User).where(User.email == email))
 
@@ -25,13 +22,11 @@ class UserRepository:
     async def create(
         self,
         *,
-        username: str,
+        email: str,
         password_hash: str,
-        email: str | None = None,
         uid: str | None = None,
     ) -> User:
         user = User(
-            username=username,
             email=email,
             uid=uid or str(uuid4()),
             password_hash=password_hash,

@@ -8,8 +8,8 @@ class User(Base):
     __tablename__ = "user"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="用户自增ID")
-    username = Column(String(64), unique=True, nullable=False, comment="用户名")
-    email = Column(String(255), unique=True, nullable=True, comment="邮箱")
+    # FIXME: 用户唯一登录账号统一为邮箱，不再维护重复的账号字段。
+    email = Column(String(255), unique=True, index=True, nullable=False, comment="登录邮箱")
     uid = Column(String, nullable=False, unique=True, index=True, comment="登录标识")  
 
     password_hash = Column(String(255), nullable=False, comment="密码哈希")
@@ -42,7 +42,9 @@ class Message(Base):
     conversation_id = Column(Integer, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False, comment="会话ID")
     agent_run_id = Column(String(64), ForeignKey("agent_run.id", ondelete="SET NULL"), nullable=True, comment="运行ID")
     role = Column(String(16), nullable=False, comment="消息角色")
-    content = Column(Text, nullable=False, default="", comment="消息内容")
+    content = Column(Text, nullable=False, default="", comment="文本消息内容")
+    image_content = Column(Text, nullable=True, comment="图像消息内容")
+
     status = Column(String(16), nullable=False, default="completed", comment="消息状态，是刚开始，还是执行中还是结束啥的")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="更新时间")
@@ -51,7 +53,8 @@ class Message(Base):
     request_id = Column(String(64), nullable=True, index=True, comment="Request ID for idempotency")
 
     conversation = relationship("Conversation", back_populates="messages")
-    # agent_run = relationship("AgentRun", back_populates="messages")
+    # FIXME: 恢复 AgentRun.messages 对应的反向关系，避免 ORM mapper 初始化失败。
+    agent_run = relationship("AgentRun", back_populates="messages")
     tool_calls = relationship("ToolCall", back_populates="message", cascade="all, delete-orphan", order_by="ToolCall.tool_sequence")
 
 
@@ -79,11 +82,14 @@ class AgentRun(Base):
     conversation_id = Column(Integer, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False, comment="会话ID")
     uid = Column(String(64), ForeignKey("user.uid", ondelete="CASCADE"), nullable=False, comment="用户ID")
     agent_id = Column(String(128), nullable=False, comment="智能体ID")
-    agent_status = Column(String(32), nullable=False, default="queued", comment="运行状态")
+    agent_status = Column(String(32), nullable=False, default="pengding", comment="运行状态 pening, running, completed, failed, interupt")
+
+    trigger_message_id = Column(Integer, nullable=True, comment="Input message ID")
     request_id = Column(String(128), unique=True, index=True, nullable=True, comment="请求ID")
     parent_run_id = Column(String(64), nullable=True, index=True, comment="当前runid的父id")
-    
-    status = Column(String(16), nullable=False, default="completed", comment="Agent运行状态")
+
+    # FIXME: status 是待收敛的旧字段；原型闭环期间与 agent_status 保持同一初始值。
+    status = Column(String(16), nullable=False, default="queued", comment="Agent运行状态")
 
     error = Column(Text, nullable=True, comment="错误信息")
     error_type = Column(String(64), nullable=True, comment="错误信息类型")
