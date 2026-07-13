@@ -3,7 +3,6 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# 项目根目录: config.py -> configs/ -> src/ -> 项目根
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 

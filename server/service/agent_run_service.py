@@ -22,7 +22,7 @@ _TERMINAL_EVENT_TYPES = {"done", "error", "cancelled"}
 async def enqueue_agent_run(run_id: str) -> None:
     queue = await get_arq_pool()
     # FIXME: enqueue 必须写入与 WorkerSettings.queue_name 相同的 ARQ 队列。
-    logger.info("创价队列中...")
+    logger.info(f"当前事件 ID：{run_id}入队中...")
     await queue.enqueue_job(
         "process_agent_run",
         run_id,

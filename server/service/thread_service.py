@@ -49,7 +49,7 @@ async def _build_agent_runtime(
     db: AsyncSession,
     agent_type: Literal["father", "son"] = "father",
 ) -> tuple[Any, BaseAgent]:
-    """根据传递的参数，构建 agent 环境
+    """根据传递的参数，构建 agent 基础以及实例
 
     Args:
         agent_id (str): agent name
@@ -83,20 +83,33 @@ async def _build_agent_runtime(
 
 
 async def _build_agent_runtime_context(
-    uid: str, run_id: str, thread_id: str, request_id: str
+    agent_instance:BaseAgent, uid: str, run_id: str, thread_id: str, request_id: str
 ) -> dict[str, str]:
-    agent_runtime_context = {}
-    agent_system_prompt = "test_Agent_prompt"
-    agent_runtime_context.update(
+    """结合前端传递构建 agent 运行的固有参数的上下文
+
+    Args:
+        agent_instance (BaseAgent): 当前要触发的 agent上下文实例
+        uid (str): 当前用户id
+        run_id (str): 当前运行agent事件的id
+        thread_id (str): 当前会话的id
+        request_id (str): 当前会话内的单词请求id
+
+    Returns:
+        dict[str, str]: 上下文结构
+    """
+    
+    # 构建固有上下文元素
+    agent_runtime_context = agent_instance.agent_context()
+    
+    # 根据当前用户的传递内容填填充上下文
+    agent_runtime_context.update_context(
         {
             "uid": uid,
             "run_id": run_id,
             "thread_id": thread_id,
             "request_id": request_id,
-            "system_prompt": agent_system_prompt,
         }
     )
-    # FIXME: 调用方需要拿到该字典来构造 Agent 的运行上下文。
     return agent_runtime_context
 
 
@@ -143,16 +156,15 @@ async def stream_agent_response(
     if not thread_id:
         thread_id = str(uuid.uuid4())
 
-    def stream_agent_chunk(content = None, **kwargs):
+    def stream_agent_chunk(content=None, **kwargs):
         """封装agent产生的chunk"""
-        return (json.dumps(
+        return json.dumps(
             obj={
-                "thread_id":thread_id,
-                "request_id":runtime_metadata.get("request_id", "")
-                **kwargs
+                "thread_id": thread_id,
+                "request_id": runtime_metadata.get("request_id", "") ** kwargs,
             },
-            ensure_ascii=False).encode("utf-8"))
-
+            ensure_ascii=False,
+        ).encode("utf-8")
 
     runtime_metadata = dict(runtime_metadata or {})
 
@@ -189,10 +201,13 @@ async def stream_agent_response(
 
     messages = [human_msg]
     agent_runtime_context = await _build_agent_runtime_context(
+        agent_instance=agent_instacne,
         uid=current_user.uid,  # ty:ignore[invalid-argument-type]
-        run_id=runtime_metadata.get("run_id"),# ty:ignore[invalid-argument-type]
+        run_id=runtime_metadata.get("run_id"),  # ty:ignore[invalid-argument-type]
         thread_id=thread_id,
-        request_id=runtime_metadata.get("request_id")  # ty:ignore[invalid-argument-type]
+        request_id=runtime_metadata.get(
+            "request_id"
+        ),  # ty:ignore[invalid-argument-type]
     )
 
     # 确保当前的会话存在
@@ -211,9 +226,28 @@ async def stream_agent_response(
     async for method, payload in agent_instacne.stream_messages_with_event(
         messages,  # ty:ignore[invalid-argument-type]
         runtime_context=agent_runtime_context,
-    ):
-        print(method, payload)
-        # if method == "messages":
-        #     # FIXME: 原型阶段直接透传真实的 v3 messages payload，供 Worker 打印验证。
-        #     logger.info(f"messages 模式下输出为{payload}")
-        #     yield payload
+    ):  
+        # 多种不同和的状态
+        if method == "messages":
+            pass
+            
+        elif method == "values":
+            print(method, payload)
+
+        elif method == "agent_execute_event":
+            # 比如 tool， 子图的生命周期，都是agent执行种会额外触发的任务执行态
+            yield stream_agent_chunk(
+                status="agent_execute_event",
+                runtime_metadata=runtime_metadata,
+                event=payload,
+            )
+        
+        
+
+        #  if mode == "values":
+        #         agent_state = extract_agent_state(payload if isinstance(payload, dict) else {})
+        #         signature = _agent_state_signature(agent_state)
+        #         if signature and signature != last_agent_state_signature:
+        #             last_agent_state_signature = signature
+        #             yield make_chunk(status="agent_state", agent_state=agent_state, meta=meta)
+        #         continue

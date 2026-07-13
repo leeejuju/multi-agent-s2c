@@ -51,25 +51,54 @@ class AgentRunRepository:
         result = await self.session.execute(select(AgentRun).where(AgentRun.id == run_id))
         return result.scalar_one_or_none()
 
-    async def transit_status(
-        self,
-        run_id: str,
-        status: str,
-        *,
-        error: str | None = None,
-    ) -> AgentRun | None:
-        # FIXME: 原型期同步维护两个状态字段，后续应删除重复的 status 字段。
+    # FIXME: AgentRun 各状态使用独立方法，避免调用方传入任意状态字符串。
+    async def set_running(self, run_id: str) -> AgentRun | None:
         run = await self.session.get(AgentRun, run_id)
         if run is None:
             return None
 
-        now = datetime.now(UTC)
-        run.agent_status = status
-        run.status = status
-        if status == "running" and run.started_at is None:
-            run.started_at = now
-        if status in {"completed", "failed", "cancelled"}:
-            run.finished_at = now
+        run.agent_status = "running"
+        run.status = "running"
+        run.started_at = run.started_at or datetime.now(UTC)
+        run.error = None
+        await self.session.flush()
+        return run
+
+    # FIXME: AgentRun 完成状态单独设置，便于明确维护结束时间。
+    async def set_completed(self, run_id: str) -> AgentRun | None:
+        run = await self.session.get(AgentRun, run_id)
+        if run is None:
+            return None
+
+        run.agent_status = "completed"
+        run.status = "completed"
+        run.finished_at = datetime.now(UTC)
+        run.error = None
+        await self.session.flush()
+        return run
+
+    # FIXME: AgentRun 错误状态单独设置并保存错误信息。
+    async def set_failed(self, run_id: str, error: str) -> AgentRun | None:
+        run = await self.session.get(AgentRun, run_id)
+        if run is None:
+            return None
+
+        run.agent_status = "failed"
+        run.status = "failed"
+        run.finished_at = datetime.now(UTC)
         run.error = error
+        await self.session.flush()
+        return run
+
+    # FIXME: AgentRun 打断状态单独设置，保持与 run event 的 cancelled 命名一致。
+    async def set_cancelled(self, run_id: str) -> AgentRun | None:
+        run = await self.session.get(AgentRun, run_id)
+        if run is None:
+            return None
+
+        run.agent_status = "cancelled"
+        run.status = "cancelled"
+        run.finished_at = datetime.now(UTC)
+        run.error = None
         await self.session.flush()
         return run
