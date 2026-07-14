@@ -1,10 +1,11 @@
 import asyncio
 import sys
+from typing import Any
 
 from arq.connections import RedisSettings
 from sqlalchemy import select
 
-from server.service.arq_queue_servcie import write_agent_run_stream_event
+from server.service.agent_run_service import publish_agent_run_event
 from server.service.thread_service import AgentInputMsg, stream_agent_response
 from src.configs import config
 from src.database import postgres_manager
@@ -14,6 +15,8 @@ from src.utils import logger
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 
 
 async def startup(ctx) -> None:
@@ -75,8 +78,20 @@ async def _get_agent_run_id(run_id: str):
         return await agent_run_repo.get_run_event_by_id(run_id)
     
     
-async def write_agent_run_event(run_id: str, payload: dict | None, event_type: str, thread_id: str):
-    await write_agent_run_stream_event(run_id, payload, event_type, thread_id)
+async def write_agent_run_event(
+    run_id: str,
+    payload: Any,
+    event_type: str,
+    thread_id: str,
+) -> None:
+    await publish_agent_run_event(
+        run_id,
+        {
+            "type": event_type,
+            "thread_id": thread_id,
+            "payload": payload,
+        },
+    )
 
 
 async def process_agent_run(ctx, run_id: str):
@@ -93,13 +108,22 @@ async def process_agent_run(ctx, run_id: str):
         message_id=agent_run_event.trigger_message_id  # ty:ignore[invalid-argument-type]
     )  # ty:ignore[invalid-argument-type]
     if agent_input_message is None:
+        error_message = (
+            f"Input message not found: {agent_run_event.trigger_message_id}"
+        )
         logger.error(
             f"当前agent运行id：{run_id} 的输入消息不存在："
             f"{agent_run_event.trigger_message_id}"
         )
-        await set_run_failed(
+        await set_run_failed(run_id, error_message)
+        await publish_agent_run_event(
             run_id,
-            f"Input message not found: {agent_run_event.trigger_message_id}",
+            {
+                "type": "error",
+                "status": "failed",
+                "thread_id": agent_run_event.thread_id,
+                "error": error_message,
+            },
         )
         return {"run_id": run_id, "status": "failed"}
 
@@ -123,7 +147,17 @@ async def process_agent_run(ctx, run_id: str):
     user = await _get_user(uid=uid)  # ty:ignore[invalid-argument-type]
 
     if not user:
-        await set_run_failed(run_id, f"User not found: {uid}")
+        error_message = f"User not found: {uid}"
+        await set_run_failed(run_id, error_message)
+        await publish_agent_run_event(
+            run_id,
+            {
+                "type": "error",
+                "status": "failed",
+                "thread_id": thread_id,
+                "error": error_message,
+            },
+        )
         return {"run_id": run_id, "status": "failed"}
 
     # FIXME: 当前最小闭环只执行顶层 Agent，因此显式声明 father run_type。
@@ -137,6 +171,14 @@ async def process_agent_run(ctx, run_id: str):
     }
 
     await set_run_running(run_id)
+    await publish_agent_run_event(
+        run_id,
+        {
+            "type": "running",
+            "status": "running",
+            "thread_id": thread_id,
+        },
+    )
     try:
         async with postgres_manager.get_async_session_context() as db:
             stream_thread_events = stream_agent_response(
@@ -148,16 +190,44 @@ async def process_agent_run(ctx, run_id: str):
                 db=db,
             )
 
-            # TODO 待优化
-            async for stream_thread_event in stream_thread_events:
-                print(f"[run_id={run_id}] {stream_thread_event}", flush=True)
+            async for event_type, payload in stream_thread_events:
+                logger.info(
+                    f"Agent run 事件输出：run_id={run_id}, "
+                    f"event_type={event_type}, payload={payload}"
+                )
+                await write_agent_run_event(
+                    run_id=run_id,
+                    payload=payload,
+                    event_type=event_type,
+                    thread_id=thread_id,  # ty:ignore[invalid-argument-type]
+                )
     except Exception as exc:
         await set_run_failed(run_id, str(exc))
+        try:
+            await publish_agent_run_event(
+                run_id,
+                {
+                    "type": "error",
+                    "status": "failed",
+                    "thread_id": thread_id,
+                    "error": str(exc),
+                },
+            )
+        except Exception:
+            logger.exception(f"Agent run 错误事件发布失败：{run_id}")
         logger.exception(f"Agent run 执行失败：{run_id}")
         raise
 
     await set_run_completed(run_id)
-    # return {"run_id": run_id, "status": "completed"}
+    await publish_agent_run_event(
+        run_id,
+        {
+            "type": "done",
+            "status": "completed",
+            "thread_id": thread_id,
+        },
+    )
+    return {"run_id": run_id, "status": "completed"}
 
 
 

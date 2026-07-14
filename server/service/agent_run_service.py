@@ -8,8 +8,8 @@ from typing import Any
 from server.service.arq_queue_servcie import (
     get_arq_pool,
     queue_event_stream_key,
-    read_queue_events,
-    write_queue_event,
+    read_agent_run_stream_events,
+    write_agent_run_stream_event,
 )
 from src.configs import config
 from src.storage import get_async_redis_client
@@ -32,7 +32,7 @@ async def enqueue_agent_run(run_id: str) -> None:
 
 
 async def publish_agent_run_event(run_id: str, event: dict[str, Any]) -> str:
-    return await write_queue_event(
+    return await write_agent_run_stream_event(
         run_id,
         _build_agent_run_event(run_id, event),
         ttl_seconds=RUN_REDIS_TTL_SECONDS,
@@ -46,7 +46,7 @@ async def read_agent_run_events(
     count: int | None = None,
     block_ms: int | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
-    rows = await read_queue_events(
+    rows = await read_agent_run_stream_events(
         run_id,
         after_id=after_id,
         count=count,
@@ -91,7 +91,11 @@ async def cancel_agent_run(run_id: str, *, reason: str | None = None) -> None:
         json.dumps(payload, ensure_ascii=False),
         ex=RUN_REDIS_TTL_SECONDS,
     )
-    await write_queue_event(run_id, payload, ttl_seconds=RUN_REDIS_TTL_SECONDS)
+    await write_agent_run_stream_event(
+        run_id,
+        payload,
+        ttl_seconds=RUN_REDIS_TTL_SECONDS,
+    )
 
 
 async def is_agent_run_cancelled(run_id: str) -> bool:

@@ -1,4 +1,3 @@
-import json
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -83,8 +82,12 @@ async def _build_agent_runtime(
 
 
 async def _build_agent_runtime_context(
-    agent_instance:BaseAgent, uid: str, run_id: str, thread_id: str, request_id: str
-) -> dict[str, str]:
+    agent_instance: BaseAgent,
+    uid: str,
+    run_id: str,
+    thread_id: str,
+    request_id: str,
+):
     """结合前端传递构建 agent 运行的固有参数的上下文
 
     Args:
@@ -97,12 +100,13 @@ async def _build_agent_runtime_context(
     Returns:
         dict[str, str]: 上下文结构
     """
+    agent_runtime_context = {}
     
     # 构建固有上下文元素
-    agent_runtime_context = agent_instance.agent_context()
-    
+    # agent_runtime_context = agent_instance.agent_context()
+
     # 根据当前用户的传递内容填填充上下文
-    agent_runtime_context.update_context(
+    agent_runtime_context.update(
         {
             "uid": uid,
             "run_id": run_id,
@@ -155,16 +159,6 @@ async def stream_agent_response(
     # guard
     if not thread_id:
         thread_id = str(uuid.uuid4())
-
-    def stream_agent_chunk(content=None, **kwargs):
-        """封装agent产生的chunk"""
-        return json.dumps(
-            obj={
-                "thread_id": thread_id,
-                "request_id": runtime_metadata.get("request_id", "") ** kwargs,
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
 
     runtime_metadata = dict(runtime_metadata or {})
 
@@ -226,23 +220,9 @@ async def stream_agent_response(
     async for method, payload in agent_instacne.stream_messages_with_event(
         messages,  # ty:ignore[invalid-argument-type]
         runtime_context=agent_runtime_context,
-    ):  
-        # 多种不同和的状态
-        if method == "messages":
-            pass
-            
-        elif method == "values":
-            print(method, payload)
-
-        elif method == "agent_execute_event":
-            # 比如 tool， 子图的生命周期，都是agent执行种会额外触发的任务执行态
-            yield stream_agent_chunk(
-                status="agent_execute_event",
-                runtime_metadata=runtime_metadata,
-                event=payload,
-            )
-        
-        
+    ):
+        if method in {"messages", "values", "agent_execute_event"}:
+            yield method, payload
 
         #  if mode == "values":
         #         agent_state = extract_agent_state(payload if isinstance(payload, dict) else {})

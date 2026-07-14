@@ -137,6 +137,7 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
 async def stream_run_event(
     run_id: str,
     current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
 ):
     """读取后端Redis生产的agent数据
 
@@ -147,11 +148,22 @@ async def stream_run_event(
     Returns:
         _type_: _description_
     """
-    return StreamingResponse(stream_agent_run_events(
-        run_id=run_id,
-        current_uid=current_user.uid  # ty:ignore[invalid-argument-type]
-    ),
-    media_type="text/event-stream")
+    run_repo = AgentRunRepository(db)
+    run = await run_repo.get_run_event_by_id(run_id)
+    if run is None or run.uid != current_user.uid:
+        raise HTTPException(status_code=404, detail="Agent Run 不存在")
+
+    return StreamingResponse(
+        stream_agent_run_events(
+            run_id=run_id,
+            current_uid=current_user.uid,  # ty:ignore[invalid-argument-type]
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
     
 
