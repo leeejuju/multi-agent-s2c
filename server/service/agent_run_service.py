@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -29,6 +30,44 @@ async def enqueue_agent_run(run_id: str) -> None:
         _job_id=f"run:{run_id}",
         _queue_name=config.arq_queue_name,
     )
+
+
+async def wait_agent_run_result(run_id: str) -> str:
+    """等待 Run 终态；父 Agent 的 task 在此期间保持挂起。"""
+    after_id = "0-0"
+    result = ""
+    # ponytail: 五分钟上限，确有长任务时再配置化。
+    async with asyncio.timeout(300):
+        while True:
+            for event_id, event in await read_agent_run_events(
+                run_id,
+                after_id=after_id,
+            ):
+                after_id = event_id
+                event_type = event.get("type")
+                if event_type == "messages":
+                    message = event.get("payload")
+                    if isinstance(message, list) and message:
+                        message = message[0]
+                    if isinstance(message, dict):
+                        if message.get("event") == "content-block-delta":
+                            delta = message.get("delta")
+                            if isinstance(delta, dict) and isinstance(
+                                delta.get("text"), str
+                            ):
+                                result += delta["text"]
+                        elif message.get("event") == "content-block-finish":
+                            content = message.get("content")
+                            if isinstance(content, dict) and isinstance(
+                                content.get("text"), str
+                            ):
+                                result = content["text"]
+                if event_type == "done":
+                    return result
+                if event_type in {"error", "cancelled"}:
+                    raise RuntimeError(
+                        str(event.get("error") or event.get("reason") or event_type)
+                    )
 
 
 async def publish_agent_run_event(run_id: str, event: dict[str, Any]) -> str:

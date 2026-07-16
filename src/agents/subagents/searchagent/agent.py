@@ -4,11 +4,11 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.base_agent import BaseAgent
 from src.agents.middlewares import SearchToolMiddleware
-from src.agents.subagents.subagent import knowledge_search, web_search_one, web_search_parallel
 from src.agents.utils.model_tool import load_model
 from src.configs import config as sys_config
 
 from .context import SearchAgentContext
+from .tools import knowledge_search, web_search_one, web_search_parallel
 
 SEARCH_AGENT_SYSTEM_PROMPT = """
 You are SearchAgent, the search-task orchestrator inside a creative agent system.
