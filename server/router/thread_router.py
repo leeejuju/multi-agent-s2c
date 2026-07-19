@@ -63,7 +63,7 @@ async def create_thread(
     # FIXME: 创建顶层对话时显式按 father 类型解析 Agent。
     agent_result = await agent_repo.get_agent_by_slug(
         agent_slug=thread.agent_id,
-        agent_type="father",
+        run_type="chat",
     )
     
     if not agent_result:

@@ -1,11 +1,11 @@
 import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from langchain.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.service.input_message_service import AgentInputMsg
 from server.utils.auth import AuthenticatedUser
 from src.agents import agent_manager
 from src.agents.base_agent import BaseAgent
@@ -13,40 +13,12 @@ from src.database import Agent, User
 from src.database.repositories import AgentRepository, ConversationRepository
 
 
-@dataclass(frozen=True)
-class AgentInputMsg:
-    content: str
-    msg_type: str
-    image_content: str | None
-    msg_metadata: dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def langchain_msg(self) -> HumanMessage:
-        """构建输入消息转化为langchain标准格式"""
-        if not self.image_content:
-            return HumanMessage(content=self.content)
-        return HumanMessage(
-            content=[
-                {
-                    "type": "text",
-                    "text": self.content,
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": self.image_content,
-                    },
-                },
-            ]
-        )
-
-
 async def _build_agent_runtime(
     agent_slug: str,
     user: User,
     thread_id: str | None,
     db: AsyncSession,
-    agent_type: Literal["father", "son"] = "father",
+    run_type: str = "chat",
 ) -> tuple[Any, BaseAgent]:
     """根据传递的参数，构建 agent 基础以及实例
 
@@ -54,7 +26,7 @@ async def _build_agent_runtime(
         agent_id (str): agent name
         user (User): 当前用户可访问的agent
         thread_id (str | None): _description_
-        agent_type (Literal["father";, "sub"]): 父agent还是子agennt
+        run_type: Agent Run 类型，当前为 chat 或 subagent
 
     Returns:
         tuple[Any, Any, Any]: _description_
@@ -65,7 +37,7 @@ async def _build_agent_runtime(
         raise ValueError("未配置agent")
 
     agent = await agent_repo.get_agent_by_slug(
-        agent_slug=agent_slug, agent_type=agent_type
+        agent_slug=agent_slug, run_type=run_type
     )
 
     if not agent:
@@ -178,8 +150,7 @@ async def stream_agent_response(
         user=current_user,
         thread_id=thread_id,
         db=db,
-        # FIXME: 当前 Worker 只执行顶层 Agent；缺省值必须能命中 father 查询分支。
-        agent_type=runtime_metadata.get("run_type") or "father",
+        run_type=runtime_metadata.get("run_type") or "chat",
     )
 
     runtime_metadata.update(
