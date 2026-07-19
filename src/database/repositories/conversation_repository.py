@@ -1,4 +1,4 @@
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import Conversation, Message
@@ -13,6 +13,14 @@ class ConversationRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def get_by_id(self, conversation_id: int | str) -> Conversation | None:
+        result = await self.session.execute(
+            select(Conversation)
+            .where(Conversation.id == int(conversation_id))
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_id_for_user(
         self,
         conversation_id: str,
@@ -21,7 +29,7 @@ class ConversationRepository:
         result = await self.session.execute(
             select(Conversation).where(
                 Conversation.id == int(conversation_id),
-                Conversation.uid == int(user_id),
+                Conversation.uid == str(user_id),
             )
         )
         return result.scalar_one_or_none()
@@ -61,6 +69,7 @@ class ConversationRepository:
         uid: str,
         thread_id: str,
         agent_id:str,
+        parent_conversation_id: int | None = None,
         title: str | None = None,
         summary: str | None = None,
         conversation_metadata: dict | None = None
@@ -69,6 +78,7 @@ class ConversationRepository:
             uid=uid,
             thread_id=thread_id,
             agent_id=agent_id,
+            parent_conversation_id=parent_conversation_id,
             title=title,
             summary=summary,
             conversation_metadata = conversation_metadata
@@ -76,6 +86,66 @@ class ConversationRepository:
         self.session.add(conversation)
         await self.session.flush()
         return conversation
+
+    async def create_message(
+        self,
+        *,
+        conversation_id: int | str,
+        role: str,
+        content: str,
+        agent_run_id: str | None = None,
+        request_id: str | None = None,
+        image_content: str | None = None,
+        message_type: str = "text",
+        status: str = "completed",
+    ) -> Message:
+        message = Message(
+            conversation_id=int(conversation_id),
+            agent_run_id=agent_run_id,
+            role=role,
+            content=content,
+            image_content=image_content,
+            request_id=request_id,
+            message_type=message_type,
+            status=status,
+        )
+        self.session.add(message)
+        await self.session.flush()
+        return message
+
+    async def get_agent_run_result(self, run_id: str) -> Message | None:
+        result = await self.session.execute(
+            select(Message)
+            .where(
+                Message.agent_run_id == run_id,
+                Message.role == "assistant",
+            )
+            .order_by(Message.id.desc())
+            .limit(1)
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_message_by_id(self, message_id: int | str) -> Message | None:
+        result = await self.session.execute(
+            select(Message)
+            .where(Message.id == int(message_id))
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
+    async def link_message_to_run(
+        self,
+        *,
+        message_id: int | str,
+        run_id: str,
+    ) -> Message | None:
+        message = await self.get_message_by_id(message_id)
+        if message is None:
+            return None
+        message.agent_run_id = run_id
+        await self.session.flush()
+        return message
 
     async def save_message(
         self,
