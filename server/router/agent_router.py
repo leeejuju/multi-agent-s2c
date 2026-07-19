@@ -115,6 +115,7 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
             agent_id=agent_id,
             request_id=request_id,
             trigger_message_id=msg.id,  # ty:ignore[invalid-argument-type]
+            run_type="chat",
             parent_run_id=parent_run_id,
         )
         # FIXME: 同时建立 Message -> AgentRun 关联，便于按 run 查询本次输入消息。
@@ -129,13 +130,16 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
         "thread_id": run.thread_id,
         "status": run.agent_status,
         "request_id": run.request_id,
-        "stream_url": f"/api/agent/runs/{run.id}/events",
+        "stream_url": (
+            f"/api/agent/runs/{run.id}/events?thread_id={run.thread_id}"
+        ),
     }
 
     
 @agent_router.get("/runs/{run_id}/events")        
 async def stream_run_event(
     run_id: str,
+    thread_id: str,
     current_user: AuthenticatedUser,
     db: AsyncSession = Depends(get_db),
 ):
@@ -149,14 +153,19 @@ async def stream_run_event(
         _type_: _description_
     """
     run_repo = AgentRunRepository(db)
-    run = await run_repo.get_run_event_by_id(run_id)
-    if run is None or run.uid != current_user.uid:
+    run = await run_repo.get_run_for_user_thread(
+        run_id=run_id,
+        uid=current_user.uid,
+        thread_id=thread_id,
+    )
+    if run is None:
         raise HTTPException(status_code=404, detail="Agent Run 不存在")
 
     return StreamingResponse(
         stream_agent_run_events(
             run_id=run_id,
-            current_uid=current_user.uid,  # ty:ignore[invalid-argument-type]
+            current_uid=current_user.uid,
+            thread_id=thread_id,
         ),
         media_type="text/event-stream",
         headers={

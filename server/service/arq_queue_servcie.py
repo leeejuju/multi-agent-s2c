@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from src.configs import config
 from src.storage import create_arq_pool, get_async_redis_client
 
 _arq_pool = None
+RUN_REDIS_TTL_SECONDS = 24 * 60 * 60
 
 
 async def get_arq_pool():
@@ -18,6 +20,10 @@ async def get_arq_pool():
 
 def queue_event_stream_key(run_id: str) -> str:
     return f"run:events:{run_id}"
+
+
+def agent_run_cancel_key(run_id: str) -> str:
+    return f"run:cancel:{run_id}"
 
 
 async def write_agent_run_stream_event(
@@ -59,3 +65,54 @@ async def read_agent_run_stream_events(
         count=count,
         block=config.run_stream_poll_timeout_ms if block_ms is None else block_ms,
     )
+
+
+async def read_recent_agent_run_stream_events(
+    run_id: str,
+    *,
+    count: int,
+):
+    """只读取 Agent Run Stream 最近 N 条事件。"""
+
+    redis = await get_async_redis_client()
+    return await redis.xrevrange(
+        queue_event_stream_key(run_id),
+        max="+",
+        min="-",
+        count=count,
+    )
+
+
+async def publish_agent_run_cancel_signal(
+    run_id: str,
+    *,
+    reason: str | None = None,
+) -> None:
+    """写入供 Worker 轮询的 Agent Run 取消信号。"""
+
+    redis = await get_async_redis_client()
+    payload = {
+        "run_id": run_id,
+        "status": "cancel_requested",
+        "reason": reason or "cancel_requested",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    await redis.set(
+        agent_run_cancel_key(run_id),
+        json.dumps(payload, ensure_ascii=False),
+        ex=RUN_REDIS_TTL_SECONDS,
+    )
+
+
+async def has_agent_run_cancel_signal(run_id: str) -> bool:
+    """检查 Agent Run 的 Redis 取消信号是否存在。"""
+
+    redis = await get_async_redis_client()
+    return bool(await redis.exists(agent_run_cancel_key(run_id)))
+
+
+async def clear_agent_run_cancel_signal(run_id: str) -> None:
+    """清理已由 Worker 消费的 Agent Run 取消信号。"""
+
+    redis = await get_async_redis_client()
+    await redis.delete(agent_run_cancel_key(run_id))
