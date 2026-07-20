@@ -5,8 +5,6 @@ from types import ModuleType
 
 from src.agents.base_agent import BaseAgent
 
-_LEGACY_AGENT_IDS = {"DesignAgent": "LeaderAgent"}
-
 
 class AgentManager:
     def __init__(self) -> None:
@@ -56,9 +54,8 @@ class AgentManager:
                     self._top_level_ids.add(name)
 
     def get_agent(self, agent_id: str) -> BaseAgent:
-        resolved_id = _LEGACY_AGENT_IDS.get(agent_id, agent_id)
-        if resolved_id in self._instances:
-            return self._instances[resolved_id]
+        if agent_id in self._instances:
+            return self._instances[agent_id]
         raise KeyError(f"Unknown agent: {agent_id}")
 
     def list_agents(self) -> list[dict[str, str]]:

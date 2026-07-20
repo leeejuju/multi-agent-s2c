@@ -4,6 +4,9 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.base_agent import BaseAgent
 from src.agents.middlewares.subagent_middlware import create_subagent_middleware
+from src.agents.subagents.characteragent import CharacterAgent
+from src.agents.subagents.outlineagent import OutlineAgent
+from src.agents.subagents.scenarioagent import ScenarioAgent
 from src.agents.subagents.searchagent import SearchAgent
 from src.agents.utils.model_tool import load_model
 from src.configs import config as sys_config
@@ -25,7 +28,12 @@ class LeaderAgent(BaseAgent):
     def _create_middlewares(self, context):
         return [
             create_subagent_middleware(
-                subagents=[SearchAgent()],
+                subagents=[
+                    SearchAgent(),
+                    OutlineAgent(),
+                    CharacterAgent(),
+                    ScenarioAgent(),
+                ],
                 parent_context=context,
             ),
             ModelRetryMiddleware(max_retries=1, on_failure="continue"),

@@ -44,10 +44,6 @@ async def ensure_agents_exist() -> None:
     subagents = agent_manager.list_subagents()
     async with postgres_manager.get_async_session_context() as session:
         repository = AgentRepository(session)
-        await repository.rename_agent_slug(
-            old_slug="DesignAgent",
-            new_slug="LeaderAgent",
-        )
         for agent in agents:
             await repository.ensure_agent_exists(
                 slug=agent["id"],

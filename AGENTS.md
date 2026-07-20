@@ -17,7 +17,7 @@ Current top-level layout:
 - `web/`: React client.
 - `sandbox_server/`, `docker/`, and `scripts/`: local runtime support and helper scripts.
 
-Current concrete agents are `DesignAgent` in `src/agents/designagent/`, plus `SearchAgent` and `LayoutAgent` under `src/agents/subagents/`.
+The public top-level agent is `LeaderAgent` in `src/agents/leaderagent/`. Internal subagents are `SearchAgent`, `OutlineAgent`, `CharacterAgent`, and `ScenarioAgent` under `src/agents/subagents/`.
 
 ## Backend Architecture
 
@@ -46,11 +46,11 @@ Current concrete agents are `DesignAgent` in `src/agents/designagent/`, plus `Se
 
 Agent runs execute in-process by default. ARQ queue execution and Redis Stream event publishing are opt-in through `ENABLE_RUN_QUEUE=true`; database event persistence remains enabled by default.
 
-## DesignAgent Status
+## LeaderAgent Status
 
-`DesignAgent` is currently positioned as a script and storyboard design agent. Its prompt asks it to produce structured creative planning outputs such as story summaries, dramatic structure, character notes, scene lists, shot tables, camera language, visual emphasis, and sound/music suggestions.
+`LeaderAgent` is the public creative orchestrator. It reads the user's text and document-derived context, delegates outline, character, script, or search work to the appropriate subagents, and integrates their results into the final response.
 
-When changing `DesignAgent`, keep it responsible for understanding the user's creative intent and producing final creative plans. Do not move repository or storage concerns into it.
+When changing `LeaderAgent`, keep it responsible for understanding creative intent, delegating work, and delivering the final result. Do not move repository or storage concerns into it.
 
 ## SearchAgent Direction
 
@@ -59,7 +59,7 @@ When changing `DesignAgent`, keep it responsible for understanding the user's cr
 First version scope:
 
 - Tavily web search is supported when `TAVILY_API_KEY` is configured.
-- `DesignAgent` should call it on demand through `search_references(query, scopes, limit)`.
+- `LeaderAgent` should call it on demand through the configured subagent tools.
 - Search must return stable structured JSON:
 
 ```json
@@ -169,4 +169,4 @@ uv run --no-sync python -m compileall server/router server/service src/agents sr
 - Read project source/config files using UTF-8 encoding unless a different encoding is explicitly required.
 - Preserve user changes in the working tree; never revert unrelated modifications.
 - Add tests or compile checks for behavior changes with non-trivial blast radius.
-- If implementing `SearchAgent`, keep it opt-in from `DesignAgent`; do not add automatic pre-retrieval middleware.
+- If implementing `SearchAgent`, keep it opt-in from `LeaderAgent`; do not add automatic pre-retrieval middleware.

@@ -26,14 +26,16 @@ from server.service.agent_run_service import (
 from src.agents.base_agent import BaseAgent
 from src.agents.base_context import BaseContext
 
-SUBAGENT_SYSTEM_PROMPT = """## 子智能体工具
+TASK_SYSTEM_PROMPT = """## 剧本创作子智能体协作
 
-你可以把复杂且相对独立的工作交给下方已配置的子智能体。
+你是剧本创作流程的 Leader，负责理解用户目标、拆解任务、安排依赖、选择子智能体、审核结果并完成最终整合。具体的专业任务必须交给下方职责匹配的子智能体执行。
 
-- 当后续推理立即依赖子任务结果时，使用 `task`；它会等待并返回最终文本。
-- 当任务耗时较长或可以与其它工作并行时，使用 `subagent_start`；它会立即返回 `run_id`。
-- 后台任务可用 `subagent_status` 查询状态、最近进度和已完成结果，使用 `subagent_cancel` 请求取消；需要阻塞等待时使用 `subagent_await`。
-- 简单问题不要委派。调用时必须选择可用的 `subagent_slug`，并提供完整、可独立执行的任务提示词。
+- 资料检索、大纲设计、角色设定、场景与剧本创作等任务，应分别委派给职责最匹配的子智能体，不要由 Leader 直接代做。
+- 按任务依赖关系安排委派顺序；后续步骤立即依赖子任务结果时使用 `task`，等待并取得最终文本。
+- 彼此独立的任务可以并行时，使用 `subagent_start` 启动，并保存返回的 `run_id`。
+- 后台任务使用 `subagent_status` 查询状态、最近进度和已完成结果，使用 `subagent_cancel` 请求取消；需要等待结果时使用 `subagent_await`。
+- 每次调用必须选择可用的 `subagent_slug`，并提供包含必要上下文、目标、输出要求和完成标准的独立任务提示词。
+- Leader 收到结果后应检查完整性和一致性；结果不足时继续向对应子智能体补充委派，确认可用后再整合输出。
 - 不要通过 HTTP、shell 或命令行绕过这些工具调用子智能体。
 """
 
@@ -82,7 +84,7 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
         *,
         subagents: Sequence[BaseAgent],
         parent_context: BaseContext | Mapping[str, Any],
-        system_prompt: str | None = SUBAGENT_SYSTEM_PROMPT,
+        system_prompt: str | None = TASK_SYSTEM_PROMPT,
     ) -> None:
         super().__init__()
         if not subagents:
@@ -518,7 +520,7 @@ def create_subagent_middleware(
     *,
     subagents: Sequence[BaseAgent],
     parent_context: BaseContext | Mapping[str, Any],
-    system_prompt: str | None = SUBAGENT_SYSTEM_PROMPT,
+    system_prompt: str | None = TASK_SYSTEM_PROMPT,
 ) -> SubAgentMiddleware:
     """创建绑定父运行上下文的子智能体中间件。"""
 

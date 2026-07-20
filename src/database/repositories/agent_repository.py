@@ -1,9 +1,7 @@
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import Agent, AgentRun, Conversation
-
-_LEGACY_AGENT_SLUGS = {"DesignAgent": "LeaderAgent"}
+from src.database.models import Agent
 
 
 class AgentRepository:
@@ -52,32 +50,6 @@ class AgentRepository:
         await self.session.flush()
         return agent
 
-    async def rename_agent_slug(self, *, old_slug: str, new_slug: str) -> None:
-        """幂等迁移 Agent 注册及引用它的会话和 Run 标识。"""
-
-        legacy_agent = await self.get_slug(old_slug)
-        if legacy_agent is None:
-            return
-
-        current_agent = await self.get_slug(new_slug)
-        await self.session.execute(
-            update(Conversation)
-            .where(Conversation.agent_id == old_slug)
-            .values(agent_id=new_slug)
-        )
-        await self.session.execute(
-            update(AgentRun)
-            .where(AgentRun.agent_id == old_slug)
-            .values(agent_id=new_slug)
-        )
-
-        if current_agent is None:
-            legacy_agent.slug = new_slug
-        else:
-            await self.session.delete(legacy_agent)
-
-        await self.session.flush()
-
     async def get_agent_by_slug(
         self,
         agent_slug: str,
@@ -94,9 +66,6 @@ class AgentRepository:
         """
 
         agent = await self.get_slug(agent_slug=agent_slug)
-        if agent is None and agent_slug in _LEGACY_AGENT_SLUGS:
-            agent = await self.get_slug(_LEGACY_AGENT_SLUGS[agent_slug])
-
         if not agent:
             return None
 

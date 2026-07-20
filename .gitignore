@@ -4,7 +4,7 @@
 !.env.template
 alembic.ini
 
-.claude/settings.local.json
+.claude/
 node_modules
 
 # Python
@@ -13,6 +13,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
+test/
 
 # Build artifacts
 dist/
@@ -35,9 +36,6 @@ Thumbs.db
 # Local container volumes
 docker/volume/
 .docker/
-
-# claude directories
-.claude/skills/*
 
 # gemini directories
 .gemini/skills/*
