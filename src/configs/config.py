@@ -61,6 +61,14 @@ class Config(BaseSettings):
     embed_model: str = Field(default="", description="向量生成模型名称")
     rerank_model: str = Field(default="", description="重排序模型名称")
 
+    # ---------- Agent ----------
+    hil_approval_tools: tuple[str, ...] = Field(
+        default=("write_file", "edit_file", "execute"),
+        min_length=1,
+        max_length=3,
+        description="需要人工审批的工具名称（1-3 个）",
+    )
+
     # ---------- 数据库 ----------
     database_url: str = Field(default="", description="PostgreSQL 数据库连接地址")
     redis_url: str = Field(default="redis://8.136.2.212:6379/0", description="Redis 连接地址")
