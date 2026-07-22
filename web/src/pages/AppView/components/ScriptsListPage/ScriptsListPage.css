@@ -1,0 +1,78 @@
+@reference "../../../../assets/css/Global.css";
+
+.scripts-list-page__content {
+  @apply w-full p-8;
+}
+
+.scripts-list-page__grid {
+  @apply grid gap-6;
+  grid-template-columns: repeat(auto-fill, minmax(336px, 1fr));
+}
+
+.scripts-list-page__create-card {
+  @apply flex h-full flex-col items-center justify-center text-center;
+}
+
+.studio-card:hover .scripts-list-page__create-card {
+  @apply text-brand-primary;
+}
+
+.scripts-list-page__create-icon-wrap {
+  @apply mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-workspace-border bg-workspace-control transition-transform;
+}
+
+.studio-card:hover .scripts-list-page__create-icon-wrap {
+  @apply scale-105 bg-workspace-hover;
+}
+
+.scripts-list-page__create-icon {
+  @apply text-workspace-muted;
+}
+
+.scripts-list-page__create-title {
+  @apply mb-1 text-sm font-semibold text-workspace-ink;
+}
+
+.scripts-list-page__create-description {
+  @apply text-xs text-workspace-muted;
+}
+
+.scripts-list-page__card-body {
+  @apply min-h-0 flex-1 cursor-pointer text-left;
+}
+
+.scripts-list-page__card-header {
+  @apply mb-2 flex items-start justify-between gap-2;
+}
+
+.scripts-list-page__card-title {
+  @apply line-clamp-1 text-base font-bold text-workspace-ink transition-colors;
+}
+
+.studio-card:hover .scripts-list-page__card-title {
+  @apply text-brand-primary;
+}
+
+.scripts-list-page__card-type {
+  @apply rounded bg-workspace-control p-1 font-mono text-[10px] text-workspace-muted;
+}
+
+.scripts-list-page__excerpt {
+  @apply line-clamp-5 whitespace-pre-wrap font-mono text-xs leading-relaxed text-workspace-muted;
+}
+
+.scripts-list-page__card-footer {
+  @apply mt-4 flex items-center justify-between border-t border-workspace-border pt-4;
+}
+
+.scripts-list-page__updated-at {
+  @apply text-[11px] text-workspace-subtle;
+}
+
+.scripts-list-page__trash-button {
+  @apply rounded p-1 text-workspace-icon transition-colors;
+}
+
+.scripts-list-page__trash-button:hover {
+  @apply bg-red-50 text-red-500;
+}

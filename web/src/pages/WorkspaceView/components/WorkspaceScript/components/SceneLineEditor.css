@@ -1,0 +1,79 @@
+@reference "@/assets/css/Global.css";
+
+.screenplay-scene-heading {
+  @apply inline-flex min-w-0 max-w-full items-baseline;
+  width: fit-content;
+  gap: 0.22em;
+}
+
+.screenplay-scene-number {
+  @apply shrink-0 select-none;
+  margin-right: 0.12em;
+  color: inherit;
+  font: inherit;
+}
+
+.screenplay-scene-separator {
+  @apply select-none text-workspace-subtle;
+}
+
+.screenplay-scene-line-editor__content {
+  @apply z-[60] min-w-28 max-w-[min(18rem,calc(100vw-24px))] rounded-xl border border-workspace-border bg-workspace-surface p-1.5 font-sans normal-case shadow-[0_14px_32px_rgba(24,24,27,0.13)];
+}
+
+.screenplay-scene-line-editor__content[data-field="location"] {
+  width: min(18rem, calc(100vw - 24px));
+}
+
+.screenplay-scene-line-editor__options {
+  @apply flex min-w-0 flex-col gap-0.5;
+}
+
+.screenplay-scene-line-editor__option {
+  @apply m-0 flex min-h-8 w-full items-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] font-normal leading-snug text-workspace-ink outline-none;
+}
+
+.screenplay-scene-line-editor__option:hover,
+.screenplay-scene-line-editor__option:focus-visible {
+  @apply bg-workspace-hover;
+}
+
+.screenplay-scene-line-editor__option[data-state="checked"] {
+  @apply bg-brand-primary text-white;
+}
+
+.screenplay-scene-line-editor__option:focus-visible {
+  @apply ring-2 ring-brand-primary/25;
+}
+
+.screenplay-scene-line-editor__empty {
+  @apply px-2.5 py-2 text-[11px] leading-relaxed text-workspace-subtle;
+}
+
+.screenplay-location-picker__form {
+  @apply mb-1.5 border-b border-workspace-border pb-1.5;
+}
+
+.screenplay-location-picker__input {
+  @apply h-8 w-full rounded-lg border-0 bg-workspace-control px-2.5 text-[12px] font-normal text-workspace-ink outline-none placeholder:text-workspace-subtle;
+}
+
+.screenplay-location-picker__input:focus-visible {
+  @apply ring-2 ring-brand-primary/25;
+}
+
+@container (max-width: 560px) {
+  .screenplay-scene-heading {
+    gap: 0.16em;
+  }
+
+  .screenplay-field-trigger--location {
+    max-width: 22ch;
+  }
+}
+
+@media print {
+  .screenplay-scene-number {
+    color: inherit;
+  }
+}

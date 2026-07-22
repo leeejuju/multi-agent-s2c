@@ -1,0 +1,196 @@
+@reference "../../../../assets/css/Global.css";
+
+.studio-modal__overlay {
+  @apply fixed inset-0 z-50 bg-black/50;
+}
+
+.studio-modal__overlay[data-state="open"] {
+  animation: studio-modal-fade-in 220ms ease both;
+}
+
+.studio-modal__content {
+  @apply fixed left-1/2 top-1/2 z-50 max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-workspace-border bg-workspace-surface p-6 shadow-2xl;
+  width: calc(100% - 2rem);
+  max-width: 36rem;
+}
+
+.studio-modal__content[data-size="sm"] {
+  max-width: 24rem;
+}
+
+.studio-modal__title {
+  @apply sr-only;
+}
+
+.studio-modal__close {
+  @apply absolute right-4 top-4 rounded-xl p-2 text-workspace-icon transition-colors;
+}
+
+.studio-modal__close:hover {
+  @apply bg-workspace-hover text-workspace-ink;
+}
+
+.profile-modal__header {
+  @apply mb-5 text-center;
+}
+
+.profile-modal__avatar {
+  @apply mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-brand-primary text-2xl font-bold text-white shadow-md;
+}
+
+.profile-modal__heading {
+  @apply text-base font-bold text-workspace-ink;
+}
+
+.profile-modal__fields {
+  @apply space-y-4;
+}
+
+.profile-modal__label {
+  @apply mb-1 block text-xs font-semibold text-workspace-muted;
+}
+
+.profile-modal__input {
+  @apply w-full rounded-xl border border-workspace-border bg-workspace-control px-3 py-2 text-sm text-workspace-ink transition-all;
+}
+
+.profile-modal__input:focus {
+  @apply border-brand-primary bg-workspace-surface outline-none;
+}
+
+.profile-modal__save {
+  @apply w-full cursor-pointer rounded-xl bg-brand-primary py-2 text-center text-xs font-bold text-white shadow-sm transition-all;
+}
+
+.profile-modal__save:hover {
+  background-color: color-mix(in srgb, var(--color-brand-primary) 95%, transparent);
+}
+
+.slideshow-modal__overlay {
+  @apply fixed inset-0 z-50 bg-black/95;
+}
+
+.slideshow-modal__content {
+  @apply fixed inset-0 z-50 flex flex-col justify-between p-6 text-white;
+  animation: studio-modal-fade-in 220ms ease both;
+}
+
+.slideshow-modal__header {
+  @apply flex items-center justify-between;
+}
+
+.slideshow-modal__eyebrow {
+  @apply font-mono text-xs font-bold uppercase tracking-widest text-brand-primary;
+}
+
+.slideshow-modal__title {
+  @apply mt-0.5 text-lg font-bold;
+}
+
+.slideshow-modal__close {
+  @apply rounded-xl bg-white/10 p-2 transition-colors;
+}
+
+.slideshow-modal__close:hover,
+.slideshow-modal__navigation-button:hover {
+  @apply bg-white/20;
+}
+
+.slideshow-modal__stage {
+  @apply relative mx-auto my-8 flex w-full max-w-4xl flex-1 flex-col items-center justify-center;
+}
+
+.slideshow-modal__frame {
+  @apply relative aspect-video w-full overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl;
+}
+
+.slideshow-modal__image {
+  @apply h-full w-full object-cover transition-all duration-700;
+  animation: studio-modal-pulse-slow 3.5s ease-in-out infinite;
+}
+
+.slideshow-modal__empty {
+  @apply flex h-full w-full items-center justify-center text-white/35;
+}
+
+.slideshow-modal__caption {
+  @apply absolute bottom-6 left-6 right-6 rounded-2xl border border-white/10 bg-black/70 p-4 text-center backdrop-blur-md;
+  animation: studio-modal-slide-up 260ms ease both;
+}
+
+.slideshow-modal__caption-meta {
+  @apply mb-1 font-mono text-[11px] font-bold uppercase tracking-widest text-brand-primary;
+}
+
+.slideshow-modal__caption-text {
+  @apply mx-auto max-w-2xl select-none font-sans text-sm leading-relaxed text-white/90;
+}
+
+.slideshow-modal__navigation {
+  @apply contents;
+}
+
+.slideshow-modal__navigation-button {
+  @apply absolute top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition-colors;
+}
+
+.slideshow-modal__navigation-button[data-direction="previous"] {
+  @apply left-4;
+}
+
+.slideshow-modal__navigation-button[data-direction="next"] {
+  @apply right-4;
+}
+
+.slideshow-modal__controls {
+  @apply flex items-center justify-center gap-4 border-t border-white/10 py-2;
+}
+
+.slideshow-modal__play-button {
+  @apply flex items-center gap-1.5 rounded-full bg-brand-primary px-6 py-2 text-xs font-bold text-white shadow-md transition-all;
+}
+
+.slideshow-modal__play-button:hover {
+  @apply bg-brand-primary-hover;
+}
+
+.slideshow-modal__playing-indicator {
+  @apply inline-block h-2 w-2 animate-ping rounded bg-white;
+}
+
+@keyframes studio-modal-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes studio-modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes studio-modal-pulse-slow {
+  0%,
+  100% {
+    filter: saturate(0.95) contrast(1);
+    transform: scale(1);
+  }
+
+  50% {
+    filter: saturate(1.12) contrast(1.05);
+    transform: scale(1.015);
+  }
+}

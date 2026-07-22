@@ -1,0 +1,66 @@
+@reference "@/assets/css/Global.css";
+
+.outline-toolbar {
+  @apply absolute left-1/2 top-[18px] z-30 flex h-[50px] w-max max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-[3px] overflow-x-auto rounded-full border border-workspace-border bg-workspace-surface p-1.5 font-sans;
+  box-shadow:
+    0 12px 30px rgba(24, 24, 27, 0.1),
+    0 2px 6px rgba(24, 24, 27, 0.05);
+  scrollbar-width: none;
+}
+
+.outline-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.outline-toolbar__button {
+  @apply flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-0 bg-transparent px-[11px] font-sans text-[12px] font-normal leading-none text-workspace-muted outline-none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.outline-toolbar__button:hover {
+  @apply -translate-y-px bg-workspace-hover text-workspace-ink;
+}
+
+.outline-toolbar__button[data-active="true"] {
+  @apply bg-brand-primary text-workspace-surface;
+}
+
+.outline-toolbar__button:active {
+  @apply translate-y-0 scale-[0.96];
+}
+
+.outline-toolbar__button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(15, 107, 70, 0.22);
+}
+
+@container (max-width: 760px) {
+  .outline-toolbar {
+    top: 12px;
+  }
+}
+
+@container (max-width: 420px) {
+  .outline-toolbar__button span {
+    display: none;
+  }
+
+  .outline-toolbar__button {
+    width: 36px;
+    flex: 0 0 36px;
+    padding: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outline-toolbar__button {
+    transition: none;
+  }
+
+  .outline-toolbar__button:hover,
+  .outline-toolbar__button:active {
+    transform: none;
+  }
+}

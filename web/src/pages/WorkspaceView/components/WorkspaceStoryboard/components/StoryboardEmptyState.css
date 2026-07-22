@@ -1,0 +1,36 @@
+@reference "../../../../../assets/css/Global.css";
+
+.storyboard-empty-state {
+  @apply relative flex min-h-full flex-col items-center justify-center px-6 py-24 text-center;
+}
+
+.storyboard-empty-state__icon {
+  @apply flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft text-brand-primary;
+}
+
+.storyboard-empty-state__title {
+  @apply mb-0 mt-5 text-[16px] font-medium tracking-[-0.01em] text-workspace-ink;
+}
+
+.storyboard-empty-state__add {
+  @apply mt-5 flex h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 text-[13px] font-normal text-white outline-none transition-[background-color,transform];
+}
+
+.storyboard-empty-state__add:hover {
+  @apply bg-brand-primary-hover;
+}
+
+.storyboard-empty-state__add:active {
+  @apply translate-y-0 scale-[0.98];
+}
+
+.storyboard-empty-state__add:focus-visible {
+  @apply ring-2 ring-brand-primary/30 ring-offset-2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storyboard-empty-state__add:hover,
+  .storyboard-empty-state__add:active {
+    transform: none;
+  }
+}

@@ -1,0 +1,25 @@
+@reference "../../../../assets/css/Global.css";
+
+.page-container {
+  @apply min-h-0 flex-1 overflow-hidden p-4;
+}
+
+.page-container__scroll-area {
+  @apply h-full overflow-hidden bg-workspace-bg ring-1 ring-inset ring-workspace-border/80;
+  border-radius: 30px;
+  box-shadow:
+    inset 0 2px 5px rgb(15 23 42 / 5.5%),
+    inset 8px 0 20px rgb(15 23 42 / 2.5%);
+}
+
+.page-container__viewport {
+  @apply h-full w-full;
+}
+
+.page-container__scrollbar {
+  @apply flex w-2 touch-none select-none p-0.5;
+}
+
+.page-container__scrollbar-thumb {
+  @apply relative flex-1 rounded-full bg-workspace-scrollbar;
+}

@@ -1,0 +1,80 @@
+@reference "@/assets/css/Global.css";
+
+.screenplay-toolbar {
+  @apply absolute left-1/2 top-[18px] z-30 flex h-[50px] w-max max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-[3px] overflow-x-auto rounded-full border border-workspace-border bg-workspace-surface p-1.5 font-sans;
+  box-shadow:
+    0 12px 30px rgba(24, 24, 27, 0.12),
+    0 2px 6px rgba(24, 24, 27, 0.06);
+  scrollbar-width: none;
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+.screenplay-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.screenplay-toolbar-title {
+  @apply whitespace-nowrap py-0 pl-2.5 pr-2 text-[11px] font-normal tracking-[0.08em] text-workspace-subtle;
+}
+
+.screenplay-toolbar-separator {
+  @apply mx-[3px] h-5 w-px bg-workspace-border;
+}
+
+.screenplay-toolbar-button {
+  @apply flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-0 bg-transparent px-[11px] font-sans text-[12px] font-normal leading-none text-workspace-muted outline-none;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.screenplay-toolbar-button:hover {
+  @apply -translate-y-px bg-workspace-hover text-workspace-ink;
+}
+
+.screenplay-toolbar-button[data-active="true"],
+.screenplay-toolbar-button[data-state="open"] {
+  @apply bg-brand-primary text-workspace-surface shadow-[0_6px_14px_rgba(15,107,70,0.2)];
+}
+
+.screenplay-toolbar-button:active {
+  @apply translate-y-0 scale-[0.96];
+}
+
+.screenplay-toolbar-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(15, 107, 70, 0.22);
+}
+
+@container (max-width: 760px) {
+  .screenplay-toolbar {
+    top: 12px;
+  }
+}
+
+@container (max-width: 560px) {
+  .screenplay-toolbar-title,
+  .screenplay-toolbar-separator,
+  .screenplay-toolbar-button span {
+    display: none;
+  }
+
+  .screenplay-toolbar-button {
+    width: 36px;
+    flex: 0 0 36px;
+    padding: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screenplay-toolbar-button {
+    animation: none;
+    transition: none;
+  }
+
+  .screenplay-toolbar-button:hover,
+  .screenplay-toolbar-button:active {
+    transform: none;
+  }
+}

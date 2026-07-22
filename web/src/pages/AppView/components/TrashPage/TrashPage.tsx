@@ -1,8 +1,11 @@
 import { FileText, Film, Trash2, type LucideIcon } from "lucide-react";
+import { Toolbar } from "radix-ui";
 
 import type { ScriptItem, VideoProject } from "@/data/studio";
 
 import PageContainer from "../PageContainer";
+
+import "./TrashPage.css";
 
 type TrashPageProps = {
   onDeletePermanently: (id: string, type: "script" | "video") => void;
@@ -26,38 +29,34 @@ function TrashRow({
   title: string;
   tone: "amber" | "blue";
 }) {
-  const toneClass =
-    tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
-
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3 min-w-0">
-        <div
-          className={`w-10 h-10 rounded-lg flex items-center justify-center ${toneClass}`}
-        >
+    <div className="trash-page__row">
+      <div className="trash-page__row-main">
+        <div className="trash-page__row-icon" data-tone={tone}>
           <Icon size={18} />
         </div>
-        <div className="min-w-0">
-          <h4 className="text-sm font-bold text-gray-900 truncate">{title}</h4>
-          <p className="text-xs text-gray-500">{meta}</p>
+        <div className="trash-page__row-copy">
+          <h4 className="trash-page__row-title">{title}</h4>
+          <p className="trash-page__row-meta">{meta}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+      <Toolbar.Root
+        aria-label={`${title} 操作`}
+        className="trash-page__row-actions"
+      >
+        <Toolbar.Button
+          className="trash-page__restore-button"
           onClick={onRestore}
-          type="button"
         >
           还原
-        </button>
-        <button
-          className="text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+        </Toolbar.Button>
+        <Toolbar.Button
+          className="trash-page__delete-button"
           onClick={onDelete}
-          type="button"
         >
           彻底删除
-        </button>
-      </div>
+        </Toolbar.Button>
+      </Toolbar.Root>
     </div>
   );
 }
@@ -69,18 +68,18 @@ export default function TrashPage({
   trashedVideos,
 }: TrashPageProps) {
   return (
-    <PageContainer className="studio-page-trash">
-      <div className="w-full p-8">
+    <PageContainer className="trash-page">
+      <div className="trash-page__content">
         {trashedScripts.length === 0 && trashedVideos.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
-            <Trash2 size={40} className="text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 font-semibold">
+          <div className="trash-page__empty">
+            <Trash2 size={40} className="trash-page__empty-icon" />
+            <p className="trash-page__empty-title">
               回收站空空如也
             </p>
-            <p className="text-xs text-gray-400 mt-1">没有已删除的项目</p>
+            <p className="trash-page__empty-description">没有已删除的项目</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="trash-page__list">
             {trashedScripts.map((script) => (
               <TrashRow
                 icon={FileText}

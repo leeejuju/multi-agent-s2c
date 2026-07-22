@@ -1,137 +1,105 @@
-import { Film, Play, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { Film, Play, Plus } from "lucide-react";
+import { Label, ToggleGroup, Toolbar } from "radix-ui";
 
 import type { VideoProject, VideoScene } from "@/data/studio";
+
+import "./StoryboardEditorPage.css";
 
 type StoryboardEditorPageProps = {
   activeSceneIndex: number;
   currentScene: VideoScene | undefined;
-  generating: boolean;
   onActiveSceneChange: (index: number) => void;
   onAddScene: () => void;
-  onGenerateScene: (sceneId: string) => void;
   onPlay: () => void;
   onRemoveScene: () => void;
   onSceneChange: (scene: VideoScene) => void;
-  presetImages: string[];
   project: VideoProject;
 };
 
 export default function StoryboardEditorPage({
   activeSceneIndex,
   currentScene,
-  generating,
   onActiveSceneChange,
   onAddScene,
-  onGenerateScene,
   onPlay,
   onRemoveScene,
   onSceneChange,
-  presetImages,
   project,
 }: StoryboardEditorPageProps) {
   return (
-    <section className="studio-page-storyboard flex-1 min-h-0 overflow-hidden">
-      <div className="flex flex-col h-full bg-brand-surface">
-        <div className="flex-1 flex flex-col md:flex-row h-full">
-          <div className="flex-1 p-6 overflow-y-auto space-y-6">
-            <div className="flex items-center justify-between gap-4">
+    <section className="storyboard-editor-page">
+      <div className="storyboard-editor-page__canvas">
+        <div className="storyboard-editor-page__frame">
+          <div className="storyboard-editor-page__body">
+            <div className="storyboard-editor-page__header">
               <div>
-                <span className="text-xs font-mono text-brand-secondary uppercase tracking-widest font-bold">
+                <span className="storyboard-editor-page__eyebrow">
                   VISION STORYBOARD BOARD
                 </span>
-                <h2 className="text-xl font-bold text-gray-900 mt-0.5">
+                <h2 className="storyboard-editor-page__title">
                   {project.title}
                 </h2>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="bg-brand-primary hover:bg-brand-primary/95 text-white text-xs px-4 py-2 rounded-xl font-bold transition-all shadow-sm flex items-center gap-1.5"
+              <Toolbar.Root
+                aria-label="分镜操作"
+                className="storyboard-editor-page__toolbar"
+              >
+                <Toolbar.Button
+                  className="storyboard-editor-page__play-button"
                   onClick={onPlay}
-                  type="button"
                 >
                   <Play size={13} fill="currentColor" />
                   <span>播放分镜预告</span>
-                </button>
-                <button
-                  className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 text-xs px-3 py-2 rounded-xl font-bold shadow-sm flex items-center gap-1"
+                </Toolbar.Button>
+                <Toolbar.Button
+                  className="storyboard-editor-page__add-button"
                   onClick={onAddScene}
-                  type="button"
                 >
                   <Plus size={14} />
                   <span>添加幕节</span>
-                </button>
-              </div>
+                </Toolbar.Button>
+              </Toolbar.Root>
             </div>
 
             {currentScene ? (
-              <div className="bg-white rounded-3xl border border-[#dadad9] p-6 shadow-md grid grid-cols-1 lg:grid-cols-12 gap-6 relative overflow-hidden">
-                <div className="lg:col-span-7 flex flex-col justify-between">
-                  <div className="relative bg-black rounded-2xl border border-gray-200 overflow-hidden group aspect-video">
+              <div className="storyboard-editor-page__editor-card">
+                <div className="storyboard-editor-page__preview-column">
+                  <div className="storyboard-editor-page__preview">
                     {currentScene.imageUrl ? (
                       <img
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="storyboard-editor-page__preview-image"
                         src={currentScene.imageUrl}
                       />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-center text-gray-400 p-4">
-                        <Film size={40} className="text-gray-300 mb-2" />
-                        <p className="text-xs font-semibold">无分镜示意图</p>
-                        <p className="text-[10px] text-gray-500 mt-1">
+                      <div className="storyboard-editor-page__preview-empty">
+                        <Film
+                          size={40}
+                          className="storyboard-editor-page__preview-empty-icon"
+                        />
+                        <p className="storyboard-editor-page__preview-empty-title">
+                          无分镜示意图
+                        </p>
+                        <p className="storyboard-editor-page__preview-empty-help">
                           输入右侧场景描述，让 AI 生成专属故事底版
                         </p>
                       </div>
                     )}
-
-                    {generating ? (
-                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
-                        <RefreshCw
-                          className="animate-spin text-brand-secondary mb-2"
-                          size={32}
-                        />
-                        <p className="text-xs font-semibold">
-                          AI 故事板极速生成中...
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          使用双子星图像矩阵芯片渲染
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-3">
-                    <span className="text-[11px] text-gray-400 font-bold block mb-1">
-                      精美电影感预设图片底稿：
-                    </span>
-                    <div className="flex gap-2">
-                      {presetImages.map((url) => (
-                        <button
-                          className="w-12 h-9 rounded overflow-hidden border border-gray-200 hover:border-brand-secondary transition-all"
-                          key={url}
-                          onClick={() =>
-                            onSceneChange({ ...currentScene, imageUrl: url })
-                          }
-                          type="button"
-                        >
-                          <img
-                            alt=""
-                            className="w-full h-full object-cover"
-                            src={url}
-                          />
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 </div>
 
-                <div className="lg:col-span-5 flex flex-col justify-between">
-                  <div className="space-y-4">
+                <div className="storyboard-editor-page__details-column">
+                  <div className="storyboard-editor-page__fields">
                     <div>
-                      <label className="text-[10px] text-gray-400 font-bold block mb-1">
+                      <Label.Root
+                        className="storyboard-editor-page__field-label"
+                        htmlFor="scene-title"
+                      >
                         分镜幕节标题
-                      </label>
+                      </Label.Root>
                       <input
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:border-brand-secondary focus:bg-white transition-all"
+                        className="storyboard-editor-page__title-input"
+                        id="scene-title"
                         onChange={(event) =>
                           onSceneChange({
                             ...currentScene,
@@ -143,11 +111,15 @@ export default function StoryboardEditorPage({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-gray-400 font-bold block mb-1">
+                      <Label.Root
+                        className="storyboard-editor-page__field-label"
+                        htmlFor="scene-direction"
+                      >
                         画面视觉提示 / 导演指导（AI绘图参考）
-                      </label>
+                      </Label.Root>
                       <textarea
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs leading-relaxed text-gray-700 focus:outline-none focus:border-brand-secondary focus:bg-white transition-all resize-none"
+                        className="storyboard-editor-page__direction-input"
+                        id="scene-direction"
                         onChange={(event) =>
                           onSceneChange({
                             ...currentScene,
@@ -159,66 +131,64 @@ export default function StoryboardEditorPage({
                       />
                     </div>
                   </div>
-                  <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-between gap-4">
-                    <button
-                      className="text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                      onClick={onRemoveScene}
-                      type="button"
-                    >
-                      删除本幕
-                    </button>
-                    <button
-                      className="bg-brand-secondary hover:bg-brand-secondary/95 text-white text-xs px-4 py-2 rounded-xl font-bold shadow-sm flex items-center gap-1.5 cursor-pointer"
-                      disabled={generating}
-                      onClick={() => onGenerateScene(currentScene.id)}
-                      type="button"
-                    >
-                      <Sparkles size={13} />
-                      <span>AI 智能绘图</span>
-                    </button>
+                  <div className="storyboard-editor-page__editor-footer">
+                    <Toolbar.Root aria-label="当前幕节操作">
+                      <Toolbar.Button
+                        className="storyboard-editor-page__delete-button"
+                        onClick={onRemoveScene}
+                      >
+                        删除本幕
+                      </Toolbar.Button>
+                    </Toolbar.Root>
                   </div>
                 </div>
               </div>
             ) : null}
 
             <div>
-              <h3 className="text-xs font-bold text-gray-500 mb-3">
+              <h3 className="storyboard-editor-page__scene-list-title">
                 分镜幕节列表 ({project.scenes.length})
               </h3>
-              <div className="flex gap-4 overflow-x-auto pb-4">
+              <ToggleGroup.Root
+                aria-label="选择分镜幕节"
+                className="storyboard-editor-page__scene-list"
+                onValueChange={(value) => {
+                  if (value) {
+                    onActiveSceneChange(Number(value));
+                  }
+                }}
+                type="single"
+                value={String(activeSceneIndex)}
+              >
                 {project.scenes.map((scene, index) => (
-                  <button
-                    className={`flex-shrink-0 w-44 bg-white rounded-2xl border-2 p-3 cursor-pointer transition-all text-left ${
-                      activeSceneIndex === index
-                        ? "border-brand-secondary shadow-md scale-[1.02]"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
+                  <ToggleGroup.Item
+                    aria-label={`选择第 ${index + 1} 幕：${scene.title}`}
+                    className="storyboard-editor-page__scene-item"
                     key={scene.id}
-                    onClick={() => onActiveSceneChange(index)}
-                    type="button"
+                    value={String(index)}
                   >
-                    <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2 border border-gray-200">
+                    <div className="storyboard-editor-page__scene-media">
                       {scene.imageUrl ? (
                         <img
                           alt=""
-                          className="w-full h-full object-cover"
+                          className="storyboard-editor-page__scene-image"
                           src={scene.imageUrl}
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
+                        <div className="storyboard-editor-page__scene-placeholder">
                           未渲染
                         </div>
                       )}
                     </div>
-                    <span className="text-[10px] text-brand-secondary font-mono block font-bold">
+                    <span className="storyboard-editor-page__scene-act">
                       ACT {index + 1}
                     </span>
-                    <h4 className="text-xs font-bold text-gray-900 truncate mt-0.5">
+                    <h4 className="storyboard-editor-page__scene-title">
                       {scene.title}
                     </h4>
-                  </button>
+                  </ToggleGroup.Item>
                 ))}
-              </div>
+              </ToggleGroup.Root>
             </div>
           </div>
         </div>

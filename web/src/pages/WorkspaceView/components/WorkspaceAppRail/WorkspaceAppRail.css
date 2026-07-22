@@ -1,0 +1,79 @@
+@reference "@/assets/css/Global.css";
+
+.workspace-app-rail {
+  @apply relative z-40 hidden min-h-0 w-8 flex-col justify-between overflow-hidden bg-workspace-surface py-1 text-workspace-muted;
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.workspace-app-rail:hover,
+.workspace-app-rail:focus-within {
+  width: 136px;
+}
+
+.workspace-app-rail__primary,
+.workspace-app-rail__secondary {
+  @apply flex w-[136px] flex-col gap-1;
+}
+
+.workspace-app-rail__item,
+.workspace-app-rail__avatar-row {
+  @apply relative flex h-10 w-full items-center gap-2 rounded-lg bg-transparent px-0 text-left outline-none;
+}
+
+.workspace-app-rail__item {
+  @apply border-0 transition-[background-color,color] duration-200;
+}
+
+.workspace-app-rail__item:hover {
+  @apply bg-workspace-hover text-workspace-ink;
+}
+
+.workspace-app-rail__item[data-active="true"] {
+  @apply text-brand-primary;
+}
+
+.workspace-app-rail__item[data-active="true"]::before {
+  @apply absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-brand-primary;
+  content: "";
+}
+
+.workspace-app-rail__item:focus-visible {
+  @apply ring-2 ring-inset ring-brand-primary/35;
+}
+
+.workspace-app-rail__icon {
+  @apply flex h-8 w-8 shrink-0 items-center justify-center;
+}
+
+.workspace-app-rail__avatar {
+  @apply ml-[5px] h-[22px] w-[22px] shrink-0 rounded-full border border-workspace-border bg-workspace-control;
+}
+
+.workspace-app-rail__avatar-row {
+  @apply cursor-default;
+}
+
+.workspace-app-rail__label {
+  @apply min-w-0 truncate whitespace-nowrap text-[13px] font-normal opacity-0 transition-[opacity,transform] duration-150;
+  transform: translateX(-4px);
+}
+
+.workspace-app-rail:hover .workspace-app-rail__label,
+.workspace-app-rail:focus-within .workspace-app-rail__label {
+  @apply opacity-100;
+  transform: translateX(0);
+  transition-delay: 40ms;
+}
+
+@media (width >= 64rem) {
+  .workspace-app-rail {
+    @apply flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-app-rail,
+  .workspace-app-rail__label {
+    transition: none;
+  }
+}

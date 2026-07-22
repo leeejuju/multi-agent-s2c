@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
+import { ScrollArea } from "radix-ui";
+
+import "./PageContainer.css";
 
 type PageContainerProps = {
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
 };
 
@@ -10,12 +13,21 @@ export default function PageContainer({
   className = "",
 }: PageContainerProps) {
   return (
-    <section
-      className={`flex-1 min-h-0 overflow-hidden py-4 pr-4 pl-0 ${className}`}
-    >
-      <div className="h-full overflow-y-auto rounded-l-[32px] rounded-r-3xl bg-[#f7f7f6] shadow-[inset_10px_0_18px_rgba(15,23,42,0.035),0_1px_2px_rgba(15,23,42,0.04)]">
-        {children}
-      </div>
+    <section className={`page-container ${className}`}>
+      <ScrollArea.Root
+        className="page-container__scroll-area"
+        type="hover"
+      >
+        <ScrollArea.Viewport className="page-container__viewport">
+          {children}
+        </ScrollArea.Viewport>
+        <ScrollArea.Scrollbar
+          className="page-container__scrollbar"
+          orientation="vertical"
+        >
+          <ScrollArea.Thumb className="page-container__scrollbar-thumb" />
+        </ScrollArea.Scrollbar>
+      </ScrollArea.Root>
     </section>
   );
 }

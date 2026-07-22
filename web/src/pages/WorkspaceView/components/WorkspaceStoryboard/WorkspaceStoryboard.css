@@ -1,0 +1,33 @@
+@reference "../../../../assets/css/Global.css";
+
+.workspace-storyboard {
+  @apply relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-workspace-canvas;
+}
+
+.workspace-storyboard__scroll-area {
+  @apply relative min-h-0 flex-1 overflow-hidden;
+}
+
+.workspace-storyboard__viewport {
+  @apply h-full w-full;
+}
+
+.workspace-storyboard__grid {
+  @apply grid min-h-full w-full content-start justify-center gap-5 px-7 pb-24 pt-7;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 336px));
+}
+
+.workspace-storyboard__scrollbar {
+  @apply flex w-2 touch-none select-none p-0.5;
+}
+
+.workspace-storyboard__scrollbar-thumb {
+  @apply relative flex-1 rounded-full bg-workspace-scrollbar;
+}
+
+@media (width < 40rem) {
+  .workspace-storyboard__grid {
+    @apply gap-4 px-4 pb-20 pt-4;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

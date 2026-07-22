@@ -1,0 +1,149 @@
+@reference "../../../../../assets/css/Global.css";
+
+.storyboard-frame-card {
+  @apply relative overflow-hidden rounded-xl border border-workspace-border/90 bg-workspace-surface transition-colors duration-200;
+}
+
+.storyboard-frame-card:focus-within {
+  @apply border-brand-primary/35;
+}
+
+.storyboard-frame-card__figure {
+  @apply relative m-0 aspect-[16/9] overflow-hidden bg-workspace-control;
+}
+
+.storyboard-frame-card__image {
+  @apply h-full w-full object-cover;
+}
+
+.storyboard-frame-card__placeholder-background {
+  @apply absolute inset-0 opacity-80;
+  background-image:
+    linear-gradient(145deg, rgb(255 255 255 / 96%), transparent 58%),
+    radial-gradient(circle at 76% 20%, rgb(215 235 224 / 58%), transparent 38%);
+}
+
+.storyboard-frame-card__placeholder-frame {
+  @apply hidden;
+}
+
+.storyboard-frame-card__placeholder {
+  @apply absolute inset-0 flex flex-col items-center justify-center gap-2 text-workspace-icon/60;
+}
+
+.storyboard-frame-card__placeholder-label {
+  @apply text-[12px] text-workspace-subtle;
+}
+
+.storyboard-frame-card__number {
+  @apply absolute left-3 top-3 rounded-md border border-workspace-border/70 bg-workspace-surface/92 px-2 py-1 font-mono text-[11px] tracking-[0.12em] text-workspace-muted backdrop-blur-md;
+}
+
+.storyboard-frame-card__delete {
+  @apply absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-workspace-border/70 bg-workspace-surface/92 text-workspace-icon backdrop-blur-md outline-none transition-[background-color,color,transform];
+}
+
+.storyboard-frame-card__delete:hover {
+  @apply bg-white text-red-600;
+}
+
+.storyboard-frame-card__delete:active {
+  @apply scale-95;
+}
+
+.storyboard-frame-card__delete:focus-visible {
+  @apply ring-2 ring-brand-primary/30;
+}
+
+.storyboard-frame-card__select:focus-visible,
+.storyboard-frame-card__description:focus-visible {
+  @apply ring-2 ring-brand-primary/28;
+}
+
+.storyboard-frame-card__body {
+  @apply flex flex-col gap-4 p-4;
+}
+
+.storyboard-frame-card__settings {
+  @apply grid grid-cols-2 gap-3;
+}
+
+.storyboard-frame-card__field {
+  @apply min-w-0;
+}
+
+.storyboard-frame-card__sr-only {
+  @apply sr-only;
+}
+
+.storyboard-frame-card__select {
+  @apply h-9 w-full rounded-lg border border-workspace-border/90 bg-transparent px-3 text-[12px] text-workspace-ink outline-none transition-[border-color,background-color];
+}
+
+.storyboard-frame-card__select:hover {
+  @apply bg-workspace-hover/60;
+}
+
+.storyboard-frame-card__description-field {
+  @apply block space-y-2;
+}
+
+.storyboard-frame-card__description-label {
+  @apply block text-[12px] font-medium text-workspace-muted;
+}
+
+.storyboard-frame-card__description {
+  @apply min-h-28 w-full resize-none rounded-lg border border-workspace-border/90 bg-transparent px-3.5 py-3 text-[13px] leading-6 text-workspace-ink outline-none transition-[border-color,background-color] placeholder:text-workspace-subtle;
+}
+
+.storyboard-frame-card__description:focus {
+  @apply border-brand-primary/35 bg-workspace-surface;
+}
+
+.storyboard-frame-card__generate-wrapper {
+  @apply block rounded-lg outline-none;
+}
+
+.storyboard-frame-card__generate-wrapper:focus-visible {
+  @apply ring-4 ring-brand-primary/20;
+}
+
+.storyboard-frame-card__generate {
+  @apply flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-primary text-[13px] text-white outline-none transition-[background-color,transform];
+}
+
+.storyboard-frame-card__generate:hover {
+  @apply bg-brand-primary-hover;
+}
+
+.storyboard-frame-card__generate:active {
+  @apply translate-y-0 scale-[0.99];
+}
+
+.storyboard-frame-card__generate:focus-visible {
+  @apply ring-4 ring-brand-primary/25;
+}
+
+.storyboard-frame-card__generate:disabled {
+  @apply cursor-not-allowed bg-brand-primary/45 text-white shadow-none;
+}
+
+.storyboard-frame-card__tooltip {
+  @apply z-[80] rounded-lg bg-gray-950 px-2.5 py-1.5 text-[11px] text-white shadow-lg;
+}
+
+.storyboard-frame-card__tooltip-arrow {
+  @apply fill-gray-950;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storyboard-frame-card__delete,
+  .storyboard-frame-card__generate {
+    transition: none;
+  }
+
+  .storyboard-frame-card__generate:hover,
+  .storyboard-frame-card__generate:active {
+    transform: none;
+  }
+}

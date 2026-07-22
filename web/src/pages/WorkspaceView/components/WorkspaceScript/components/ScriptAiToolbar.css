@@ -1,0 +1,70 @@
+@reference "@/assets/css/Global.css";
+
+.screenplay-ai-menu {
+  @apply z-[80] flex min-h-11 w-max max-w-[calc(100vw-24px)] items-center gap-0.5 overflow-x-auto rounded-full border border-workspace-border bg-workspace-surface p-[5px] font-sans text-workspace-muted;
+  box-shadow:
+    0 18px 40px rgba(24, 24, 27, 0.15),
+    0 4px 12px rgba(24, 24, 27, 0.07),
+    inset 0 1px 0 var(--color-workspace-surface);
+  scrollbar-width: none;
+  animation: screenplay-ai-menu-in 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  backdrop-filter: blur(18px) saturate(145%);
+}
+
+.screenplay-ai-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.screenplay-ai-menu-mark {
+  @apply flex h-8 items-center gap-[5px] whitespace-nowrap rounded-full px-2 text-[11px] font-semibold tracking-[0.04em] text-brand-primary;
+}
+
+.screenplay-ai-menu-separator {
+  @apply mx-0.5 h-5 w-px bg-workspace-border;
+}
+
+.screenplay-ai-menu-button {
+  @apply flex h-[34px] items-center justify-center gap-[5px] whitespace-nowrap rounded-full border-0 bg-transparent px-2.5 text-[12px] font-normal leading-none text-workspace-muted outline-none;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.screenplay-ai-menu-button:hover {
+  @apply -translate-y-px bg-brand-soft text-brand-primary;
+}
+
+.screenplay-ai-menu-button:active {
+  @apply translate-y-0 scale-[0.96];
+}
+
+.screenplay-ai-menu-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(15, 107, 70, 0.2);
+}
+
+@keyframes screenplay-ai-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screenplay-ai-menu,
+  .screenplay-ai-menu-button {
+    animation: none;
+    transition: none;
+  }
+
+  .screenplay-ai-menu-button:hover,
+  .screenplay-ai-menu-button:active {
+    transform: none;
+  }
+}

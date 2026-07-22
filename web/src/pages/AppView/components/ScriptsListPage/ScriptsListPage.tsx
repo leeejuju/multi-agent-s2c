@@ -5,6 +5,8 @@ import type { ScriptItem } from "@/data/studio";
 import PageContainer from "../PageContainer";
 import StudioCard from "../StudioCard";
 
+import "./ScriptsListPage.css";
+
 type ScriptsListPageProps = {
   onCreateNewScript: () => void;
   onOpenScript: (script: ScriptItem) => void;
@@ -15,12 +17,14 @@ type ScriptsListPageProps = {
 function CreateCard({ onClick }: { onClick: () => void }) {
   return (
     <StudioCard onClick={onClick}>
-      <span className="flex h-full flex-col items-center justify-center text-center group-hover:text-brand-primary">
-        <span className="w-12 h-12 rounded-full bg-[#f3f4f3] flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-          <Plus size={24} className="text-gray-500" />
+      <span className="scripts-list-page__create-card">
+        <span className="scripts-list-page__create-icon-wrap">
+          <Plus size={24} className="scripts-list-page__create-icon" />
         </span>
-        <span className="text-sm font-semibold text-gray-900 mb-1">新剧本</span>
-        <span className="text-xs text-gray-500">撰写专业的结构化剧本</span>
+        <span className="scripts-list-page__create-title">新剧本</span>
+        <span className="scripts-list-page__create-description">
+          撰写专业的结构化剧本
+        </span>
       </span>
     </StudioCard>
   );
@@ -38,28 +42,28 @@ function ScriptCard({
   return (
     <StudioCard>
       <button
-        className="flex-1 cursor-pointer text-left min-h-0"
+        className="scripts-list-page__card-body"
         onClick={onOpen}
         type="button"
       >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-base font-bold text-gray-900 group-hover:text-brand-primary transition-colors line-clamp-1">
+        <div className="scripts-list-page__card-header">
+          <h3 className="scripts-list-page__card-title">
             {script.title}
           </h3>
-          <span className="p-1 rounded bg-[#f3f4f3] text-[10px] text-gray-600 font-mono">
+          <span className="scripts-list-page__card-type">
             TEXT
           </span>
         </div>
-        <p className="text-xs text-gray-500 line-clamp-5 leading-relaxed font-mono whitespace-pre-wrap">
+        <p className="scripts-list-page__excerpt">
           {script.content || script.description}
         </p>
       </button>
-      <div className="flex items-center justify-between border-t border-[#f3f4f3] pt-4 mt-4">
-        <span className="text-[11px] text-gray-400">
+      <div className="scripts-list-page__card-footer">
+        <span className="scripts-list-page__updated-at">
           更新于 {script.lastEdited}
         </span>
         <button
-          className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+          className="scripts-list-page__trash-button"
           onClick={onTrash}
           title="移至回收站"
           type="button"
@@ -78,9 +82,9 @@ export default function ScriptsListPage({
   scripts,
 }: ScriptsListPageProps) {
   return (
-    <PageContainer className="studio-page-scripts">
-      <div className="w-full p-8">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(336px,1fr))] gap-6">
+    <PageContainer className="scripts-list-page">
+      <div className="scripts-list-page__content">
+        <div className="scripts-list-page__grid">
           <CreateCard onClick={onCreateNewScript} />
           {scripts.map((script) => (
             <ScriptCard

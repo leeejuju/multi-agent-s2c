@@ -1,3 +1,18 @@
+@reference "../../../../assets/css/Global.css";
+
+.studio-card {
+  @apply relative flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-workspace-border bg-workspace-surface p-6 shadow-sm transition-all;
+  height: 364px;
+}
+
+.studio-card:hover {
+  @apply -translate-y-0.5 border-workspace-scrollbar shadow-md;
+}
+
+.studio-card--interactive {
+  @apply cursor-pointer;
+}
+
 .studio-card::before {
   content: "";
   position: absolute;
@@ -7,25 +22,25 @@
   background:
     repeating-linear-gradient(
         90deg,
-        #8f8f8a 0 10px,
+        var(--color-workspace-border) 0 10px,
         transparent 10px 22px
       )
       top / 100% 2px no-repeat,
     repeating-linear-gradient(
         90deg,
-        #8f8f8a 0 10px,
+        var(--color-workspace-border) 0 10px,
         transparent 10px 22px
       )
       bottom / 100% 2px no-repeat,
     repeating-linear-gradient(
         180deg,
-        #8f8f8a 0 10px,
+        var(--color-workspace-border) 0 10px,
         transparent 10px 22px
       )
       left / 2px 100% no-repeat,
     repeating-linear-gradient(
         180deg,
-        #8f8f8a 0 10px,
+        var(--color-workspace-border) 0 10px,
         transparent 10px 22px
       )
       right / 2px 100% no-repeat;

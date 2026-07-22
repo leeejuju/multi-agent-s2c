@@ -1,0 +1,21 @@
+@reference "@/assets/css/Global.css";
+
+.screenplay-transition-line-editor {
+  @apply z-[60] w-[min(15rem,calc(100vw-24px))] rounded-xl border border-workspace-border bg-workspace-surface p-1.5 font-sans normal-case shadow-[0_14px_32px_rgba(24,24,27,0.13)];
+}
+
+.screenplay-transition-line-editor__item {
+  @apply flex min-h-10 cursor-pointer flex-col justify-center rounded-lg px-2.5 py-1.5 text-[12px] font-normal text-workspace-ink outline-none;
+}
+
+.screenplay-transition-line-editor__item small {
+  @apply mt-0.5 text-[10px] font-normal text-workspace-subtle;
+}
+
+.screenplay-transition-line-editor__item[data-highlighted] {
+  @apply bg-workspace-hover;
+}
+
+.screenplay-transition-line-editor__item:focus-visible {
+  @apply ring-2 ring-brand-primary/25;
+}

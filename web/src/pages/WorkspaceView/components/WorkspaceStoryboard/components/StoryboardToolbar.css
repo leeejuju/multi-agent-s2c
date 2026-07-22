@@ -1,0 +1,47 @@
+@reference "../../../../../assets/css/Global.css";
+
+.storyboard-toolbar {
+  @apply flex shrink-0 items-center gap-3;
+}
+
+.storyboard-toolbar__count {
+  @apply shrink-0 text-[12px] font-medium text-workspace-subtle;
+}
+
+.storyboard-toolbar__add {
+  @apply m-0 flex h-9 shrink-0 items-center gap-2 rounded-lg bg-brand-primary px-3.5 text-[13px] font-normal text-white outline-none transition-[background-color,transform];
+}
+
+.storyboard-toolbar__add:hover {
+  @apply bg-brand-primary-hover;
+}
+
+.storyboard-toolbar__add:active {
+  @apply translate-y-0 scale-[0.98];
+}
+
+.storyboard-toolbar__add:focus-visible {
+  @apply ring-2 ring-brand-primary/30 ring-offset-2;
+}
+
+@media (width < 40rem) {
+  .storyboard-toolbar {
+    @apply gap-0;
+  }
+
+  .storyboard-toolbar__count,
+  .storyboard-toolbar__add-label {
+    @apply sr-only;
+  }
+
+  .storyboard-toolbar__add {
+    @apply h-8 w-8 justify-center p-0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storyboard-toolbar__add:hover,
+  .storyboard-toolbar__add:active {
+    transform: none;
+  }
+}

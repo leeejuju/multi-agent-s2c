@@ -1,0 +1,43 @@
+@reference "@/assets/css/Global.css";
+
+.screenplay-character-line-editor {
+  @apply z-[60] w-[min(16rem,calc(100vw-24px))] rounded-xl border border-workspace-border bg-workspace-surface p-1.5 font-sans normal-case shadow-[0_14px_32px_rgba(24,24,27,0.13)];
+}
+
+.screenplay-character-line-editor__list {
+  @apply max-h-44 space-y-0.5 overflow-y-auto;
+}
+
+.screenplay-character-line-editor__person {
+  @apply m-0 flex min-h-8 w-full items-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] font-normal text-workspace-ink outline-none;
+}
+
+.screenplay-character-line-editor__person:hover,
+.screenplay-character-line-editor__person:focus-visible {
+  @apply bg-workspace-hover ring-2 ring-brand-primary/25;
+}
+
+.screenplay-character-line-editor__empty {
+  @apply px-2.5 py-2 text-[11px] text-workspace-subtle;
+}
+
+.screenplay-character-line-editor__form {
+  @apply mt-1.5 flex items-center gap-1.5 border-t border-workspace-border pt-1.5;
+}
+
+.screenplay-character-line-editor__input {
+  @apply h-8 min-w-0 flex-1 rounded-lg border-0 bg-workspace-control px-2.5 text-[12px] font-normal text-workspace-ink outline-none placeholder:text-workspace-subtle;
+}
+
+.screenplay-character-line-editor__submit {
+  @apply flex h-8 shrink-0 items-center justify-center rounded-lg border-0 bg-brand-primary px-2.5 text-[11px] text-white outline-none;
+}
+
+.screenplay-character-line-editor__input:focus-visible,
+.screenplay-character-line-editor__submit:focus-visible {
+  @apply ring-2 ring-brand-primary/25;
+}
+
+.screenplay-character-line-editor__submit:disabled {
+  @apply cursor-not-allowed opacity-45;
+}

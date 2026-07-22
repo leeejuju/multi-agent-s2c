@@ -1,13 +1,13 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import type { ScriptItem, VideoProject } from "@/data/studio";
 
 import PageContainer from "../PageContainer";
 import StudioCard from "../StudioCard";
 
+import "./RecentPage.css";
+
 type RecentPageProps = {
-  onCreateNewScript: () => void;
-  onCreateNewVideoProject: () => void;
   onOpenScript: (script: ScriptItem) => void;
   onOpenVideo: (project: VideoProject) => void;
   onTrashScript: (id: string) => void;
@@ -15,8 +15,6 @@ type RecentPageProps = {
   scripts: ScriptItem[];
   videoProjects: VideoProject[];
 };
-
-
 
 function ScriptCard({
   onOpen,
@@ -30,28 +28,28 @@ function ScriptCard({
   return (
     <StudioCard>
       <button
-        className="flex-1 cursor-pointer text-left min-h-0"
+        className="recent-page__card-body"
         onClick={onOpen}
         type="button"
       >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-base font-bold text-gray-900 group-hover:text-brand-primary transition-colors line-clamp-1">
+        <div className="recent-page__card-header">
+          <h3 className="recent-page__card-title">
             {script.title}
           </h3>
-          <span className="p-1 rounded bg-[#f3f4f3] text-[10px] text-gray-600 font-mono">
+          <span className="recent-page__card-type">
             TEXT
           </span>
         </div>
-        <p className="text-xs text-gray-500 line-clamp-5 leading-relaxed font-mono whitespace-pre-wrap">
+        <p className="recent-page__script-excerpt">
           {script.content || script.description}
         </p>
       </button>
-      <div className="flex items-center justify-between border-t border-[#f3f4f3] pt-4 mt-4">
-        <span className="text-[11px] text-gray-400">
+      <div className="recent-page__card-footer">
+        <span className="recent-page__updated-at">
           更新于 {script.lastEdited}
         </span>
         <button
-          className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+          className="recent-page__trash-button"
           onClick={onTrash}
           title="移至回收站"
           type="button"
@@ -75,53 +73,53 @@ function VideoCard({
   return (
     <StudioCard>
       <button
-        className="flex-1 cursor-pointer text-left min-h-0"
+        className="recent-page__card-body"
         onClick={onOpen}
         type="button"
       >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-base font-bold text-gray-900 group-hover:text-brand-secondary transition-colors line-clamp-1">
+        <div className="recent-page__card-header">
+          <h3 className="recent-page__card-title">
             {project.title}
           </h3>
-          <span className="p-1 rounded bg-[#f3f4f3] text-[10px] text-gray-600 font-mono">
+          <span className="recent-page__card-type">
             VIDEO
           </span>
         </div>
-        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+        <p className="recent-page__video-description">
           {project.description}
         </p>
-        <div className="flex gap-1.5 mt-3 overflow-hidden">
+        <div className="recent-page__scene-list">
           {project.scenes.slice(0, 3).map((scene) => (
             <div
-              className="w-12 h-10 rounded bg-gray-100 border border-gray-200 overflow-hidden relative"
+              className="recent-page__scene-thumbnail"
               key={scene.id}
             >
               {scene.imageUrl ? (
                 <img
                   alt=""
-                  className="w-full h-full object-cover"
+                  className="recent-page__scene-image"
                   src={scene.imageUrl}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-400">
+                <div className="recent-page__scene-placeholder">
                   分镜
                 </div>
               )}
             </div>
           ))}
           {project.scenes.length > 3 ? (
-            <div className="w-10 h-10 rounded bg-[#f3f4f3] border border-gray-200 flex items-center justify-center text-[10px] text-gray-500 font-bold">
+            <div className="recent-page__scene-overflow">
               +{project.scenes.length - 3}
             </div>
           ) : null}
         </div>
       </button>
-      <div className="flex items-center justify-between border-t border-[#f3f4f3] pt-4 mt-4">
-        <span className="text-[11px] text-gray-400">
+      <div className="recent-page__card-footer">
+        <span className="recent-page__updated-at">
           更新于 {project.lastEdited}
         </span>
         <button
-          className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+          className="recent-page__trash-button"
           onClick={onTrash}
           title="移至回收站"
           type="button"
@@ -134,8 +132,6 @@ function VideoCard({
 }
 
 export default function RecentPage({
-  onCreateNewScript,
-  onCreateNewVideoProject,
   onOpenScript,
   onOpenVideo,
   onTrashScript,
@@ -144,10 +140,9 @@ export default function RecentPage({
   videoProjects,
 }: RecentPageProps) {
   return (
-    <PageContainer className="studio-page-recent">
-      <div className="w-full p-8">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(336px,1fr))] gap-6">
-       
+    <PageContainer className="recent-page">
+      <div className="recent-page__content">
+        <div className="recent-page__grid">
           {scripts.map((script) => (
             <ScriptCard
               key={script.id}
