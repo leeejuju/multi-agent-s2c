@@ -17,7 +17,6 @@ from src.agents.base_context import BaseContext
 from src.configs.config import config as sys_config
 
 EVICT_TOOL_EXEMPT = {"read_file"}  # read_file 的长结果直接返回，避免落入部分 backend
-tool_token_limit_before_evict = 20000
 
 # Agent 可见的虚拟路径前缀（Composite 路由 key，建议以 / 结尾）
 ROUTE_SKILL = "/skill/"
@@ -77,7 +76,11 @@ class CustomFilesystemMiddleware(FilesystemMiddleware):
         return self._intercept_large_tool_result(tool_results, request.runtime)
 
 
-def create_custom_filesystem_middleware() -> CustomFilesystemMiddleware:
+def create_custom_filesystem_middleware(
+    tool_token_limit_before_evict: int | None = None,
+    *,
+    context=None
+) -> CustomFilesystemMiddleware:
     """创建绑定 CompositeBackend factory 的文件系统 middleware。"""
     return CustomFilesystemMiddleware(
         backend=create_composite_backend,
