@@ -21,7 +21,7 @@ class AgentRunRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_child_run_for_parent(
+    async def get_child_for_parent(
         self,
         *,
         run_id: str,
@@ -43,7 +43,7 @@ class AgentRunRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_active_subagent_runs_for_user(
+    async def list_active_child_runs(
         self,
         *,
         parent_run_id: str,
@@ -65,27 +65,26 @@ class AgentRunRepository:
         )
         return list(result.scalars().all())
 
-    async def create_agent_run(
+    async def create_run(
         self,
         *,
         run_id: str,
         thread_id: str,
         conversation_id: int | str,
         uid: str,
-        agent_id: str,
+        agent_slug: str,
         request_id: str,
         trigger_message_id: int,
         agent_status: str = "pending",
         run_type: str = "chat",
         parent_run_id: str | None = None,
     ) -> AgentRun:
-        # FIXME: run 必须保存触发消息主键，Worker 才能只凭 run_id 恢复输入。
         run = AgentRun(
             id=run_id,
             thread_id=thread_id,
             conversation_id=int(conversation_id),
             uid=uid,
-            agent_id=agent_id,
+            agent_id=agent_slug,
             request_id=request_id,
             trigger_message_id=trigger_message_id,
             run_type=run_type,
@@ -97,13 +96,7 @@ class AgentRunRepository:
         await self.session.flush()
         return run
 
-    async def get_run_by_request_id(self, request_id: str) -> AgentRun | None:
-        result = await self.session.execute(
-            select(AgentRun).where(AgentRun.request_id == request_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def get_run_for_user(
+    async def get_by_id_for_user(
         self,
         *,
         run_id: str,
@@ -123,7 +116,7 @@ class AgentRunRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_run_for_user_thread(
+    async def get_by_id_for_user_and_thread(
         self,
         *,
         run_id: str,
@@ -154,7 +147,6 @@ class AgentRunRepository:
         )
         return result.scalar_one_or_none()
 
-    # FIXME: AgentRun 各状态使用独立方法，避免调用方传入任意状态字符串。
     async def set_running(self, run_id: str) -> AgentRun | None:
         run = await self._get_for_update(run_id)
         if run is None:
@@ -171,7 +163,6 @@ class AgentRunRepository:
         await self.session.flush()
         return run
 
-    # FIXME: AgentRun 完成状态单独设置，便于明确维护结束时间。
     async def set_completed(self, run_id: str) -> AgentRun | None:
         run = await self._get_for_update(run_id)
         if run is None:
@@ -188,7 +179,6 @@ class AgentRunRepository:
         await self.session.flush()
         return run
 
-    # FIXME: AgentRun 错误状态单独设置并保存错误信息。
     async def set_failed(self, run_id: str, error: str) -> AgentRun | None:
         run = await self._get_for_update(run_id)
         if run is None:
