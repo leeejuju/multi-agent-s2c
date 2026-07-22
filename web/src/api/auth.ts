@@ -3,19 +3,17 @@ import { get, post } from "./index";
 export interface UserResponse {
   id: number;
   uid: string;
-  username: string;
-  email?: string | null;
+  email: string;
   is_active?: boolean;
 }
 
 export interface LoginPayload {
-  username: string;
+  email: string;
   password: string;
 }
 
 export interface RegisterPayload {
-  email?: string;
-  username: string;
+  email: string;
   password: string;
 }
 

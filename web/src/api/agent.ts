@@ -1,19 +1,6 @@
-import {
-  del,
-  get,
-  post,
-  postForm,
-  requestRunStream,
-  requestStream,
-  type RequestConfig,
-  type ToolStreamEvent,
-} from "./index";
+import { useAuthStore } from "@/store/auth";
 
-export interface AgentConfig {
-  model?: string;
-  stream?: boolean;
-  enable_think?: boolean;
-}
+import { API_BASE_URL, get, handleUnauthorized, post } from "./index";
 
 export interface AgentSummary {
   id: string;
@@ -21,59 +8,158 @@ export interface AgentSummary {
   description: string;
 }
 
-export interface AttachmentItem {
+export interface ModelSummary {
   id: string;
-  file_name: string;
-  content_type: string;
-  file_size: number;
-  file_key: string;
-  category: "image" | "document";
-  access_url: string;
-  thumb_url?: string | null;
-  parser?: string | null;
-  parse_status?: "failed" | "success" | null;
-  parse_error?: string | null;
-  parsed_text?: string | null;
-  parse_metadata?: Record<string, unknown>;
+  name: string;
+  provider: string;
+  is_default: boolean;
+  is_fallback: boolean;
+  is_flash: boolean;
 }
 
-export interface Send2AgentPayload {
-  input: string;
-  conversation_id?: string;
-  attachments?: AttachmentItem[];
+export interface ModelListResponse {
+  default_model: string;
+  fallback_model: string;
+  flash_model: string;
+  image_model: string;
+  models: ModelSummary[];
 }
 
-export interface ConversationSummary {
-  id: string;
+export interface ThreadCreateRequest {
+  title?: string;
+  summary?: string;
+  agent_id: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ThreadResponse {
+  uid: string;
   title: string;
+  thread_id: string;
+  agent_id: string;
   created_at: string;
   updated_at: string;
+  metadata: Record<string, unknown>;
 }
 
-export interface MessageResponse {
-  id: string;
-  role: string;
-  content: string;
-  status?: "pending" | "streaming" | "completed" | "failed" | "canceled";
-  created_at: string;
+export interface AgentRunCreateRequest {
+  query?: string;
+  agent_id: string;
+  thread_id: string;
+  thread_metadata: Record<string, unknown>;
+  image_content?: string | null;
+  is_resume?: unknown;
+  parent_run_id?: string | null;
 }
 
 export interface AgentRunResponse {
-  id: string;
-  conversation_id: string;
-  user_message_id: string;
-  assistant_message_id: string;
-  agent_id: string;
-  status: "queued" | "running" | "canceling" | "completed" | "failed" | "canceled";
-  error?: string | null;
-  latest_sequence?: number;
-  created_at: string;
+  run_id: string;
+  thread_id: string;
+  status: string;
+  request_id: string;
+  stream_url: string;
 }
 
-function buildUploadFormData(files: File[]): FormData {
-  const formData = new FormData();
-  files.forEach((file) => formData.append("files", file));
-  return formData;
+export interface AgentRunEvent {
+  created_at?: string;
+  error?: string;
+  payload?: unknown;
+  run_id: string;
+  scope?: "agent_run";
+  status?: string;
+  thread_id?: string;
+  type: string;
+}
+
+export interface AgentRunStreamMessage {
+  data: AgentRunEvent;
+  event: string;
+  id?: string;
+}
+
+interface SubscribeAgentRunEventsOptions {
+  onEvent: (message: AgentRunStreamMessage) => void;
+  signal: AbortSignal;
+}
+
+function resolveStreamUrl(streamUrl: string) {
+  if (/^https?:\/\//.test(streamUrl)) return streamUrl;
+
+  const baseUrl = API_BASE_URL.replace(/\/$/, "");
+  if (streamUrl.startsWith("/api/") && baseUrl.endsWith("/api")) {
+    return `${baseUrl.slice(0, -4)}${streamUrl}`;
+  }
+  if (streamUrl.startsWith("/")) return streamUrl;
+  return `${baseUrl}/${streamUrl}`;
+}
+
+function parseSseFrame(frame: string): AgentRunStreamMessage | null {
+  let event = "message";
+  let id: string | undefined;
+  const dataLines: string[] = [];
+
+  for (const line of frame.split("\n")) {
+    if (!line || line.startsWith(":")) continue;
+    const separatorIndex = line.indexOf(":");
+    const field = separatorIndex === -1 ? line : line.slice(0, separatorIndex);
+    let value = separatorIndex === -1 ? "" : line.slice(separatorIndex + 1);
+    if (value.startsWith(" ")) value = value.slice(1);
+
+    if (field === "event") event = value;
+    if (field === "id") id = value;
+    if (field === "data") dataLines.push(value);
+  }
+
+  if (dataLines.length === 0) return null;
+  const data = JSON.parse(dataLines.join("\n")) as AgentRunEvent;
+  return { data, event, id };
+}
+
+export async function subscribeAgentRunEvents(
+  streamUrl: string,
+  { onEvent, signal }: SubscribeAgentRunEventsOptions,
+) {
+  const headers = new Headers({ Accept: "text/event-stream" });
+  const accessToken = useAuthStore.getState().token;
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  const response = await fetch(resolveStreamUrl(streamUrl), { headers, signal });
+  if (response.status === 401) handleUnauthorized();
+  if (!response.ok) {
+    throw new Error(`Agent Run 事件流请求失败：${response.status}`);
+  }
+  if (!response.body) {
+    throw new Error("Agent Run 事件流没有可读内容");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      buffer = buffer.replace(/\r\n/g, "\n");
+
+      let frameEnd = buffer.indexOf("\n\n");
+      while (frameEnd !== -1) {
+        const message = parseSseFrame(buffer.slice(0, frameEnd));
+        buffer = buffer.slice(frameEnd + 2);
+        if (message) onEvent(message);
+        frameEnd = buffer.indexOf("\n\n");
+      }
+
+      if (done) break;
+    }
+
+    const message = parseSseFrame(buffer.trim());
+    if (message) onEvent(message);
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 export const agentApi = {
@@ -81,84 +167,15 @@ export const agentApi = {
     return get<AgentSummary[]>("/chat/agents");
   },
 
-  uploadAttachmentTmp(
-    files: File[],
-    config?: Pick<RequestConfig, "signal" | "onUploadProgress">,
-  ) {
-    return postForm<AttachmentItem[]>(
-      "/chat/attachment/tmp/upload",
-      buildUploadFormData(files),
-      {
-        timeout: 180000,
-        signal: config?.signal,
-        onUploadProgress: config?.onUploadProgress,
-      },
-    );
+  getModels() {
+    return get<ModelListResponse>("/models");
   },
 
-  send2AgentStream(
-    agentId: string,
-    payload: Send2AgentPayload,
-    config: AgentConfig,
-    callbacks: {
-      onToken: (token: string) => void;
-      onDone: (data: Record<string, unknown>) => void;
-      onError: (err: Error) => void;
-      onToolEvent?: (event: ToolStreamEvent) => void;
-    },
-  ) {
-    return requestStream(
-      `/chat/agent/${agentId}/run/stream`,
-      { ...payload, config },
-      callbacks,
-    );
+  createThread(payload: ThreadCreateRequest) {
+    return post<ThreadResponse>("/chat/thread", payload);
   },
 
-  createAgentRun(agentId: string, payload: Send2AgentPayload, config: AgentConfig) {
-    return post<AgentRunResponse>(`/chat/agent/${agentId}/runs`, {
-      ...payload,
-      config,
-    });
-  },
-
-  streamRun(
-    runId: string,
-    afterSequence: number,
-    callbacks: {
-      onToken: (token: string) => void;
-      onDone: (data: Record<string, unknown>) => void;
-      onError: (err: Error) => void;
-      onToolEvent?: (event: ToolStreamEvent) => void;
-    },
-  ) {
-    return requestRunStream(
-      `/chat/runs/${runId}/stream`,
-      { after_sequence: afterSequence },
-      callbacks,
-    );
-  },
-
-  getConversations() {
-    return get<ConversationSummary[]>("/chat/conversations");
-  },
-
-  getConversationMessages(conversationId: string) {
-    return get<MessageResponse[]>(
-      `/chat/conversations/${conversationId}/messages`,
-    );
-  },
-
-  getActiveRun(conversationId: string) {
-    return get<AgentRunResponse | null>(
-      `/chat/conversations/${conversationId}/runs/active`,
-    );
-  },
-
-  cancelRun(runId: string) {
-    return post<AgentRunResponse>(`/chat/runs/${runId}/cancel`);
-  },
-
-  deleteConversation(conversationId: string) {
-    return del(`/chat/conversations/${conversationId}`);
+  createAgentRun(payload: AgentRunCreateRequest) {
+    return post<AgentRunResponse>("/agent/runs", payload);
   },
 };
