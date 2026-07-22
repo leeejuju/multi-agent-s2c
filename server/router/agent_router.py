@@ -80,9 +80,12 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
     if not thread_id:
         raise HTTPException(status_code=404, detail="会话id不可为空")
     
-    conv_result = await conv_repo.get_conversation_by_thead_id(thread_id=thread_id)
+    conv_result = await conv_repo.get_conversation_by_thread_id_for_user(
+        thread_id=thread_id,
+        user_id=current_uid,
+    )
     
-    if not conv_result or conv_result.uid != current_uid:
+    if not conv_result:
         raise HTTPException(status_code=404, detail="当前会话不存在或已删除")
     
     user_result = await db.execute(select(User).where(User.uid == str(current_uid)))
@@ -107,12 +110,12 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
     run_id = str(uuid.uuid4())
     
     async with db.begin_nested():
-        run = await run_repo.create_agent_run(
+        run = await run_repo.create_run(
             run_id=run_id,
             thread_id=thread_id,
             conversation_id=conv_result.id,  # ty:ignore[invalid-argument-type]
             uid=current_uid,  # ty:ignore[invalid-argument-type]
-            agent_id=agent_id,
+            agent_slug=agent_id,
             request_id=request_id,
             trigger_message_id=msg.id,  # ty:ignore[invalid-argument-type]
             run_type="chat",
@@ -153,7 +156,7 @@ async def stream_run_event(
         _type_: _description_
     """
     run_repo = AgentRunRepository(db)
-    run = await run_repo.get_run_for_user_thread(
+    run = await run_repo.get_by_id_for_user_and_thread(
         run_id=run_id,
         uid=current_user.uid,
         thread_id=thread_id,

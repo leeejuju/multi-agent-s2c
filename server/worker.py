@@ -45,7 +45,7 @@ async def ensure_agents_exist() -> None:
     async with postgres_manager.get_async_session_context() as session:
         repository = AgentRepository(session)
         for agent in agents:
-            await repository.ensure_agent_exists(
+            await repository.ensure_agent_registered(
                 slug=agent["id"],
                 backend_id=agent["id"],
                 name=agent["name"],
@@ -54,7 +54,7 @@ async def ensure_agents_exist() -> None:
                 internal_only=False,
             )
         for agent in subagents:
-            await repository.ensure_agent_exists(
+            await repository.ensure_agent_registered(
                 slug=agent["name"],
                 backend_id=agent["id"],
                 name=agent["name"],
@@ -106,10 +106,9 @@ async def set_run_completed(
         if run is None or str(run.agent_status) != "completed":
             return run
 
-        await ConversationRepository(db).create_message(
+        await ConversationRepository(db).create_agent_output_message(
             conversation_id=conversation_id,
             agent_run_id=run_id,
-            role="assistant",
             content=content,
         )
         return run
