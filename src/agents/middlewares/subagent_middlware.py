@@ -2,7 +2,6 @@
 
 import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import fields, is_dataclass
 from typing import Any
 
 from deepagents.middleware._utils import append_to_system_message
@@ -16,6 +15,7 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.types import Command
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.service.agent_run_service import (
     get_agent_run_result,
@@ -23,8 +23,10 @@ from server.service.agent_run_service import (
     request_cancel_agent_run,
     wait_agent_run_result,
 )
+from server.service.input_message_service import build_agent_input_msg
 from src.agents.base_agent import BaseAgent
 from src.agents.base_context import BaseContext
+from src.database.session import session_context
 
 TASK_SYSTEM_PROMPT = """## 剧本创作子智能体协作
 
@@ -41,8 +43,7 @@ TASK_SYSTEM_PROMPT = """## 剧本创作子智能体协作
 
 
 class TaskInput(BaseModel):
-    description: str = Field(description="简短任务标题，用于标识这次委派")
-    prompt: str = Field(description="子智能体可独立执行的完整任务提示词")
+    description: str = Field(description="子智能体可独立执行的完整任务")
     subagent_slug: str = Field(description="要执行的子智能体 slug")
 
 
@@ -50,30 +51,12 @@ class SubAgentRunInput(BaseModel):
     run_id: str = Field(description="由 task 或 subagent_start 返回的子运行 ID")
 
 
-def _subagent_service():
-    """延迟加载 service，避免 agent 注册阶段反向导入 server。"""
+def _subagent_run_service(db: AsyncSession):
+    """延迟加载 service，并绑定当前数据库会话。"""
 
-    from server.service.subagent_service import subagent_run_service
+    from server.service.subagent_service import SubAgentRunService
 
-    return subagent_run_service
-
-
-def _context_dict(
-    context: BaseContext | Mapping[str, Any] | object | None,
-) -> dict[str, Any]:
-    if context is None:
-        return {}
-    if isinstance(context, Mapping):
-        return dict(context)
-    if is_dataclass(context) and not isinstance(context, type):
-        return {field.name: getattr(context, field.name) for field in fields(context)}
-    if hasattr(context, "__dict__"):
-        return {
-            key: value
-            for key, value in vars(context).items()
-            if not key.startswith("_")
-        }
-    return {}
+    return SubAgentRunService(db)
 
 
 class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
@@ -83,7 +66,7 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
         self,
         *,
         subagents: Sequence[BaseAgent],
-        parent_context: BaseContext | Mapping[str, Any],
+        parent_context: BaseContext,
         system_prompt: str | None = TASK_SYSTEM_PROMPT,
     ) -> None:
         super().__init__()
@@ -114,13 +97,11 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
     def _create_task_tool(self) -> StructuredTool:
         async def task(
             description: str,
-            prompt: str,
             subagent_slug: str,
             runtime: ToolRuntime,
         ) -> Command:
             subagent_record, error = await self._start_run(
                 description=description,
-                prompt=prompt,
                 subagent_slug=subagent_slug,
                 runtime=runtime,
                 tool_name="task",
@@ -164,13 +145,11 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
     def _create_start_tool(self) -> StructuredTool:
         async def subagent_start(
             description: str,
-            prompt: str,
             subagent_slug: str,
             runtime: ToolRuntime,
         ) -> Command:
             return await self._enqueue_task(
                 description=description,
-                prompt=prompt,
                 subagent_slug=subagent_slug,
                 runtime=runtime,
                 tool_name="subagent_start",
@@ -189,24 +168,28 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
     def _create_status_tool(self) -> StructuredTool:
         async def subagent_status(
             run_id: str,
-            runtime: ToolRuntime,
         ) -> str:
             try:
-                current_uid = self._current_uid(runtime)
-                status_record = await _subagent_service().get_status(
-                    parent_run_id=self._parent_run_id(runtime),
-                    run_id=run_id,
-                )
+                async with session_context() as db:
+                    service = _subagent_run_service(db)
+                    parent_run = await service.get_parent_run(
+                        parent_run_id=self.parent_context.run_id,
+                    )
+                    child_run_status = await service.get_child_run_status(
+                        parent_run_id=str(parent_run.id),
+                        run_id=run_id,
+                    )
+                    parent_uid = str(parent_run.uid)
                 progress = await read_subagent_progress(
                     run_id=run_id,
                 )
                 result = None
                 if (
                     progress["status"] == "completed"
-                    or status_record["status"] == "completed"
+                    or child_run_status["status"] == "completed"
                 ):
                     result = await get_agent_run_result(
-                        current_uid=current_uid,
+                        current_uid=parent_uid,
                         run_id=run_id,
                     )
             except Exception as exc:
@@ -217,7 +200,7 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
             return json.dumps(
                 {
                     **progress,
-                    **status_record,
+                    **child_run_status,
                     "events": progress["events"],
                     "result": result,
                 },
@@ -237,23 +220,31 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
             run_id: str,
             runtime: ToolRuntime,
         ) -> Command:
-            status_record: Mapping[str, Any] | None = None
+            child_run_status: Mapping[str, Any] | None = None
             try:
-                status_record = await _subagent_service().get_status(
-                    parent_run_id=self._parent_run_id(runtime),
-                    run_id=run_id,
-                )
+                async with session_context() as db:
+                    service = _subagent_run_service(db)
+                    parent_run = await service.get_parent_run(
+                        parent_run_id=self.parent_context.run_id,
+                    )
+                    child_run_status = await service.get_child_run_status(
+                        parent_run_id=str(parent_run.id),
+                        run_id=run_id,
+                    )
+                    parent_uid = str(parent_run.uid)
                 cancel_record = await request_cancel_agent_run(
                     run_id=run_id,
-                    current_uid=self._current_uid(runtime),
+                    current_uid=parent_uid,
                 )
-                result_record = {**status_record, **cancel_record}
+                result_record = {**child_run_status, **cancel_record}
             except Exception as exc:
                 return self._result(
                     runtime=runtime,
                     tool_name="subagent_cancel",
                     subagent_slug=(
-                        str(status_record["agent_id"]) if status_record else "unknown"
+                        str(child_run_status["agent_slug"])
+                        if child_run_status
+                        else "unknown"
                     ),
                     content=f"无法取消子智能体运行：{exc}",
                     run_id=run_id,
@@ -264,7 +255,7 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
             return self._result(
                 runtime=runtime,
                 tool_name="subagent_cancel",
-                subagent_slug=str(status_record["agent_id"]),
+                subagent_slug=str(child_run_status["agent_slug"]),
                 content=json.dumps(result_record, ensure_ascii=False),
                 run_id=run_id,
                 status=str(result_record["status"]),
@@ -283,19 +274,24 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
             run_id: str,
             runtime: ToolRuntime,
         ) -> Command:
-            status_record: Mapping[str, Any] | None = None
+            child_run_status: Mapping[str, Any] | None = None
             try:
-                status_record = await _subagent_service().get_status(
-                    parent_run_id=self._parent_run_id(runtime),
-                    run_id=run_id,
-                )
+                async with session_context() as db:
+                    child_run_status = await _subagent_run_service(
+                        db
+                    ).get_child_run_status(
+                        parent_run_id=self.parent_context.run_id,
+                        run_id=run_id,
+                    )
                 result = await wait_agent_run_result(run_id)
             except Exception as exc:
                 return self._result(
                     runtime=runtime,
                     tool_name="subagent_await",
                     subagent_slug=(
-                        str(status_record["agent_id"]) if status_record else "unknown"
+                        str(child_run_status["agent_slug"])
+                        if child_run_status
+                        else "unknown"
                     ),
                     content=f"无法取得子智能体结果：{exc}",
                     run_id=run_id,
@@ -306,7 +302,7 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
             return self._result(
                 runtime=runtime,
                 tool_name="subagent_await",
-                subagent_slug=str(status_record["agent_id"]),
+                subagent_slug=str(child_run_status["agent_slug"]),
                 content=result or "子智能体已完成，但没有返回文本结果。",
                 run_id=run_id,
                 status="completed",
@@ -324,7 +320,6 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
         self,
         *,
         description: str,
-        prompt: str,
         subagent_slug: str,
         runtime: ToolRuntime,
         tool_name: str = "subagent_start",
@@ -333,7 +328,6 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
 
         subagent_record, error = await self._start_run(
             description=description,
-            prompt=prompt,
             subagent_slug=subagent_slug,
             runtime=runtime,
             tool_name=tool_name,
@@ -353,7 +347,6 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
         self,
         *,
         description: str,
-        prompt: str,
         subagent_slug: str,
         runtime: ToolRuntime,
         tool_name: str,
@@ -374,13 +367,17 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
             )
 
         try:
-            subagent_record = await _subagent_service().create_record(
-                parent_run_id=self._parent_run_id(runtime),
-                agent_id=subagent_slug,
-                prompt=prompt,
-                title=description,
-                request_id=runtime.tool_call_id,
-            )
+            async with session_context() as db:
+                subagent_record = await _subagent_run_service(
+                    db
+                ).create_subagent_record(
+                    parent_run_id=self.parent_context.run_id,
+                    agent_slug=subagent_slug,
+                    input_message=build_agent_input_msg(query=description),
+                    uid=self.parent_context.uid,
+                    tool_call_id=runtime.tool_call_id,
+                    request_id=self.parent_context.request_id,
+                )
         except Exception as exc:
             return None, self._result(
                 runtime=runtime,
@@ -391,46 +388,6 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
                 error=True,
             )
         return subagent_record, None
-
-    def _parent_run_id(self, runtime: ToolRuntime) -> str:
-        context = _context_dict(self.parent_context)
-        context.update(_context_dict(runtime.context))
-
-        config = runtime.config if isinstance(runtime.config, Mapping) else {}
-        metadata = config.get("metadata", {})
-        configurable = config.get("configurable", {})
-        run_id = (
-            context.get("run_id")
-            or (metadata.get("run_id") if isinstance(metadata, Mapping) else None)
-            or (
-                configurable.get("run_id")
-                if isinstance(configurable, Mapping)
-                else None
-            )
-        )
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise ValueError("当前运行时缺少父 run_id")
-        return run_id.strip()
-
-    def _current_uid(self, runtime: ToolRuntime) -> str:
-        context = _context_dict(self.parent_context)
-        context.update(_context_dict(runtime.context))
-
-        config = runtime.config if isinstance(runtime.config, Mapping) else {}
-        metadata = config.get("metadata", {})
-        configurable = config.get("configurable", {})
-        uid = (
-            context.get("uid")
-            or (metadata.get("uid") if isinstance(metadata, Mapping) else None)
-            or (
-                configurable.get("uid")
-                if isinstance(configurable, Mapping)
-                else None
-            )
-        )
-        if not isinstance(uid, str) or not uid.strip():
-            raise ValueError("当前运行时缺少用户 uid")
-        return uid.strip()
 
     @staticmethod
     def _result(
@@ -519,10 +476,10 @@ class SubAgentMiddleware(AgentMiddleware[Any, Any, Any]):
 def create_subagent_middleware(
     *,
     subagents: Sequence[BaseAgent],
-    parent_context: BaseContext | Mapping[str, Any],
+    parent_context: BaseContext,
     system_prompt: str | None = TASK_SYSTEM_PROMPT,
 ) -> SubAgentMiddleware:
-    """创建绑定父运行上下文的子智能体中间件。"""
+    """创建绑定父 Agent context 的子智能体中间件。"""
 
     return SubAgentMiddleware(
         subagents=subagents,
