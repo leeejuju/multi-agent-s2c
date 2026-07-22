@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass(kw_only=True)
@@ -25,6 +26,10 @@ class BaseContext:
     tools: list = field(default_factory=list, metadata={"description": "工具集合"})
 
     model: str = field(default="", metadata={"description": "agent使用的模型"})
+
+    skill_root: str | Path | None = field(
+        default=None, metadata={"description": "agent技能目录"}
+    )
     
     mcps: list[str] = field(default="", metadata={"description": "mcp工具"})  # ty:ignore[invalid-assignment]
     

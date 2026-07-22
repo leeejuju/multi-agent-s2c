@@ -35,6 +35,18 @@ The public top-level agent is `LeaderAgent` in `src/agents/leaderagent/`. Intern
 - PostgreSQL engine/session lifecycle lives in `src/database/manger.py`; compatibility helpers live in `src/database/session.py`.
 - Uploaded files and queue/storage helpers live under `src/storage/`, currently split into `src/storage/minio/` and `src/storage/redis/`.
 
+## Agent Runtime Context
+
+Agent runtime configuration has exactly three sources:
+
+1. The context class defined by the concrete top-level agent or subagent, including its schema and defaults.
+2. Values supplied by the frontend for the current run.
+3. Values loaded by the backend from the database for the current agent or run.
+
+Frontend-supplied and database-loaded values must be merged into the concrete agent context before execution. The resulting context is the only source of runtime configuration for agents, subagents, middleware, tools, and backends. Do not introduce parallel runtime configuration through module globals, middleware-local defaults, ad hoc keyword arguments, or direct database/config reads; resolve those values first and bind them to the context.
+
+Invocation data such as input messages and similar per-call payloads is not runtime configuration and may remain outside the context.
+
 ## Current Chat Flow
 
 1. `POST /api/chat/agent/{agent_id}/run/stream` receives user input and attachment metadata.
