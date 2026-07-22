@@ -10,11 +10,9 @@ from .model_service import list_models
 from .skill_service import SkillDescriptor, SkillService
 from .subagent_service import (
     SubAgentMessageRecord,
-    SubAgentPersistenceError,
     SubAgentRunRecord,
     SubAgentRunService,
-    SubAgentStatusRecord,
-    subagent_run_service,
+    SubAgentRunStatus,
 )
 
 __all__ = [
@@ -30,10 +28,8 @@ __all__ = [
     "SkillDescriptor",
     "SkillService",
     "SubAgentMessageRecord",
-    "SubAgentPersistenceError",
     "SubAgentRunRecord",
     "SubAgentRunService",
-    "SubAgentStatusRecord",
-    "subagent_run_service",
+    "SubAgentRunStatus",
     "upsert_knowledge_records",
 ]

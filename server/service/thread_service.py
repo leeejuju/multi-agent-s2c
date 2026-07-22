@@ -36,8 +36,8 @@ async def _build_agent_runtime(
     if not agent_slug:
         raise ValueError("未配置agent")
 
-    agent = await agent_repo.get_agent_by_slug(
-        agent_slug=agent_slug, run_type=run_type
+    agent = await agent_repo.get_by_slug_for_run_type(
+        slug=agent_slug, run_type=run_type
     )
 
     if not agent:

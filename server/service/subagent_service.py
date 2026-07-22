@@ -1,14 +1,14 @@
-from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
-from typing import Any, TypedDict
+from hashlib import sha256
+from typing import TypedDict
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.service.agent_run_service import enqueue_agent_run
+import server.service.agent_run_service as agent_run_service
+from server.service.input_message_service import AgentInputMsg
 from src.database.models import AgentRun, Conversation, Message
 from src.database.repositories import AgentRunRepository, ConversationRepository
-from src.database.session import session_context
 
 
 class SubAgentMessageRecord(TypedDict):
@@ -29,18 +29,18 @@ class SubAgentRunRecord(TypedDict):
     parent_run_id: str
     trigger_message_id: int
     request_id: str
-    agent_id: str
+    agent_slug: str
     status: str
     stream_url: str
     message: SubAgentMessageRecord
 
 
-class SubAgentStatusRecord(TypedDict):
+class SubAgentRunStatus(TypedDict):
     run_id: str
     thread_id: str
     conversation_id: int
     parent_run_id: str
-    agent_id: str
+    agent_slug: str
     status: str
     terminal: bool
     error: str | None
@@ -53,29 +53,18 @@ class SubAgentStatusRecord(TypedDict):
 SUBAGENT_TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
-class SubAgentPersistenceError(RuntimeError):
-    """子智能体创建记录提交后无法从数据库完整读回。"""
-
-
-def _conversation_title(title: str | None, prompt: str, agent_id: str) -> str:
-    if title and title.strip():
-        return title.strip()[:255]
-    first_line = prompt.splitlines()[0].strip()[:80]
-    return first_line or f"{agent_id} 子任务"
-
-
 def _datetime_text(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def _build_status_record(run: AgentRun) -> SubAgentStatusRecord:
+def _serialize_subagent_run_status(run: AgentRun) -> SubAgentRunStatus:
     status = str(run.agent_status)
     return {
         "run_id": str(run.id),
         "thread_id": str(run.thread_id),
         "conversation_id": int(run.conversation_id),
         "parent_run_id": str(run.parent_run_id),
-        "agent_id": str(run.agent_id),
+        "agent_slug": str(run.agent_id),
         "status": status,
         "terminal": status in SUBAGENT_TERMINAL_STATUSES,
         "error": str(run.error) if run.error is not None else None,
@@ -100,7 +89,7 @@ def _build_record(
         "parent_run_id": str(run.parent_run_id),
         "trigger_message_id": int(message.id),
         "request_id": str(run.request_id),
-        "agent_id": str(run.agent_id),
+        "agent_slug": str(run.agent_id),
         "status": str(run.agent_status),
         "stream_url": (
             f"/api/agent/runs/{run.id}/events?thread_id={conversation.thread_id}"
@@ -117,112 +106,84 @@ def _build_record(
     }
 
 
-async def _confirm_persisted_records(
-    *,
-    conversation_repository: ConversationRepository,
-    run_repository: AgentRunRepository,
-    conversation_id: int,
-    message_id: int,
-    run_id: str,
-    parent_conversation_id: int,
-    parent_run_id: str,
-) -> tuple[Conversation, Message, AgentRun]:
-    conversation = await conversation_repository.get_by_id(conversation_id)
-    message = await conversation_repository.get_message_by_id(message_id)
-    run = await run_repository.get_by_id(run_id)
-
-    if (
-        conversation is None
-        or message is None
-        or run is None
-        or conversation.parent_conversation_id != parent_conversation_id
-        or message.conversation_id != conversation.id
-        or message.agent_run_id != run.id
-        or run.conversation_id != conversation.id
-        or run.trigger_message_id != message.id
-        or run.parent_run_id != parent_run_id
-        or str(run.run_type) != "subagent"
-    ):
-        raise SubAgentPersistenceError(f"子智能体运行记录落库后校验失败：run_id={run_id}")
-
-    return conversation, message, run
-
-
 class SubAgentRunService:
-    """创建子智能体运行记录，确认落库后复用统一入队方法。"""
+    """创建子智能体会话和触发消息，持久化 Run 后统一入队。"""
 
-    def __init__(
-        self,
-        *,
-        enqueue_run: Callable[[str], Awaitable[None]] = enqueue_agent_run,
-    ) -> None:
-        self._enqueue_run = enqueue_run
+    def __init__(self, db: AsyncSession) -> None:
+        self.db: AsyncSession = db
+        self.run_repository = AgentRunRepository(db)
+        self.conversation_repository = ConversationRepository(db)
 
-    async def create_record(
+    async def create_subagent_record(
         self,
         *,
         parent_run_id: str,
-        agent_id: str,
-        prompt: str,
-        title: str | None = None,
-        request_id: str | None = None,
-        conversation_metadata: Mapping[str, Any] | None = None,
+        agent_slug: str,
+        input_message: AgentInputMsg,
+        uid: str,
+        tool_call_id: str,
+        request_id: str,
     ) -> SubAgentRunRecord:
         """落库并确认子会话、触发消息和运行记录，入队后立即返回。"""
 
-        async with session_context() as db:
-            record = await self._persist_record(
-                db,
-                parent_run_id=parent_run_id,
-                agent_id=agent_id,
-                prompt=prompt,
-                title=title,
-                request_id=request_id,
-                conversation_metadata=conversation_metadata,
-            )
-
-        await self._enqueue_run(record["run_id"])
+        record = await self._persist_record(
+            parent_run_id=parent_run_id,
+            agent_slug=agent_slug,
+            input_message=input_message,
+            uid=uid,
+            tool_call_id=tool_call_id,
+            request_id=request_id,
+        )
+        await agent_run_service.enqueue_agent_run(record["run_id"])
         return record
 
-    async def get_status(
+    async def get_parent_run(self, *, parent_run_id: str) -> AgentRun:
+        """按父 Agent context 中的 Run ID 查询父 Run。"""
+
+        parent_run = await self.run_repository.get_by_id(parent_run_id)
+
+        if parent_run is None:
+            raise ValueError(f"父 Agent Run 不存在：{parent_run_id}")
+        return parent_run
+
+    async def get_child_run_status(
         self,
         *,
         parent_run_id: str,
         run_id: str,
-    ) -> SubAgentStatusRecord:
-        """查询属于当前父运行的子智能体运行状态。"""
+    ) -> SubAgentRunStatus:
+        """校验父子 Run 归属并返回子 Agent Run 的数据库生命周期状态。"""
 
-        async with session_context() as db:
-            run = await AgentRunRepository(db).get_child_run_for_parent(
-                run_id=run_id,
-                parent_run_id=parent_run_id,
-            )
+        run = await self.run_repository.get_child_for_parent(
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+        )
 
         if run is None:
             raise ValueError(f"子智能体运行不存在或不属于当前父运行：{run_id}")
-        return _build_status_record(run)
+        return _serialize_subagent_run_status(run)
 
     async def _persist_record(
         self,
-        db: AsyncSession,
         *,
         parent_run_id: str,
-        agent_id: str,
-        prompt: str,
-        title: str | None,
-        request_id: str | None,
-        conversation_metadata: Mapping[str, Any] | None,
+        agent_slug: str,
+        input_message: AgentInputMsg,
+        uid: str,
+        tool_call_id: str,
+        request_id: str,
     ) -> SubAgentRunRecord:
-        conversation_repository = ConversationRepository(db)
-        run_repository = AgentRunRepository(db)
+        # TODO 需要再完善一下，因为目前来说，子 agent 落库的流程还没有梳理清楚， 2026-07-20
 
         try:
-            parent_run = await run_repository.get_by_id(parent_run_id)
+            parent_run = await self.run_repository.get_by_id(parent_run_id)
             if parent_run is None:
                 raise ValueError(f"父运行不存在：{parent_run_id}")
 
-            parent_conversation = await conversation_repository.get_by_id(
-                int(parent_run.conversation_id)  # ty:ignore[invalid-argument-type]
+            parent_conversation = (
+                await self.conversation_repository.get_conversation_by_id(
+                    int(parent_run.conversation_id)  # ty:ignore[invalid-argument-type]
+                )
             )
             if parent_conversation is None:
                 raise ValueError(f"父会话不存在：{parent_run.conversation_id}")
@@ -230,65 +191,45 @@ class SubAgentRunService:
                 raise ValueError("父运行与父会话的用户归属不一致")
 
             child_thread_id = str(uuid4())
-            child_run_id = str(uuid4())
-            child_request_id = request_id or str(uuid4())
 
-            child_conversation = await conversation_repository.create_conversation(
-                uid=str(parent_run.uid),
+            child_conversation = await self.conversation_repository.create_conversation(
+                uid=uid,
                 thread_id=child_thread_id,
-                agent_id=agent_id,
+                agent_slug=agent_slug,
                 parent_conversation_id=int(parent_conversation.id),
-                title=_conversation_title(title, prompt, agent_id),
-                conversation_metadata=dict(conversation_metadata or {}),
             )
-            trigger_message = await conversation_repository.create_message(
-                conversation_id=int(child_conversation.id),
-                role="user",
-                content=prompt,
-                request_id=child_request_id,
+            trigger_message = (
+                await self.conversation_repository.create_agent_input_message(
+                    conversation_id=int(child_conversation.id),
+                    content=input_message.content,
+                    image_content=input_message.image_content,
+                    message_type=input_message.msg_type,
+                )
             )
-            await run_repository.create_agent_run(
-                run_id=child_run_id,
+            child_request_id = sha256(
+                f"{uid}:{tool_call_id}:{request_id}".encode()
+            ).hexdigest()
+            trigger_message.request_id = child_request_id
+            child_run = await self.run_repository.create_run(
+                run_id=str(uuid4()),
                 thread_id=child_thread_id,
                 conversation_id=int(child_conversation.id),
-                uid=str(parent_run.uid),
-                agent_id=agent_id,
+                uid=uid,
+                agent_slug=agent_slug,
                 request_id=child_request_id,
                 trigger_message_id=int(trigger_message.id),
                 run_type="subagent",
                 parent_run_id=parent_run_id,
             )
-            linked_message = await conversation_repository.link_message_to_run(
-                message_id=int(trigger_message.id),
-                run_id=child_run_id,
-            )
-            if linked_message is None:
-                raise RuntimeError("子智能体触发消息与运行记录关联失败")
-
-            await db.commit()
+            trigger_message.agent_run_id = child_run.id
+            await self.db.flush()
+            await self.db.commit()
         except Exception:
-            await db.rollback()
-            raise
-
-        try:
-            persisted_conversation, persisted_message, persisted_run = await _confirm_persisted_records(
-                conversation_repository=conversation_repository,
-                run_repository=run_repository,
-                conversation_id=int(child_conversation.id),
-                message_id=int(trigger_message.id),
-                run_id=child_run_id,
-                parent_conversation_id=int(parent_conversation.id),
-                parent_run_id=parent_run_id,
-            )
-        except Exception:
-            await db.rollback()
+            await self.db.rollback()
             raise
 
         return _build_record(
-            conversation=persisted_conversation,
-            message=persisted_message,
-            run=persisted_run,
+            conversation=child_conversation,
+            message=trigger_message,
+            run=child_run,
         )
-
-
-subagent_run_service = SubAgentRunService()

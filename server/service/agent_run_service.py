@@ -45,7 +45,7 @@ async def wait_agent_run_result(run_id: str) -> str:
 
             status = str(run.agent_status)
             if status == "completed":
-                message = await ConversationRepository(db).get_agent_run_result(
+                message = await ConversationRepository(db).get_run_result_message(
                     run_id
                 )
                 if message is None:
@@ -134,7 +134,7 @@ async def get_agent_run_result(
     """按当前用户和 Run ID 从数据库读取最终 Agent 消息。"""
 
     async with session_context() as db:
-        run = await AgentRunRepository(db).get_run_for_user(
+        run = await AgentRunRepository(db).get_by_id_for_user(
             run_id=run_id,
             uid=current_uid,
         )
@@ -143,7 +143,7 @@ async def get_agent_run_result(
         if str(run.agent_status) != "completed":
             return None
 
-        message = await ConversationRepository(db).get_agent_run_result(run_id)
+        message = await ConversationRepository(db).get_run_result_message(run_id)
         if message is None:
             raise RuntimeError(f"Agent Run 未保存最终消息：{run_id}")
         return str(message.content)
@@ -156,7 +156,7 @@ async def stream_agent_run_events(
     thread_id: str,
 ) -> AsyncIterator[str]:
     async with session_context() as db:
-        run = await AgentRunRepository(db).get_run_for_user_thread(
+        run = await AgentRunRepository(db).get_by_id_for_user_and_thread(
             run_id=run_id,
             uid=current_uid,
             thread_id=thread_id,
@@ -178,7 +178,7 @@ async def stream_agent_run_events(
 
         # Redis Stream 可能尚未创建、已经过期，或漏掉了终态事件；此时以数据库为准收口 SSE。
         async with session_context() as db:
-            run = await AgentRunRepository(db).get_run_for_user_thread(
+            run = await AgentRunRepository(db).get_by_id_for_user_and_thread(
                 run_id=run_id,
                 uid=current_uid,
                 thread_id=thread_id,
@@ -188,7 +188,7 @@ async def stream_agent_run_events(
 
             status = str(run.agent_status)
             if status == "completed":
-                message = await ConversationRepository(db).get_agent_run_result(
+                message = await ConversationRepository(db).get_run_result_message(
                     run_id
                 )
                 if message is not None:
@@ -248,7 +248,7 @@ async def request_cancel_agent_run(
     signal_run_ids: list[str] = []
     async with session_context() as db:
         run_repository = AgentRunRepository(db)
-        run = await run_repository.get_run_for_user(
+        run = await run_repository.get_by_id_for_user(
             run_id=run_id,
             uid=current_uid,
         )
@@ -256,7 +256,7 @@ async def request_cancel_agent_run(
             raise ValueError(f"Agent Run 不存在或不属于当前用户：{run_id}")
 
         if str(run.run_type) == "chat":
-            child_runs = await run_repository.list_active_subagent_runs_for_user(
+            child_runs = await run_repository.list_active_child_runs(
                 parent_run_id=run_id,
                 uid=current_uid,
             )
