@@ -1,180 +1,98 @@
-# Repository Agent Guide
+# OpenGPT Vue Frontend Guide
 
-This file is the single source of repository guidance for Claude/Codex-style coding agents. `CLAUDE.md` imports this file directly, so update `AGENTS.md` whenever architecture or workflow guidance changes.
+Root-level repository guidance still applies. This file narrows conventions for
+the isolated Vue frontend on `web/opengpt-vue`.
 
-## Current Project Shape
+## Current Phase
 
-`multi-agent-s2c` is a script-driven visual creation system. The backend is a FastAPI service built around LangChain/LangGraph agents, SQLAlchemy repositories, PostgreSQL, Redis/ARQ background work, and MinIO-backed uploads. On this isolated branch, the frontend is a Vue 3 + TypeScript + Vite OpenGPT design prototype under `web/`.
+`web/` is a Vue 3 + TypeScript + Vite application. This branch first establishes
+the OpenGPT interface and local interaction model. Authentication, thread
+creation, Agent Runs, uploads, and SSE are intentionally not connected yet.
 
-Current top-level layout:
+Never make an unconnected control look successful. Preview-only behavior must say
+that it is local or awaiting backend integration. Do not add fake tokens, fake
+users, fake conversations, fake Agent output, simulated tool calls, seeded
+projects, preset prompts, or timer-driven streaming.
 
-- `server/`: FastAPI application, auth middleware, routers, services, lifespan startup, and the ARQ worker entrypoint.
-- `src/agents/`: shared agent primitives, the agent manager, `LeaderAgent`, internal subagents, middleware, model helpers, and sandbox backends.
-- `src/configs/`: Pydantic settings loaded from environment variables and `.env`.
-- `src/database/`: SQLAlchemy models, PostgreSQL lifecycle/session helpers, and repositories.
-- `src/knowledge/`: document parsing, extraction, cleanup, knowledge providers, and Milvus integration.
-- `src/storage/`: MinIO storage in `minio.py` and Redis/ARQ connection helpers under `redis/`.
-- `web/`: isolated Vue OpenGPT client and its frontend-specific `AGENTS.md`.
-- `test/`: lightweight backend helper tests and manual smoke scripts.
-- `sandbox_server/`, `docker/`, and `scripts/`: local runtime support, Compose services, and helper scripts.
+## Product Direction
 
-The public top-level agent is `LeaderAgent` in `src/agents/leaderagent/`. Internal subagents are `SearchAgent`, `OutlineAgent`, `CharacterAgent`, and `ScenarioAgent` under `src/agents/subagents/`.
+OpenGPT is a general-purpose chat frontend with no script, storyboard, studio,
+or vertical-product semantics. Reproduce the current ChatGPT web information
+architecture and interaction pattern closely: compact history sidebar, model
+selector, single conversation surface, and bottom composer. Replace only the
+product name and brand glyph; never use ChatGPT or OpenAI trademark assets.
 
-## Backend Architecture
+The visual language stays close to the current neutral ChatGPT surface:
 
-- Shared agent primitives live in `src/agents/base_agent.py` and `src/agents/base_context.py`.
-- Top-level agents live in `src/agents/<agentname>/`; internal agents live in `src/agents/subagents/<agentname>/`. Each package should expose its agent class from `__init__.py`.
-- `AgentManager` in `src/agents/manager.py` discovers both groups, instantiates `BaseAgent` subclasses, and separately records top-level IDs so internal subagents are not exposed as public conversation agents.
-- `LeaderAgent` replaced the former `DesignAgent`. Worker startup registration migrates the old database slug and its `Conversation.agent_id` / `AgentRun.agent_id` references; `AgentManager` keeps `DesignAgent` only as a non-public runtime compatibility alias for already-loaded work.
-- `BaseAgent.stream_messages(...)` uses LangGraph `astream(...)`. `BaseAgent.stream_messages_with_event(...)` consumes `astream_events(version="v3")` and currently forwards the `messages` channel's `params.data` payload.
-- `LeaderAgent` delegates search through the local `SubAgentMiddleware`. The middleware exposes Run-backed tools for `SearchAgent`; it does not execute an embedded runnable in the parent graph. Keep orchestration in `LeaderAgent`; do not move database, queue, or storage behavior into an agent.
-- FastAPI application setup lives in `server/main.py`. Startup and shutdown live in `server/lifespan.py`.
-- Lifespan startup verifies JWT configuration and initializes the API process's PostgreSQL resources. It does not create tables or seed records. Shutdown closes the shared async Redis client before disposing PostgreSQL.
-- HTTP routes live under `server/router/`: `auth_router.py`, `thread_router.py`, `agent_router.py`, `knowledge_router.py`, `library_router.py`, and `model_router.py`.
-- Thread creation, public agent listing, and temporary attachment upload live in `server/router/thread_router.py`. Thread-level agent execution helpers live in `server/service/thread_service.py`.
-- Agent Run creation and SSE exposure live in `server/router/agent_router.py`. Run orchestration helpers, including the shared `request_cancel_agent_run(...)` path for top-level and child Runs, live in `server/service/agent_run_service.py`.
-- `server/service/arq_queue_servcie.py` owns ARQ pool access, direct Redis Stream `XADD`/`XREAD` operations, and Agent Run cancellation-key `SET`/`EXISTS`/`DELETE` operations. Keep the existing filename spelling unless a dedicated rename is requested.
-- `server/service/subagent_service.py` owns child conversation/message/Run persistence, parent-child ownership checks, and enqueue handoff. It does not own generic Agent Run cancellation; `SubAgentMiddleware` verifies parent-child scope there before calling `request_cancel_agent_run(...)`.
-- `src/storage/redis/redis_manger.py` owns only Redis/ARQ connection creation, lazy shared-client initialization, and close behavior. It must not own Agent Run semantics.
-- `server/worker.py` is the independent ARQ worker entrypoint and the single startup owner for database bootstrap. Worker startup initializes PostgreSQL, creates missing model tables with `checkfirst=True`, applies the non-destructive `AgentRun.run_type` column/index patch for existing databases, and inserts only missing public/internal Agent registration rows before accepting jobs. It must not drop tables, seed users or conversations, or overwrite existing Agent rows. Worker shutdown only disposes its own PostgreSQL resources; it does not reuse the FastAPI lifespan.
-- Database access belongs in `src/database/repositories/`. Do not put persistence queries inside agents.
+- no decorative shadows, glass effects, or gradients;
+- use spacing and surface color instead of excessive borders;
+- use the neutral tokens in `src/styles/tokens.css`;
+- use Inspire Mono only for utility labels and the body stack for content;
+- respect visible keyboard focus and `prefers-reduced-motion`.
 
-## Agent Runtime Context
+## Component Boundaries
 
-Agent runtime configuration has exactly three sources:
+Every introduced UI container with its own visual boundary, layout
+responsibility, state, or interaction must be a dedicated Vue component imported
+by its parent. Pages and route views assemble components; they must not contain
+large sidebar, message timeline, composer, modal, account, or authentication
+containers inline.
 
-1. The context class defined by the concrete top-level agent or subagent, including its schema and defaults.
-2. Values supplied by the frontend for the current run.
-3. Values loaded by the backend from the database for the current agent or run.
+Do not split single icons or one-line text purely to increase component count.
+The boundary rule applies to meaningful spaces and behaviors.
 
-Frontend-supplied and database-loaded values must be merged into the concrete agent context before execution. The resulting context is the only source of runtime configuration for agents, subagents, middleware, tools, and backends. Do not introduce parallel runtime configuration through module globals, middleware-local defaults, ad hoc keyword arguments, or direct database/config reads; resolve those values first and bind them to the context.
+Current structure:
 
-Invocation data such as input messages and similar per-call payloads is not runtime configuration and may remain outside the context.
+- `src/App.vue`: router outlet only.
+- `src/router/`: Vue Router configuration and compatibility routes.
+- `src/views/`: route-level assembly components.
+- `src/components/layout/`: application shells and cross-page layout.
+- `src/components/sidebar/`: conversation navigation regions.
+- `src/components/chat/`: model selector, conversation header, timeline, notices, and composer.
+- `src/components/auth/`: authentication composition and form regions.
+- `src/components/dialogs/`: search and preview-information overlays.
+- `src/components/ui/`: small reusable interaction primitives.
+- `src/composables/`: local prototype state; future API concerns stay separate.
+- `src/styles/`: global tokens and base styles only.
 
-## Current Chat Flow
+Use PascalCase for `.vue` components and `<script setup lang="ts">`. Use the `@`
+alias for imports from `src/`.
 
-- Authentication is email-and-password based. `User.email` is the unique login account; `User.uid` is the stable business identifier used by conversations and Agent Runs.
-- `POST /api/auth/register`, `POST /api/auth/login`, and `GET /api/auth/me` are the current auth endpoints.
-- JWT payloads carry the numeric database user ID in `sub`, plus `uid`, `email`, and `is_active`.
-- `AuthMiddleware` decodes an optional Bearer token into `request.state.auth_payload`; protected routes resolve the database user through `AuthenticatedUser`.
-- Keep password hashing, JWT creation/validation, and user lookup in `server/utils/auth.py`, the auth router, and `UserRepository`; do not duplicate auth logic in feature routes.
+## Local Prototype Data
 
-## Current Thread and Agent Run Flow
+Only content typed or files selected by the current user may appear as local
+prototype data. Conversations saved to `localStorage` must remain clearly local.
+Selected attachments must not be described as uploaded.
 
-The current queued flow is:
+When real integration begins:
 
-1. `POST /api/chat/thread` validates the authenticated user and a public top-level agent, then creates a `Conversation` with a generated `thread_id`.
-2. `POST /api/agent/runs` requires `ENABLE_RUN_QUEUE=true`, validates ownership of the conversation, persists the triggering user `Message`, creates an `AgentRun` linked through `trigger_message_id`, and commits both records.
-3. The router calls `enqueue_agent_run(run_id)`. ARQ receives only the `run_id`, uses job ID `run:{run_id}`, and writes to the configured `ARQ_QUEUE_NAME`.
-4. The independent worker runs `process_agent_run(ctx, run_id)`, reloads `AgentRun`, the triggering `Message`, and `User` from PostgreSQL, changes the run to `running`, and calls `stream_thread_response(...)`.
-5. `stream_thread_response(...)` resolves the database `Agent` by slug and role, builds runtime context, validates conversation ownership, and consumes `BaseAgent.stream_messages_with_event(...)`.
-6. The worker changes the durable run state to `completed`, `failed`, or `cancelled` after execution.
-7. `GET /api/agent/runs/{run_id}/events` now returns a `StreamingResponse` over `stream_agent_run_events(...)`, which reads `run:events:{run_id}` and formats SSE frames.
+- place HTTP, upload, and authenticated SSE transport in `src/api/`;
+- keep SSE parsing and event normalization out of visual components;
+- keep transient streaming/upload state out of persistent storage;
+- render model Markdown only through a sanitized dedicated component;
+- use authenticated `fetch` for SSE rather than unauthenticated `EventSource`;
+- do not expose internal Run or request IDs in normal UI.
 
-Subagent runs reuse that same durable flow. `task` creates and enqueues a child Run and waits for its result; `subagent_start` returns immediately, while `subagent_status`, `subagent_cancel`, and `subagent_await` operate only on child Runs belonging to the current parent Run. `AgentRun.run_type` explicitly selects the public orchestrator (`chat`) or registered internal Agent (`subagent`); `parent_run_id` records only the relationship between Runs and must not be used as a type flag.
+## Routing
 
-Important current boundary:
+Primary routes are `/`, `/c/:conversationId`, `/login`, and `/register`.
+Unrecognized legacy paths redirect to `/`; do not reintroduce the old studio
+route tree into this standalone client.
 
-- `process_agent_run(...)` publishes `messages`, `values`, and `agent_execute_event` entries to `run:events:{run_id}`. Lifecycle notifications use `type: "status"` with `status: "running"`; every terminal notification uses `type: "end"` with `status: "completed"`, `"failed"`, or `"cancelled"`.
-- Cancellation is two-phase: `request_cancel_agent_run(...)` first persists `cancel_requested`, then writes `run:cancel:{run_id}`. Cancelling a `run_type="chat"` Run also marks all of that user's active direct `run_type="subagent"` Runs in the same transaction and signals each one after commit; cancelling a subagent Run affects only that child. The worker stops consuming each Agent stream, persists `cancelled`, publishes the terminal `end` event, and clears the cancel key.
-- The backend returns a `stream_url` after Run creation. The current Vue design prototype does not call it yet; it stores only content typed by the user in local browser storage and labels the disconnected state explicitly.
-- When real frontend integration begins, authenticated HTTP/SSE transport belongs in `web/src/api/`, stream normalization belongs in a dedicated composable, and visual components remain props-and-events driven.
-- Do not describe enqueueing as invoking the SSE endpoint. The worker produces events and the frontend independently opens the SSE read endpoint.
-- Rebuild the Compose worker after backend source changes because the worker image does not bind-mount the checkout.
+Do not fake route protection before authentication is connected.
 
-## Persistence and ID Boundaries
+## Dependencies
 
-- PostgreSQL is the source of truth for users, agents, conversations, messages, attachments, knowledge records, and Agent Run lifecycle state.
-- The content schema now includes `ScriptProject`, `Episode`, `EpisodeOutline`, `EpisodeScript`, `Character`, `ScriptScene`, `ScriptLine`, and `StoryboardFrame`. At this stage these are table definitions only; no repository, HTTP API, or frontend persistence binding exists yet.
-- Outlines use Markdown text in `EpisodeOutline`. Screenplays use relational scene and semantic-line rows instead of whole-document JSON: `ScriptScene` stores scene structure and `ScriptLine` stores ordered action, character, parenthetical, dialogue, beat, and transition content.
-- `ScriptLine.position` is the stable semantic order inside a scene, not a rendered line or page number. Physical wrapping and pagination must be derived from screenplay layout settings.
-- `ScriptProject.workspace_key` is unique per user. Episode numbers are unique per project, character names are unique per project, scene positions and assigned scene numbers are unique per Episode script, semantic-line positions are unique per scene, and storyboard positions are unique per Episode.
-- `Conversation.id` is the internal database primary key; `Conversation.thread_id` is the external conversation/runtime identifier.
-- `Message.id` identifies the persisted triggering input. `AgentRun.trigger_message_id` lets the worker reconstruct input from only `run_id`.
-- `AgentRun.run_type` is the execution-kind flag: `chat` for a main conversation Run and `subagent` for an internally delegated Run. `AgentRun.parent_run_id` remains a relationship field and may also link consecutive main conversation Runs.
-- `AgentRun.agent_status` is the current lifecycle field. The older `AgentRun.status` field is temporarily mirrored for compatibility and should not become a second source of truth.
-- Current coarse run states are `pending`, `running`, `cancel_requested`, `completed`, `failed`, and `cancelled`.
-- Redis/ARQ queue state is separate from PostgreSQL run state.
-- ARQ job IDs use `run:{run_id}`. Redis Stream event keys use `run:events:{run_id}`. Cancellation keys use `run:cancel:{run_id}`.
-- Redis Stream IDs are event cursors, not Agent Run IDs and not durable business status.
+The application uses Vue, Vue Router, and `@lucide/vue`. Prefer native Vue
+state and CSS for the current design prototype. Do not reintroduce React,
+Zustand, Ant Design, Radix React, React Router, or React motion packages.
 
-## Agent Responsibilities
+Use CSS transitions for small UI changes. Add an animation or state dependency
+only when a real interaction needs it.
 
-Agent design references, in priority order:
-
-1. Refer first to `DeerFlow2`, the ByteDance open-source project.
-2. Refer second to `Deep Agents` (`Deep Agent`), the official LangChain library.
-
-### LeaderAgent
-
-`LeaderAgent` is the public script and storyboard creation orchestrator. Its context prompt asks for production-ready story concepts, character relationships, dramatic structure, scenes, camera language, pacing, dialogue, storyboard plans, and sound/music guidance.
-
-It currently has no direct tools. It delegates retrieval and fact-checking to a separately persisted and queued `SearchAgent` Run through `SubAgentMiddleware`, and uses retry middleware around model execution. The middleware provides `task`, `subagent_start`, `subagent_status`, `subagent_cancel`, and `subagent_await`.
-
-### SearchAgent
-
-`SearchAgent` is an internal search-task orchestrator. It currently exposes knowledge and web search tools, uses `SearchToolMiddleware`, and returns evidence-oriented search guidance to its caller.
-
-Keep search opt-in through `LeaderAgent`; do not add automatic pre-retrieval middleware around every request. `SearchAgent` should not generate the final script or storyboard.
-
-### LayoutAgent
-
-`LayoutAgent` is responsible for composition analysis, visual hierarchy, and generation-ready prompt drafting. It should not call image-generation APIs unless that responsibility is explicitly changed.
-
-## Frontend Architecture
-
-For frontend-specific conventions, follow `web/AGENTS.md`.
-
-Current frontend stack:
-
-- Vue 3, TypeScript, and Vite 7.
-- Vue Router for primary and compatibility routes.
-- `@lucide/vue` for interface icons.
-- Plain scoped CSS built on shared tokens; local prototype state uses Vue refs and a dedicated composable.
-
-Current frontend boundaries:
-
-- `web/src/App.vue` is only the router outlet; `web/src/router/index.ts` owns route setup.
-- Any newly introduced UI container with its own visual boundary, layout
-  responsibility, state, or interaction must be implemented as a dedicated
-  Vue component and imported by its parent. Do not leave substantial
-  container markup inline in a page or list loop, even when it currently has
-  only one call site; see `web/AGENTS.md` for the detailed component-boundary
-  principle.
-- Primary design routes are `/`, `/c/:conversationId`, `/login`, and `/register`. Unrecognized legacy paths redirect to `/`.
-- `OpenGptChatView.vue` assembles the shell and local prototype state. It must not contain substantial sidebar, timeline, composer, dialog, or authentication markup inline.
-- OpenGPT is a general-purpose ChatGPT-style interface. Do not carry the repository's script, storyboard, studio, scene, or other vertical-product language into the Vue client.
-- `OpenGptShell`, `OpenGptSidebar`, `ConversationSurface`, authentication regions, and dialogs own their separate layout and interaction boundaries.
-- The current phase deliberately has no `web/src/api/` integration. Do not fake authentication, uploads, Agent output, tool execution, or stream completion to make the design look connected.
-- Only user-entered local prototype conversations may be persisted. Selected attachments are local selections and must not be described as uploaded.
-- The frontend must not ship seeded conversations, preset prompts, preset images, fake accounts, or mock model output. Collections stay empty until real API or user-created data is available.
-- When model content is connected, render it through a dedicated sanitized Markdown boundary and keep the optimistic human message separate from SSE events.
-
-## Development Commands
-
-Backend API:
+## Commands and Verification
 
 ```bash
-uv sync
-python server/main.py
-```
-
-ARQ worker:
-
-```bash
-uv run --no-sync arq server.worker.WorkerSettings
-```
-
-Local infrastructure and worker through Compose:
-
-```bash
-docker compose -f docker/docker-compose.yml up -d postgres redis minio worker
-```
-
-Frontend:
-
-```bash
-cd web
 npm install
 npm run dev
 npm run typecheck
@@ -182,45 +100,23 @@ npm run lint
 npm run build
 ```
 
-Targeted backend validation:
+For visual changes, verify at least 1440×900 and 390×844. Check sidebar
+collapse/drawer behavior, composer overlap, empty/local-only states, keyboard
+focus, and reduced-motion behavior.
+
+Before publishing, also verify:
 
 ```bash
-uv run --no-sync python -m compileall server/router server/service server/worker.py src/agents src/database/repositories src/storage
-git diff --check
+git diff --check -- web AGENTS.md
+rg --files web/src -g '*.tsx' -g '*.jsx'
+rg -n 'react-dom|react-router-dom|zustand|lucide-react|@vitejs/plugin-react' web/src web/package.json web/vite.config.ts
+rg -n 'initialScripts|initialVideoProjects|initialCommunityItems|EXAMPLE_PROMPTS' web/src
 ```
 
-`pytest` is not currently declared as a project dependency. Do not report pytest validation unless it is installed and the tests were actually run. If `uv run` is blocked by local cache permissions, use the repository virtual environment directly, for example `.venv/bin/python -m compileall -q <paths>`.
+The last four searches should produce no offending application code.
 
-## Contribution Rules
+## Commits
 
-- Follow `CONTRIBUTING.md` for repository contribution workflow.
-- Pull requests should include a concise Chinese summary and motivation unless the task explicitly requires another language.
-- Link the issue or task ID when available.
-- For UI changes in `web/`, include screenshots or video.
-- Include verification notes with the commands run and outcomes.
-
-## Git Commit Rules
-
-- Use Conventional Commits.
-- Commit format: `<type>(<scope>): <subject>`.
-- `type` must be one of `feat`, `fix`, `refactor`, `doc`, `test`, `chore`, `build`, or `ci`.
-- `scope` is recommended and should use a concise module name such as `agent`, `thread`, `worker`, `web`, `auth`, or `deps`.
-- Keep the Conventional Commit `type` and `scope` tokens in lowercase English; write the `subject` and optional commit body in Chinese.
-- Keep the Chinese subject concise, recommended no more than 72 characters, and do not end it with punctuation.
-- Examples: `feat(worker): 发布 Agent Run 流式事件`, `fix(web): 修复任务创建后未订阅事件流`, `doc(agent): 更新仓库代理指南`.
-- Do not wrap commit messages, subjects, or scopes with `@` characters.
-- Before every push, especially after committing from PowerShell, inspect all outgoing commit subjects and bodies for accidental `@` characters or wrappers. Do not push until malformed commit messages are corrected.
-- Keep one commit focused on one coherent change.
-
-## Working Rules
-
-- Prefer existing local patterns over new abstractions.
-- Keep agent responsibilities narrow.
-- Keep API/service orchestration outside agents.
-- Keep database reads and writes in repositories.
-- Keep ARQ enqueueing, raw Redis Stream I/O, Agent Run semantics, worker execution, and frontend SSE consumption as distinct layers.
-- Read project source and config files using UTF-8 unless another encoding is explicitly required.
-- Preserve user changes in the working tree; never revert unrelated modifications.
-- Add tests or compile checks for behavior changes with non-trivial blast radius.
-- Treat current FIXME/TODO comments as incomplete work, not proof that the described behavior already exists.
-- If implementing run-event delivery, wire and verify all three boundaries: worker event production, backend SSE reading, and frontend authenticated stream consumption.
+Follow the root `AGENTS.md`: Conventional Commit type and scope stay lowercase
+English, while the subject and body use concise Chinese. Never wrap commit
+messages with `@`.
