@@ -237,13 +237,6 @@ class CustomSandbox(BaseSandbox):
         except Exception as exc:  # noqa: BLE001
             return EditResult(error=str(exc) or f"Failed to edit '{file_path}'")
 
-    def delete(self, file_path: str) -> DeleteResult:
-        """通过远端 execute 删除文件或目录。"""
-        result = self.execute(f"rm -rf -- {shlex.quote(file_path)}")
-        if result.exit_code in (0, None):
-            return DeleteResult(path=file_path)
-        return DeleteResult(error=result.output or f"Failed to delete '{file_path}'")
-
     def grep(
         self,
         pattern: str,
