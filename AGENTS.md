@@ -4,7 +4,7 @@ This file is the single source of repository guidance for Claude/Codex-style cod
 
 ## Current Project Shape
 
-`multi-agent-s2c` is a script-driven visual creation system. The backend is a FastAPI service built around LangChain/LangGraph agents, SQLAlchemy repositories, PostgreSQL, Redis/ARQ background work, and MinIO-backed uploads. The frontend is a React + TypeScript + Vite application under `web/`.
+`multi-agent-s2c` is a script-driven visual creation system. The backend is a FastAPI service built around LangChain/LangGraph agents, SQLAlchemy repositories, PostgreSQL, Redis/ARQ background work, and MinIO-backed uploads. On this isolated branch, the frontend is a Vue 3 + TypeScript + Vite OpenGPT design prototype under `web/`.
 
 Current top-level layout:
 
@@ -14,7 +14,7 @@ Current top-level layout:
 - `src/database/`: SQLAlchemy models, PostgreSQL lifecycle/session helpers, and repositories.
 - `src/knowledge/`: document parsing, extraction, cleanup, knowledge providers, and Milvus integration.
 - `src/storage/`: MinIO storage in `minio.py` and Redis/ARQ connection helpers under `redis/`.
-- `web/`: React client and its frontend-specific `AGENTS.md`.
+- `web/`: isolated Vue OpenGPT client and its frontend-specific `AGENTS.md`.
 - `test/`: lightweight backend helper tests and manual smoke scripts.
 - `sandbox_server/`, `docker/`, and `scripts/`: local runtime support, Compose services, and helper scripts.
 
@@ -77,8 +77,8 @@ Important current boundary:
 
 - `process_agent_run(...)` publishes `messages`, `values`, and `agent_execute_event` entries to `run:events:{run_id}`. Lifecycle notifications use `type: "status"` with `status: "running"`; every terminal notification uses `type: "end"` with `status: "completed"`, `"failed"`, or `"cancelled"`.
 - Cancellation is two-phase: `request_cancel_agent_run(...)` first persists `cancel_requested`, then writes `run:cancel:{run_id}`. Cancelling a `run_type="chat"` Run also marks all of that user's active direct `run_type="subagent"` Runs in the same transaction and signals each one after commit; cancelling a subagent Run affects only that child. The worker stops consuming each Agent stream, persists `cancelled`, publishes the terminal `end` event, and clears the cancel key.
-- After run creation, the frontend navigates to the independent `/workspace/{run_id}` route, immediately shows the local optimistic human message, then opens the returned `stream_url` with an authenticated `fetch` stream.
-- `web/src/api/agent.ts` owns the SSE transport/parser, `useAgentRunStream` maps run events into UI state, and `WorkspaceView` only renders the optimistic input, streaming assistant content, status, and transport errors.
+- The backend returns a `stream_url` after Run creation. The current Vue design prototype does not call it yet; it stores only content typed by the user in local browser storage and labels the disconnected state explicitly.
+- When real frontend integration begins, authenticated HTTP/SSE transport belongs in `web/src/api/`, stream normalization belongs in a dedicated composable, and visual components remain props-and-events driven.
 - Do not describe enqueueing as invoking the SSE endpoint. The worker produces events and the frontend independently opens the SSE read endpoint.
 - Rebuild the Compose worker after backend source changes because the worker image does not bind-mount the checkout.
 
@@ -127,31 +127,28 @@ For frontend-specific conventions, follow `web/AGENTS.md`.
 
 Current frontend stack:
 
-- React 19, TypeScript, and Vite 7.
-- Radix UI primitives and Tailwind CSS 4.
-- Zustand 5 and `react-router-dom` 7.
-- `motion/react` for component motion and GSAP for the authentication landing choreography.
+- Vue 3, TypeScript, and Vite 7.
+- Vue Router for primary and compatibility routes.
+- `@lucide/vue` for interface icons.
+- Plain scoped CSS built on shared tokens; local prototype state uses Vue refs and a dedicated composable.
 
 Current frontend boundaries:
 
-- `web/src/App.tsx` owns route guards and router setup.
+- `web/src/App.vue` is only the router outlet; `web/src/router/index.ts` owns route setup.
 - Any newly introduced UI container with its own visual boundary, layout
   responsibility, state, or interaction must be implemented as a dedicated
-  React component and imported by its parent. Do not leave substantial
+  Vue component and imported by its parent. Do not leave substantial
   container markup inline in a page or list loop, even when it currently has
   only one call site; see `web/AGENTS.md` for the detailed component-boundary
   principle.
-- Authenticated routes live under `/app/:sectionId` and `/app/:sectionId/:pageId`. `/` and `/app` redirect to `/app/script`.
-- `AuthLanding` owns the mounted login/register experience for `/login` and `/register`. The standalone `LoginView.tsx` and `RegisterView.tsx` files are not the current routed UI.
-- `web/src/pages/AppView/AppView.tsx` owns the authenticated studio shell and page-level state. Tab/page components live under `web/src/pages/AppView/components/`.
-- `web/src/api/index.ts` currently provides only the shared JSON request primitive plus `get` and `post` helpers.
-- `web/src/api/auth.ts` owns email auth calls. `web/src/api/agent.ts` owns thread creation, Agent Run creation, and authenticated Agent Run SSE transport/parsing.
-- `useAuthStore` is the active persisted shared auth store. The former `web/src/store/chat.ts`, `web/src/hooks/useChat.ts`, and `web/src/api/library.ts` paths have been deleted; do not reference or restore them unless a feature explicitly requires it.
-- `NewPromptPage` submits through `AppView`, creates a new thread and run, then navigates to the standalone `WorkspaceView` route at `/workspace/{run_id}`.
-- `WorkspaceView` is not embedded in the `AppView` shell. It owns its full-screen resource rail, central canvas, Agent configuration rail, and floating chat panel. `insertOptimisticHumanMessage(...)` adds the submitted user bubble to router state before navigation.
-- Script creation, imports, and script cards in Recent or the script list all open in the same standalone `WorkspaceView`; keep screenplay work on this shared page.
-- The frontend must not ship seeded scripts, storyboard projects, community entries, update notices, preset prompts, preset images, or mock Agent output. Studio collections start empty until real API or user-created data is available.
-- `useAgentRunStream` consumes run events and projects model text/status into `WorkspaceView`; the optimistic human message remains local UI state and is not an SSE event.
+- Primary design routes are `/`, `/c/:conversationId`, `/login`, and `/register`. Unrecognized legacy paths redirect to `/`.
+- `OpenGptChatView.vue` assembles the shell and local prototype state. It must not contain substantial sidebar, timeline, composer, dialog, or authentication markup inline.
+- OpenGPT is a general-purpose ChatGPT-style interface. Do not carry the repository's script, storyboard, studio, scene, or other vertical-product language into the Vue client.
+- `OpenGptShell`, `OpenGptSidebar`, `ConversationSurface`, authentication regions, and dialogs own their separate layout and interaction boundaries.
+- The current phase deliberately has no `web/src/api/` integration. Do not fake authentication, uploads, Agent output, tool execution, or stream completion to make the design look connected.
+- Only user-entered local prototype conversations may be persisted. Selected attachments are local selections and must not be described as uploaded.
+- The frontend must not ship seeded conversations, preset prompts, preset images, fake accounts, or mock model output. Collections stay empty until real API or user-created data is available.
+- When model content is connected, render it through a dedicated sanitized Markdown boundary and keep the optimistic human message separate from SSE events.
 
 ## Development Commands
 
@@ -180,6 +177,8 @@ Frontend:
 cd web
 npm install
 npm run dev
+npm run typecheck
+npm run lint
 npm run build
 ```
 
