@@ -73,8 +73,11 @@ class MilvusKnowledge(BaseKnowledge):
         if kb_id in self.milvus_collection:
             return self.milvus_collection[kb_id]
 
+        # 查看 kb_id是否存在
         if self.milvus_client.has_collection(collection_name=kb_id):
             return kb_id
+        
+        # 没有就创建
         collection = await self._create_collection(collection_name=kb_id, dimension=1024)
         return collection
 

@@ -41,8 +41,8 @@ READ_CONTENT_TYPES = {
 }
 PDF_CONTENT_TYPES = {"application/pdf"}
 
-PDF_OCR_EXTRACTORS = ("paddleocr", "rapidocr")
-IMAGE_OCR_EXTRACTORS = ("rapidocr", "paddleocr")
+PDF_OCR_EXTRACTORS = ("unlimitedocr", "paddleocr", "rapidocr")
+IMAGE_OCR_EXTRACTORS = ("rapidocr", "paddleocr", "unlimitedocr")
 
 
 @dataclass(slots=True)
@@ -228,7 +228,7 @@ async def _parse_pdf_async(
         )
 
     return await asyncio.to_thread(
-        _parse_pdf_with_loader,
+        _parse_pdf_with_docling,
         path,
         content_type=content_type,
         file_name=file_name,
@@ -259,10 +259,26 @@ def _to_markdown(content: str, *, source_type: str | None = None) -> str:
     return markdownify(content, heading_style="ATX").strip()
 
 
-def _convert_with_docling(file_path: Path) -> str:
-    from docling.document_converter import DocumentConverter
+def _convert_with_docling(
+    file_path: Path,
+    *,
+    pdf_ocr_enabled: bool | None = None,
+) -> str:
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
 
-    result = DocumentConverter().convert(str(file_path))
+    format_options = None
+    if pdf_ocr_enabled is not None:
+        format_options = {
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=PdfPipelineOptions(
+                    do_ocr=pdf_ocr_enabled,
+                )
+            )
+        }
+
+    result = DocumentConverter(format_options=format_options).convert(str(file_path))
     document = getattr(result, "document", result)
     export = getattr(document, "export_to_markdown", None)
     return export() if callable(export) else str(document)
@@ -340,29 +356,24 @@ async def _parse_with_extractors(
     )
 
 
-def _parse_pdf_with_loader(
+def _parse_pdf_with_docling(
     file_path: Path,
     *,
     content_type: str | None,
     file_name: str | None,
 ) -> DocumentParseResult:
-    from langchain_community.document_loaders import PyPDFLoader
-
-    documents = PyPDFLoader(str(file_path)).load()
-    pages = [
-        document.page_content.strip()
-        for document in documents
-        if document.page_content and document.page_content.strip()
-    ]
+    content = _convert_with_docling(
+        file_path,
+        pdf_ocr_enabled=False,
+    )
     return DocumentParseResult(
         success=True,
-        markdown="\n\n---\n\n".join(pages),
-        parser="pypdfloader",
+        markdown=content.strip(),
+        parser="docling",
         source_path=str(file_path),
         metadata={
             "content_type": content_type,
             "ocr_enabled": False,
-            "page_count": len(documents),
             "source_file_name": file_name or file_path.name,
         },
     )

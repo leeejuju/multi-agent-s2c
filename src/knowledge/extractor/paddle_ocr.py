@@ -129,7 +129,7 @@ class PaddleOCRExtractor(BaseExtractor):
                 return True
         return False
 
-    def supported_file_types(self) -> list[str]:
+    def get_supported_type(self) -> list[str]:
         return [*SUPPORTED_CONTENT_TYPES, *SUPPORTED_EXTENSIONS]
 
 async def _call_paddle_ocr_api(
