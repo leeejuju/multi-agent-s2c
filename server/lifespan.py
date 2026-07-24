@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
     # 表结构和固定 Agent 注册由 ARQ worker startup 单点确保。
     await postgres_manager.initialize()
     try:
-        app.state.sandbox_provider_service = init_sandbox_provider()
+        init_sandbox_provider()
         logger.info("FastAPI 服务已启动。")
         yield
     finally:

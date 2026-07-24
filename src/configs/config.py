@@ -128,6 +128,7 @@ class Config(BaseSettings):
     # ---------- Document Parser APIs ----------
     mineru_api_url: str = Field(default="", description="MinerU parsing API URL")
     mineru_api_key: str = Field(default="", description="MinerU parsing API key")
+    tika_server_url: str = Field(default="", description="Apache Tika Server URL")
     paddle_ocr_api_url: str = Field(default="https://paddleocr.aistudio-app.com/api/v2/ocr/jobs", description="PaddleOCR parsing API URL")
     paddle_ocr_api_key: str = Field(default="", description="PaddleOCR parsing API key")
     unlimited_ocr_api_url: str = Field(

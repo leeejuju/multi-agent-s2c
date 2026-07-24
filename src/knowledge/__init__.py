@@ -3,7 +3,7 @@ from .base import (
     KnowledgeRecord,
     KnowledgeSearch,
 )
-from .cleaner import (
+from .chunk import (
     CleanedChunk,
     CleanResult,
     clean_document_text,
