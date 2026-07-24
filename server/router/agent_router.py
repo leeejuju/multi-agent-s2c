@@ -80,9 +80,12 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
     if not thread_id:
         raise HTTPException(status_code=404, detail="会话id不可为空")
     
-    conv_result = await conv_repo.get_conversation_by_thead_id(thread_id=thread_id)
+    conv_result = await conv_repo.get_conversation_by_thread_id_for_user(
+        thread_id=thread_id,
+        user_id=current_uid,
+    )
     
-    if not conv_result or conv_result.uid != current_uid:
+    if not conv_result:
         raise HTTPException(status_code=404, detail="当前会话不存在或已删除")
     
     user_result = await db.execute(select(User).where(User.uid == str(current_uid)))
@@ -107,14 +110,15 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
     run_id = str(uuid.uuid4())
     
     async with db.begin_nested():
-        run = await run_repo.create_agent_run(
+        run = await run_repo.create_run(
             run_id=run_id,
             thread_id=thread_id,
             conversation_id=conv_result.id,  # ty:ignore[invalid-argument-type]
             uid=current_uid,  # ty:ignore[invalid-argument-type]
-            agent_id=agent_id,
+            agent_slug=agent_id,
             request_id=request_id,
             trigger_message_id=msg.id,  # ty:ignore[invalid-argument-type]
+            run_type="chat",
             parent_run_id=parent_run_id,
         )
         # FIXME: 同时建立 Message -> AgentRun 关联，便于按 run 查询本次输入消息。
@@ -129,14 +133,18 @@ async def create_agent_run(agentrun_request: AgentRunCreateRequest,
         "thread_id": run.thread_id,
         "status": run.agent_status,
         "request_id": run.request_id,
-        "stream_url": f"/api/agent/runs/{run.id}/events",
+        "stream_url": (
+            f"/api/agent/runs/{run.id}/events?thread_id={run.thread_id}"
+        ),
     }
 
     
 @agent_router.get("/runs/{run_id}/events")        
 async def stream_run_event(
     run_id: str,
+    thread_id: str,
     current_user: AuthenticatedUser,
+    db: AsyncSession = Depends(get_db),
 ):
     """读取后端Redis生产的agent数据
 
@@ -147,11 +155,27 @@ async def stream_run_event(
     Returns:
         _type_: _description_
     """
-    return StreamingResponse(stream_agent_run_events(
+    run_repo = AgentRunRepository(db)
+    run = await run_repo.get_by_id_for_user_and_thread(
         run_id=run_id,
-        current_uid=current_user.uid  # ty:ignore[invalid-argument-type]
-    ),
-    media_type="text/event-stream")
+        uid=current_user.uid,
+        thread_id=thread_id,
+    )
+    if run is None:
+        raise HTTPException(status_code=404, detail="Agent Run 不存在")
+
+    return StreamingResponse(
+        stream_agent_run_events(
+            run_id=run_id,
+            current_uid=current_user.uid,
+            thread_id=thread_id,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
     
 

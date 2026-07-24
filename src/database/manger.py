@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.sql import text
 
 from src.configs.config import config
 
@@ -73,12 +74,45 @@ class PostgreManger:
         # 3. 标记初始化完成。
         self.initialized = True
 
-    async def create_tables(self) -> None:
-        """用当前 model 元数据创建缺失的表结构。"""
+    async def ensure_tables_exist(self) -> None:
+        """创建缺失表，并补充 Agent Run 的非破坏性类型字段。"""
         if not self.initialized:
             raise RuntimeError(_NOT_INITIALIZED_MSG)
         async with self.get_engine().begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
+            await connection.run_sync(
+                lambda sync_connection: Base.metadata.create_all(
+                    bind=sync_connection,
+                    checkfirst=True,
+                )
+            )
+            await connection.execute(
+                text(
+                    "ALTER TABLE agent_run "
+                    "ADD COLUMN IF NOT EXISTS run_type VARCHAR(32) "
+                    "NOT NULL DEFAULT 'chat'"
+                )
+            )
+            await connection.execute(
+                text(
+                    "UPDATE agent_run AS ar "
+                    "SET run_type = CASE "
+                    "WHEN a.role = 'subagent' THEN 'subagent' ELSE 'chat' END "
+                    "FROM agent AS a "
+                    "WHERE a.slug = ar.agent_id "
+                    "AND ar.run_type IS DISTINCT FROM CASE "
+                    "WHEN a.role = 'subagent' THEN 'subagent' ELSE 'chat' END"
+                )
+            )
+            await connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_agent_run_run_type "
+                    "ON agent_run (run_type)"
+                )
+            )
+
+    async def create_tables(self) -> None:
+        """兼容旧调用；实际执行非破坏性的表存在性检查。"""
+        await self.ensure_tables_exist()
 
     @asynccontextmanager
     async def get_async_session_context(self) -> AsyncGenerator[AsyncSession]:

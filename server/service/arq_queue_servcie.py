@@ -8,6 +8,7 @@ from src.configs import config
 from src.storage import create_arq_pool, get_async_redis_client
 
 _arq_pool = None
+RUN_REDIS_TTL_SECONDS = 24 * 60 * 60
 
 
 async def get_arq_pool():
@@ -17,56 +18,41 @@ async def get_arq_pool():
     return _arq_pool
 
 
-def build_run_event_msg(run_id:str, event_type:str, payload:dict, thread_id:str):
-    return
-    
-
 def queue_event_stream_key(run_id: str) -> str:
     return f"run:events:{run_id}"
 
 
+def agent_run_cancel_key(run_id: str) -> str:
+    return f"run:cancel:{run_id}"
+
+
 async def write_agent_run_stream_event(
     run_id: str,
-    payload: dict,
-    event_type: str,
-    thread_id: str,
+    event: dict[str, Any],
+    *,
+    ttl_seconds: int | None = None,
 ) -> str:
-    """将 agent 产生的事件写入队列
+    """将完整的 Agent Run 事件写入 Redis Stream。"""
 
-    Args:
-        run_id (str): 事件id
-        payload (dict): agent run 附带数据
-        event_type (str): agent run 当前状态
-        thread_id (str): 会话ID
-    """
     redis_client = await get_async_redis_client()
     stream_key = queue_event_stream_key(run_id)
-    
-    # 构建事件包
-    event_pack = {
-        "run_id": run_id,
-        "payload": payload or {},
-        "thread_id": thread_id,
-        "event_type": event_type,
-        "created_at": datetime.now(tz=UTC)
+    fields = {
+        "event": json.dumps(event, ensure_ascii=False, default=str),
     }
-    
-    fields={"event_type":event_type,
-            "payload": json.dumps(event_pack, ensure_ascii=False),
-            },
 
-    # fixme 后续需要设置检查点
     event_id = await redis_client.xadd(
         stream_key,
         fields=fields,
         maxlen=config.run_stream_max_len,
         approximate=True,
     )
+    if ttl_seconds is not None:
+        await redis_client.expire(stream_key, ttl_seconds)
 
     return event_id.decode() if isinstance(event_id, bytes) else str(event_id)
 
 
-async def read_agent_run_events(
+async def read_agent_run_stream_events(
     run_id: str,
     *,
     after_id: str = "0-0",
@@ -79,3 +65,54 @@ async def read_agent_run_events(
         count=count,
         block=config.run_stream_poll_timeout_ms if block_ms is None else block_ms,
     )
+
+
+async def read_recent_agent_run_stream_events(
+    run_id: str,
+    *,
+    count: int,
+):
+    """只读取 Agent Run Stream 最近 N 条事件。"""
+
+    redis = await get_async_redis_client()
+    return await redis.xrevrange(
+        queue_event_stream_key(run_id),
+        max="+",
+        min="-",
+        count=count,
+    )
+
+
+async def publish_agent_run_cancel_signal(
+    run_id: str,
+    *,
+    reason: str | None = None,
+) -> None:
+    """写入供 Worker 轮询的 Agent Run 取消信号。"""
+
+    redis = await get_async_redis_client()
+    payload = {
+        "run_id": run_id,
+        "status": "cancel_requested",
+        "reason": reason or "cancel_requested",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    await redis.set(
+        agent_run_cancel_key(run_id),
+        json.dumps(payload, ensure_ascii=False),
+        ex=RUN_REDIS_TTL_SECONDS,
+    )
+
+
+async def has_agent_run_cancel_signal(run_id: str) -> bool:
+    """检查 Agent Run 的 Redis 取消信号是否存在。"""
+
+    redis = await get_async_redis_client()
+    return bool(await redis.exists(agent_run_cancel_key(run_id)))
+
+
+async def clear_agent_run_cancel_signal(run_id: str) -> None:
+    """清理已由 Worker 消费的 Agent Run 取消信号。"""
+
+    redis = await get_async_redis_client()
+    await redis.delete(agent_run_cancel_key(run_id))

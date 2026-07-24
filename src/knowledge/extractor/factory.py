@@ -19,11 +19,13 @@ class ExtractorFactory:
     def default(cls) -> ExtractorFactory:
         from .paddle_ocr import PaddleOCRExtractor
         from .rapid_ocr import RapidOCRExtractor
+        from .unlimited_ocr import UnlimitedOCRExtractor
 
         return cls(
             [
                 RapidOCRExtractor(),
                 PaddleOCRExtractor(),
+                UnlimitedOCRExtractor(),
             ]
         )
 
